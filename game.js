@@ -25,17 +25,19 @@ const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const STOMP_POINT = 200;   // 敵を踏んだときの点数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const GROW_RATIO  = 0.1;   // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+4）
-const MAX_SIZE    = 60;    // 大きくなれる限界（ライフを失うとふつうの大きさに戻る）
+const MAX_SIZE    = 100;   // 大きくなれる限界（ライフを失うとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
 const SPLIT_KEEP  = 0.6;   // 敵に当たったとき、本体に残る大きさの割合（残りは2つのかけらになって飛び出す）
 const FRAG_LIFE   = 8;     // かけらが消えるまでの秒数
 const FRAG_DELAY  = 0.5;   // 飛び出したかけらを拾えるようになるまでの秒数
-const ENEMY_MAX   = 90;    // 敵が大きくなれる限界
+const ENEMY_MAX   = 140;   // 敵が大きくなれる限界
 const ENEMY_SPLIT_MIN = 28;// これより小さい敵は分裂できない
 const MAX_ENEMIES = 12;    // 同時にいられる敵の数（分裂で増えすぎないように）
-const FIGHT_COOLDOWN = 1.2;// 敵同士が戦ったあと、また戦えるまでの秒数
-const BRAWL_SIGHT = 300;   // 敵が、ほかの敵に気づく距離
+const FIGHT_COOLDOWN = 0.8;// 敵同士が戦ったあと、また戦えるまでの秒数
+const BRAWL_SIGHT = 480;   // 敵が、ほかの敵に気づく距離
+const BRAWL_LEASH = 420;   // 敵同士で戦うとき、ふだん歩く範囲の外まで追いかけていける距離
+const FOE_PRIORITY = 150;  // ほかの敵のほうが、プレイヤーよりこれだけ遠くても、敵のほうを優先して襲いにいく
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
 const STAGE_POINT = 1000;  // ステージクリアの点数
@@ -205,26 +207,26 @@ const game = {
   },
 
   // 敵AIへの入力：プレイヤーとの位置関係、プレイヤーの動き、足元の穴など
-  enemyFeatures(en, p, pcx) {
+  enemyFeatures(en, p, pcx, tvx) {
     const c = (v) => Math.max(-1, Math.min(1, v));
     const onGround = en.z === 0;
     return [
-      c((pcx - en.x) / SIGHT_X), c((p.z - en.z) / SIGHT_Z), c(this.pvx / 240), c(p.vz / 640),
+      c((pcx - en.x) / SIGHT_X), c((p.z - en.z) / SIGHT_Z), c(tvx / 240), c(p.vz / 640),
       p.grounded ? 1 : 0, en.grounded ? 1 : 0, en.jumpWait <= 0 ? 1 : 0,
       onGround && this.inPit(en.x + 50) ? 1 : 0, onGround && this.inPit(en.x - 50) ? 1 : 0,
     ];
   },
 
   // 追いかけ中の敵の判断：{ move: -1/0/1, jump: true/false }。AIがあればAI、なければルール
-  decideEnemy(en, p, pcx) {
-    const f = this.enemyFeatures(en, p, pcx);
+  decideEnemy(en, p, pcx, tvx) {
+    const f = this.enemyFeatures(en, p, pcx, tvx);
     if (this.ai) {
       const o = this.runAI(f);
       const move = o[0] > o[1] && o[0] > o[2] ? -1 : (o[2] > o[1] ? 1 : 0);
       return { move, jump: o[3] > 0 && en.grounded && en.jumpWait <= 0 };
     }
     const dx = pcx - en.x;
-    const target = dx + 0.25 * this.pvx;
+    const target = dx + 0.25 * tvx;
     const move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
     const above = p.z > en.z + 20 && Math.abs(dx) < 140;
@@ -410,7 +412,7 @@ const game = {
         this.dropTimer -= dt;
         if (this.dropTimer <= 0) {
           this.dropTimer = 0.09;
-          this.spawnDrops(p.x + p.w / 2 - dir * p.w * 0.4, 2, PLAYER_COLOR, 1, 40);
+          this.spawnDrops(p.x + p.w / 2 - dir * p.w * 0.4, p.z + 2, PLAYER_COLOR, 1, 40);
         }
       }
       p.x = Math.max(0, Math.min(stage.width - p.w, p.x));   // ステージの外に出ない
@@ -423,7 +425,7 @@ const game = {
         p.grounded = false;
         this.jumpBuffer = 0;
         this.kick(this.spr, -7);                               // 跳ぶ瞬間にびよんとのびる
-        this.spawnDrops(p.x + p.w / 2, 2, PLAYER_COLOR, 3, 90);
+        this.spawnDrops(p.x + p.w / 2, p.z + 2, PLAYER_COLOR, 3, 90);
       }
 
       // 重力：ボタンを早く離すと低いジャンプになる
@@ -450,7 +452,7 @@ const game = {
       if (!wasGrounded && grounded && fallSpeed < -150) {      // 着地：ぺちゃっとつぶれてしぶきが飛ぶ
         const k = Math.min(1, -fallSpeed / 700);
         this.kick(this.spr, 3 + k * 9);
-        this.spawnDrops(p.x + p.w / 2, 2, PLAYER_COLOR, Math.round(3 + k * 6), 90 + k * 140);
+        this.spawnDrops(p.x + p.w / 2, p.z + 2, PLAYER_COLOR, Math.round(3 + k * 6), 90 + k * 140);
       }
 
       // 落とし穴に落ちたらミス
@@ -460,6 +462,7 @@ const game = {
 
       // 敵：近づくと追いかけてきてジャンプもする。上から踏めば倒せる。横などから触れるとミス
       if (this.invuln > 0) this.invuln -= dt;
+      this.enemies = this.enemies.filter((e) => e.dead === null || e.dead <= ABSORB_TIME);   // 消えた敵を取り除く
       this.enemyFights();
       for (const en of this.enemies) {
         if (en.dead !== null) { en.dead += dt; continue; }
@@ -472,22 +475,37 @@ const game = {
         const hitZ = p.z < en.z + en.h && p.z + p.h > en.z + 4;
         if (!hitX || !hitZ) continue;
         if (fallSpeed < 0 && prevZ >= en.z + en.h * 0.5) {
-          en.dead = 0;                                        // 踏んだ！敵を吸収して大きくなる
-          en.absorber = null;
-          this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
-          this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
-          this.kick(this.spr, 8);
-          this.size = Math.min(MAX_SIZE, this.size + Math.max(2, Math.round(en.size * GROW_RATIO)));
+          // 踏んだ！吸収が起きるのは、大きいほうが小さいほうを攻撃したときだけ
+          if (this.size > en.size + 0.5) {
+            en.dead = 0;                                      // 自分のほうが大きい：敵を吸収して大きくなる
+            en.absorber = null;
+            this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
+            this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
+            this.kick(this.spr, 8);
+            this.size = Math.min(MAX_SIZE, this.size + Math.max(2, Math.round(en.size * GROW_RATIO)));
+            this.addPoints(STOMP_POINT);
+          } else {
+            this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
+            en.fightCd = FIGHT_COOLDOWN;
+            this.addPoints(STOMP_POINT / 2);
+          }
           p.vz = JUMP_SPEED * 0.65;
           p.grounded = false;
-          this.addPoints(STOMP_POINT);
+          p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
+          this.invuln = Math.max(this.invuln, 0.4);
         } else if (this.invuln <= 0) {
-          if (en.size > this.size + 0.5 || this.size <= MIN_SIZE) {
-            // 自分より大きい敵に当たった（か、もう小さくなれない）：吸収されてミス。敵は大きくなる
+          if (en.size > this.size + 0.5) {
+            // 自分より大きい敵に当たった：吸収されてミス。敵は大きくなる
             en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
             this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);      // 吸収されて飛び散る
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
             this.kick(en.spr, 8);
+            this.loseLife();
+            return;
+          }
+          if (this.size <= MIN_SIZE) {
+            // 同じか小さい敵だけど、もう小さくなれない：吸収ではなく、ふつうにやられてミス（敵は大きくならない）
+            this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 8, 200);
             this.loseLife();
             return;
           }
@@ -519,7 +537,7 @@ const game = {
     for (const o of this.enemies) {
       if (o === en || o.dead !== null) continue;
       const d = Math.abs(o.x - en.x);
-      if (d < bestD && Math.abs(o.z - en.z) < 40) { best = o; bestD = d; }
+      if (d < bestD && Math.abs(o.z - en.z) < 120) { best = o; bestD = d; }
     }
     return best;
   },
@@ -567,26 +585,32 @@ const game = {
   moveEnemy(en, dt, pcx, p) {
     const stage = this.stage;
     const dx = pcx - en.x;
-    en.chasing = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
+    const seesPlayer = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
+    // 積極的に戦う：ほかの敵が見えたら、プレイヤーがよほど近くにいない限り、そっちを襲いにいく
+    const foe = this.nearestFoe(en);
+    const hunt = !!foe && (!seesPlayer || Math.abs(foe.x - en.x) < Math.abs(dx) + FOE_PRIORITY);
+    en.chasing = seesPlayer || hunt;
     let speed = en.speed * PATROL_RATIO;
     let lo = en.min, hi = en.max;
-    let move = en.dir, wantJump = false, foe = null;
+    let move = en.dir, wantJump = false;
     en.fightCd -= dt;
-    if (en.chasing) {
+    if (hunt) {
       speed = en.speed;
-      lo = Math.max(0, en.min - LEASH);
-      hi = Math.min(stage.width, en.max + LEASH);
-      const d = this.decideEnemy(en, p, pcx);                // AI（なければルール）が動きとジャンプを決める
+      lo = Math.max(0, en.min - BRAWL_LEASH);
+      hi = Math.min(stage.width, en.max + BRAWL_LEASH);
+      // 相手の敵に向かって、AI（なければルール）が動きとジャンプを決める（避けジャンプはしない）
+      const d = this.decideEnemy(en, { z: foe.z, vz: foe.vz, grounded: true }, foe.x, 0);
       move = d.move;
       wantJump = d.jump;
       if (move !== 0) en.dir = move;
-    } else if ((foe = this.nearestFoe(en))) {
-      // プレイヤーに気づいていないときは、近くの別の敵に向かっていく（戦う）
-      speed = en.speed * 0.8;
+    } else if (seesPlayer) {
+      speed = en.speed;
       lo = Math.max(0, en.min - LEASH);
       hi = Math.min(stage.width, en.max + LEASH);
-      move = foe.x > en.x ? 1 : -1;
-      en.dir = move;
+      const d = this.decideEnemy(en, p, pcx, this.pvx);      // AI（なければルール）が動きとジャンプを決める
+      move = d.move;
+      wantJump = d.jump;
+      if (move !== 0) en.dir = move;
     } else {
       if (en.x <= en.min) en.dir = 1;
       if (en.x >= en.max) en.dir = -1;
@@ -626,7 +650,7 @@ const game = {
       this.kick(en.spr, 3 + Math.min(1, -vzBefore / 700) * 8);
       this.spawnDrops(en.x, en.z + 2, DRINKS[en.type].body, 3, 100);
     }
-    if (en.z < -300) en.dead = 1;                              // 穴に落ちて消える
+    if (en.z < 0 && !en.grounded && this.inPit(en.x)) en.dead = 1;   // 穴に落ちたら、すぐ消える
   },
 
   // ---- 液体の見た目まわり ----------------------------------------------------
@@ -660,9 +684,15 @@ const game = {
       d.life -= dt;
       d.vz -= GRAVITY * 0.8 * dt;
       d.x += d.vx * dt;
+      const prevZ = d.z;
       d.z += d.vz * dt;
       if (d.life <= 0 || d.z < -300) return false;
-      if (d.z <= 0 && d.vz < 0 && !this.inPit(d.x)) return false;   // 地面に落ちて消える
+      if (d.vz < 0) {                                              // 足場か地面に落ちて消える
+        for (const pl of this.stage.platforms) {
+          if (d.x > pl.x && d.x < pl.x + pl.w && prevZ >= pl.top - 0.5 && d.z <= pl.top) return false;
+        }
+        if (d.z <= 0 && !this.inPit(d.x)) return false;
+      }
       return true;
     });
   },
@@ -741,7 +771,7 @@ const game = {
           f.vx *= 0.6;
         }
       }
-      if (f.z < -300) return false;                            // 穴に落ちた
+      if (f.z < -20 && this.inPit(f.x)) return false;          // 穴に落ちたら、すぐ消える
       if (f.t > FRAG_DELAY && Math.abs(f.x - pcx) < (p.w + f.s) / 2 && p.z < f.z + f.s && p.z + p.h > f.z) {
         this.size = Math.min(MAX_SIZE, this.size + f.mass);    // 拾って元にもどる
         this.kick(this.spr, 4);
