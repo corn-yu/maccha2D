@@ -1,18 +1,18 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 5）
+   game.js ── maccha2D（ver 6）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
    ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）
    ・カメラが主人公を追いかける（横も縦も）
-   ・コイン集め / 歩く敵（踏むと倒せる）/ 落とし穴 / ライフ3つ
+   ・敵は抹茶のライバルの飲み物（紅茶・ほうじ茶・ウーロン茶）。踏むと倒せる / 落とし穴 / ライフ3つ
    ===================================================================== */
 
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 5）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
-  howTo:      "ティーカップに入ればゴール！ コインを集めて、敵は上から踏んでたおそう。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
+  tagline:    "2Dアクションゲーム（ver 6）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は上から踏んでたおそう。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
 };
@@ -22,7 +22,6 @@ const JUMP_SPEED = 640;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const MAX_LIVES  = 3;      // ライフの数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
-const COIN_POINT  = 100;   // コイン1枚の点数
 const STOMP_POINT = 200;   // 敵を踏んだときの点数
 const STAGE_POINT = 1000;  // ステージクリアの点数
 const LIFE_POINT  = 500;   // 全クリア時、残りライフ1つあたりの点数
@@ -32,8 +31,8 @@ const LIFE_POINT  = 500;   // 全クリア時、残りライフ1つあたりの�
      width      ステージの横幅
      platforms  足場。x=左端 / w=幅 / top=地面から足場の上面までの高さ
    pits       落とし穴（地面の切れ目）。x=左端 / w=幅（100〜120pxまで。跳べる距離は約170px）
-   coins      コイン。x=中心の位置 / z=地面からの高さ
-   enemies    歩く敵。x=最初の位置 / z=立っている足場の高さ / min・max=歩く範囲（左右の端）
+   enemies    歩く敵（抹茶のライバルの、抹茶以外のお茶）。x=最初の位置 / z=立っている足場の高さ / min・max=歩く範囲（左右の端）
+              type=お茶の種類（"kocha" 紅茶 / "hojicha" ほうじ茶 / "oolong" ウーロン茶。省略すると順番に決まる）
      cup        ゴールのティーカップ。x=中心の位置 / base=置いてある高さ（0なら地面）
      sky 空の色 / ground 地面の色 / pillar 柱の色 / plat 足場の色 / platTop 足場の上の色 / text 文字の色
    ※ 主人公は最大で約110pxまで跳べます。足場の段差は80pxくらいまでにすると登れます。
@@ -48,11 +47,6 @@ const STAGES = [
       { x: 1240, w: 160, top: 70 },
     ],
     pits: [],
-    coins: [
-      { x: 400, z: 40 }, { x: 460, z: 40 }, { x: 520, z: 40 },
-      { x: 790, z: 110 }, { x: 1060, z: 110 }, { x: 1320, z: 110 },
-      { x: 1700, z: 40 }, { x: 1760, z: 40 }, { x: 1820, z: 40 },
-    ],
     enemies: [
       { x: 1550, z: 0, min: 1480, max: 1950 },
     ],
@@ -69,11 +63,6 @@ const STAGES = [
       { x: 1820, w: 260, top: 210 },
     ],
     pits: [ { x: 560, w: 100 } ],
-    coins: [
-      { x: 300, z: 40 }, { x: 380, z: 40 },
-      { x: 610, z: 100 },
-      { x: 880, z: 110 }, { x: 1140, z: 180 }, { x: 1390, z: 110 }, { x: 1640, z: 180 }, { x: 1950, z: 250 },
-    ],
     enemies: [
       { x: 350,  z: 0, min: 250,  max: 520 },
       { x: 1500, z: 0, min: 1480, max: 1780 },
@@ -93,11 +82,6 @@ const STAGES = [
       { x: 2080, w: 260, top: 280 },
     ],
     pits: [ { x: 400, w: 100 }, { x: 1450, w: 110 } ],
-    coins: [
-      { x: 250, z: 40 }, { x: 450, z: 100 },
-      { x: 775, z: 110 }, { x: 1005, z: 180 }, { x: 1235, z: 250 }, { x: 1465, z: 180 },
-      { x: 1695, z: 250 }, { x: 1925, z: 320 }, { x: 2150, z: 320 },
-    ],
     enemies: [
       { x: 600, z: 0, min: 520, max: 690 },
     ],
@@ -113,11 +97,6 @@ const STAGES = [
       { x: 2300, w: 300, top: 140 },
     ],
     pits: [ { x: 500, w: 100 }, { x: 900, w: 100 }, { x: 1300, w: 110 } ],
-    coins: [
-      { x: 300, z: 40 }, { x: 550, z: 100 }, { x: 750, z: 40 },
-      { x: 950, z: 100 }, { x: 1150, z: 40 }, { x: 1355, z: 100 },
-      { x: 1675, z: 110 }, { x: 1905, z: 180 }, { x: 2135, z: 110 }, { x: 2400, z: 180 },
-    ],
     enemies: [
       { x: 700,  z: 0,   min: 620,  max: 880 },
       { x: 1100, z: 0,   min: 1020, max: 1280 },
@@ -141,11 +120,6 @@ const STAGES = [
       { x: 2520, w: 300, top: 320 },
     ],
     pits: [ { x: 300, w: 100 }, { x: 1500, w: 100 }, { x: 1900, w: 120 } ],
-    coins: [
-      { x: 200, z: 40 }, { x: 350, z: 100 },
-      { x: 670, z: 120 }, { x: 890, z: 200 }, { x: 1110, z: 280 }, { x: 1360, z: 200 },
-      { x: 1630, z: 120 }, { x: 1870, z: 200 }, { x: 2110, z: 280 }, { x: 2350, z: 360 }, { x: 2600, z: 360 },
-    ],
     enemies: [
       { x: 480,  z: 0,   min: 420,  max: 590 },
       { x: 1350, z: 160, min: 1270, max: 1440 },
@@ -156,13 +130,22 @@ const STAGES = [
   },
 ];
 
-// ステージのデータから、遊んでいる間に変わるコインと敵の状態を作る
-function stage_coins(stage) {
-  return stage.coins.map((c) => ({ x: c.x, z: c.z, got: false }));
-}
+// 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（w・h=大きさ / speed=歩く速さ）
+const DRINKS = {
+  kocha:  { name: "紅茶",     w: 36, h: 32, speed: 60, body: "#b5451b", liquid: "#8f2f0e" },
+  hojicha:{ name: "ほうじ茶", w: 38, h: 34, speed: 90, body: "#7a4a24", liquid: "#4d2c12" },
+  oolong: { name: "ウーロン茶", w: 36, h: 30, speed: 45, body: "#b8862e", liquid: "#8a5f14" },
+};
+const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
+
+// ステージのデータから、遊んでいる間に変わる敵の状態を作る
 function stage_enemies(stage) {
   // x は中心の位置。dead は倒されてからの秒数（null なら生きている）
-  return stage.enemies.map((e) => ({ x: e.x, z: e.z, w: 36, h: 30, min: e.min, max: e.max, dir: 1, speed: 60, dead: null }));
+  return stage.enemies.map((e, i) => {
+    const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
+    const d = DRINKS[type];
+    return { type, x: e.x, z: e.z, w: d.w, h: d.h, min: e.min, max: e.max, dir: 1, speed: d.speed, dead: null };
+  });
 }
 
 const game = {
@@ -242,7 +225,6 @@ const game = {
     this.touch.left = this.touch.right = this.touch.jump = false;
     this.time = 0;
     this.lives = MAX_LIVES;
-    this.coinCount = 0;
     this.points = 0;
     this.shell.setScore(0);
     this.loadStage(0);
@@ -270,7 +252,6 @@ const game = {
     this.player = { x: 120, z: 0, vz: 0, w: 40, h: 40, speed: 240, facing: 1, grounded: true };
     this.jumpBuffer = 0;
     this.invuln = 0;                           // 無敵の残り秒数
-    this.coinList = stage_coins(this.stage);
     this.enemies = stage_enemies(this.stage);
     this.entering = null;                      // カップに入っている最中の情報
     this.banner = { t: 0 };                    // 「ステージ ○」の表示
@@ -358,15 +339,7 @@ const game = {
       // 落とし穴に落ちたらミス
       if (p.z < -300) { this.loseLife(); return; }
 
-      // コイン
-      const pcx = p.x + p.w / 2, pcz = p.z + p.h / 2;
-      for (const c of this.coinList) {
-        if (!c.got && Math.abs(c.x - pcx) < 28 && Math.abs(c.z - pcz) < 30) {
-          c.got = true;
-          this.coinCount++;
-          this.addPoints(COIN_POINT);
-        }
-      }
+      const pcx = p.x + p.w / 2;
 
       // 敵：左右に歩く。上から踏めば倒せる。横などから触れるとミス
       if (this.invuln > 0) this.invuln -= dt;
@@ -481,39 +454,11 @@ const game = {
     // ゴールのティーカップ
     this.drawCup(ctx, stage.cup.x, groundY - stage.cup.base, stage);
 
-    // コイン
-    for (const c of this.coinList) {
-      if (c.got || c.x + 20 < cam || c.x - 20 > cam + w) continue;
-      const bob = Math.sin(this.time * 4 + c.x * 0.05) * 3;
-      const sx = Math.abs(Math.cos(this.time * 3 + c.x * 0.05)) * 0.7 + 0.3;   // くるくる回る見た目
-      ctx.fillStyle = "#f5c518";
-      ctx.strokeStyle = "#b8860b";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(c.x, groundY - c.z + bob, 10 * sx, 10, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-
     // 敵（踏まれたらぺしゃんこになって消える）
     for (const en of this.enemies) {
       if (en.dead !== null && en.dead > 0.3) continue;
       if (en.x + en.w < cam || en.x - en.w > cam + w) continue;
-      const squash = en.dead === null ? 1 : 0.25;
-      const eh = en.h * squash;
-      const ex = en.x - en.w / 2, ey = groundY - en.z - eh;
-      ctx.fillStyle = "#c0504d";
-      ctx.beginPath();
-      ctx.roundRect(ex, ey, en.w, eh, 8);
-      ctx.fill();
-      if (en.dead === null) {
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(ex + (en.dir > 0 ? 18 : 6), ey + 8, 6, 8);
-        ctx.fillRect(ex + (en.dir > 0 ? 26 : 14), ey + 8, 6, 8);
-        ctx.fillStyle = "#1c2433";
-        ctx.fillRect(ex + (en.dir > 0 ? 21 : 6), ey + 11, 3, 4);
-        ctx.fillRect(ex + (en.dir > 0 ? 29 : 14), ey + 11, 3, 4);
-      }
+      this.drawDrink(ctx, en, groundY);
     }
 
     // 影（高く跳ぶほど小さく薄くなる）
@@ -549,7 +494,7 @@ const game = {
     ctx.textAlign = "left";
     ctx.fillText(stage.name + " / " + STAGES.length, 16, 34);
     ctx.textAlign = "right";
-    ctx.fillText("♥ ×" + this.lives + "   ● ×" + this.coinCount, w - 16, 34);
+    ctx.fillText("♥ ×" + this.lives, w - 16, 34);
     ctx.font = "700 14px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.fillText(this.points + " 点", w - 16, 56);
     ctx.textAlign = "left";
@@ -563,6 +508,88 @@ const game = {
       ctx.fillText(stage.name, w / 2, h * 0.3);
       ctx.globalAlpha = 1;
     }
+  },
+
+  // 敵のお茶を描く（マグカップに怒った顔。種類ごとに色と飾りが違う）
+  drawDrink(ctx, en, groundY) {
+    const d = DRINKS[en.type];
+    const squash = en.dead === null ? 1 : 0.25;
+    const eh = en.h * squash;
+    const ex = en.x - en.w / 2, ey = groundY - en.z - eh;
+    const face = en.dir;                                      // 進む向き（1=右）
+
+    // 取っ手（進む向きと反対側）
+    ctx.strokeStyle = d.body;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(face > 0 ? ex - 2 : ex + en.w + 2, ey + eh * 0.5, Math.max(2, eh * 0.25), 0, Math.PI * 2);
+    ctx.stroke();
+    // 本体
+    ctx.fillStyle = d.body;
+    ctx.beginPath();
+    ctx.roundRect(ex, ey, en.w, eh, 8);
+    ctx.fill();
+    if (en.dead !== null) return;
+
+    // 中身（上のふち）
+    ctx.fillStyle = d.liquid;
+    ctx.beginPath();
+    ctx.ellipse(en.x, ey + 2, en.w / 2 - 2, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 飾り
+    if (en.type === "kocha") {                                // レモンのスライス
+      ctx.fillStyle = "#f7e04a";
+      ctx.beginPath();
+      ctx.arc(en.x + face * 8, ey - 2, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#e8b923";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(en.x + face * 8 - 7, ey - 2); ctx.lineTo(en.x + face * 8 + 7, ey - 2);
+      ctx.moveTo(en.x + face * 8, ey - 9); ctx.lineTo(en.x + face * 8, ey + 5);
+      ctx.stroke();
+    } else if (en.type === "oolong") {                        // 茶葉
+      ctx.fillStyle = "#5f8a3a";
+      for (const off of [-8, 6]) {
+        ctx.beginPath();
+        ctx.ellipse(en.x + off, ey - 3, 7, 3.5, off > 0 ? 0.5 : -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {                                                  // ほうじ茶：湯気
+      ctx.strokeStyle = "rgba(90, 90, 90, 0.5)";
+      ctx.lineWidth = 2;
+      for (const off of [-7, 7]) {
+        ctx.beginPath();
+        for (let k = 0; k <= 8; k++) {
+          const x = en.x + off + Math.sin(this.time * 4 + k * 0.7 + off) * 2;
+          const y = ey - 2 - k * 1.5;
+          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+    // 怒った顔
+    const fx = en.x + face * 3;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(fx - 9, ey + 11, 7, 8);
+    ctx.fillRect(fx + 2, ey + 11, 7, 8);
+    ctx.fillStyle = "#1c2433";
+    ctx.fillRect(fx - 9 + (face > 0 ? 3 : 0), ey + 14, 4, 5);
+    ctx.fillRect(fx + 2 + (face > 0 ? 3 : 0), ey + 14, 4, 5);
+    ctx.strokeStyle = "#1c2433";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fx - 11, ey + 8); ctx.lineTo(fx - 2, ey + 12);
+    ctx.moveTo(fx + 11, ey + 8); ctx.lineTo(fx + 2, ey + 12);
+    ctx.stroke();
+    // 名前
+    ctx.fillStyle = "#1c2433";
+    ctx.globalAlpha = 0.7;
+    ctx.font = "700 11px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(d.name, en.x, ey - 12);
+    ctx.textAlign = "left";
+    ctx.globalAlpha = 1;
   },
 
   // ティーカップを描く（cx=中心の x、baseY=置いてある面の y）
