@@ -1,18 +1,18 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 6）
+   game.js ── maccha2D（ver 8）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
    ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）
    ・カメラが主人公を追いかける（横も縦も）
-   ・敵は抹茶のライバルの飲み物（紅茶・ほうじ茶・ウーロン茶）。踏むと倒せる / 落とし穴 / ライフ3つ
+   ・敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
    ===================================================================== */
 
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 6）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
-  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は上から踏んでたおそう。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
+  tagline:    "2Dアクションゲーム（ver 8）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏んでたおそう。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
 };
@@ -31,7 +31,8 @@ const LIFE_POINT  = 500;   // 全クリア時、残りライフ1つあたりの�
      width      ステージの横幅
      platforms  足場。x=左端 / w=幅 / top=地面から足場の上面までの高さ
    pits       落とし穴（地面の切れ目）。x=左端 / w=幅（100〜120pxまで。跳べる距離は約170px）
-   enemies    歩く敵（抹茶のライバルの、抹茶以外のお茶）。x=最初の位置 / z=立っている足場の高さ / min・max=歩く範囲（左右の端）
+   enemies    四角い敵（抹茶のライバルの、抹茶以外のお茶）。近づくと追いかけてジャンプもする。
+              x=最初の位置 / z=立っている足場の高さ / min・max=ふだん歩く範囲（左右の端）
               type=お茶の種類（"kocha" 紅茶 / "hojicha" ほうじ茶 / "oolong" ウーロン茶。省略すると順番に決まる）
      cup        ゴールのティーカップ。x=中心の位置 / base=置いてある高さ（0なら地面）
      sky 空の色 / ground 地面の色 / pillar 柱の色 / plat 足場の色 / platTop 足場の上の色 / text 文字の色
@@ -130,30 +131,93 @@ const STAGES = [
   },
 ];
 
-// 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（w・h=大きさ / speed=歩く速さ）
+// 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
+//   size=大きさ / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
 const DRINKS = {
-  kocha:  { name: "紅茶",     w: 36, h: 32, speed: 60, body: "#b5451b", liquid: "#8f2f0e" },
-  hojicha:{ name: "ほうじ茶", w: 38, h: 34, speed: 90, body: "#7a4a24", liquid: "#4d2c12" },
-  oolong: { name: "ウーロン茶", w: 36, h: 30, speed: 45, body: "#b8862e", liquid: "#8a5f14" },
+  kocha:   { name: "紅茶",     size: 34, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
+  hojicha: { name: "ほうじ茶", size: 30, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
+  oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
+const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
+const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
+const LEASH   = 220;        // 敵が「歩く範囲」の外まで追いかけていける距離
+const PATROL_RATIO = 0.55;  // 気づいていないときの歩く速さ（追いかける速さに対する割合）
+const ENEMY_JUMP_WAIT = 1.1;// 敵が続けてジャンプできるまでの秒数
 
 // ステージのデータから、遊んでいる間に変わる敵の状態を作る
 function stage_enemies(stage) {
-  // x は中心の位置。dead は倒されてからの秒数（null なら生きている）
+  // x は中心の位置。vz は上向きの速さ。dead は倒されてからの秒数（null なら生きている）
   return stage.enemies.map((e, i) => {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
-    return { type, x: e.x, z: e.z, w: d.w, h: d.h, min: e.min, max: e.max, dir: 1, speed: d.speed, dead: null };
+    return { type, x: e.x, z: e.z, vz: 0, grounded: true, w: d.size, h: d.size, min: e.min, max: e.max,
+             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, dead: null };
   });
 }
 
 const game = {
+  // 敵のAI（学習済みのニューラルネット）を enemy-ai.json から読み込む
+  //   tools/train-enemy-ai.js で作り直せる。読み込めなかったら（ファイルを直接開いたときなど）ルールで動く
+  loadEnemyAI() {
+    fetch("enemy-ai.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((net) => { this.ai = net; })
+      .catch(() => { this.ai = null; });
+  },
+
+  // ニューラルネットの計算（tanh の全結合）。出力は [左, 止まる, 右, ジャンプ] のスコア
+  runAI(f) {
+    let x = f;
+    const layers = this.ai.layers;
+    for (let li = 0; li < layers.length; li++) {
+      const L = layers[li];
+      const out = L.w.map((row, j) => {
+        let sum = L.b[j];
+        for (let k = 0; k < row.length; k++) sum += row[k] * x[k];
+        return sum;
+      });
+      x = li < layers.length - 1 ? out.map(Math.tanh) : out;
+    }
+    return x;
+  },
+
+  // 敵AIへの入力：プレイヤーとの位置関係、プレイヤーの動き、足元の穴など
+  enemyFeatures(en, p, pcx) {
+    const c = (v) => Math.max(-1, Math.min(1, v));
+    const onGround = en.z === 0;
+    return [
+      c((pcx - en.x) / SIGHT_X), c((p.z - en.z) / SIGHT_Z), c(this.pvx / 240), c(p.vz / 640),
+      p.grounded ? 1 : 0, en.grounded ? 1 : 0, en.jumpWait <= 0 ? 1 : 0,
+      onGround && this.inPit(en.x + 50) ? 1 : 0, onGround && this.inPit(en.x - 50) ? 1 : 0,
+    ];
+  },
+
+  // 追いかけ中の敵の判断：{ move: -1/0/1, jump: true/false }。AIがあればAI、なければルール
+  decideEnemy(en, p, pcx) {
+    const f = this.enemyFeatures(en, p, pcx);
+    if (this.ai) {
+      const o = this.runAI(f);
+      const move = o[0] > o[1] && o[0] > o[2] ? -1 : (o[2] > o[1] ? 1 : 0);
+      return { move, jump: o[3] > 0 && en.grounded && en.jumpWait <= 0 };
+    }
+    const dx = pcx - en.x;
+    const target = dx + 0.25 * this.pvx;
+    const move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
+    const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
+    const above = p.z > en.z + 20 && Math.abs(dx) < 140;
+    const dodge = !p.grounded && Math.abs(dx) < 110;
+    return { move, jump: en.grounded && en.jumpWait <= 0 && (above || pitAhead === 1 || dodge) };
+  },
+
   // 最初に1回だけ呼ばれる
   onReady(ctx, shell) {
     this.ctx = ctx;
     this.shell = shell;
     this.playing = false;
+    this.ai = null;                                            // 敵のAI（読み込めるまでは、ふつうのルールで動く）
+    this.loadEnemyAI();
+    this.pvx = 0;                                              // プレイヤーの横の速さ（敵AIの入力に使う）
     this.startedAt = 0;
     this.jumpBuffer = 0;                                       // ジャンプの先行入力（着地の少し前に押しても跳べる）
     this.keys = { left: false, right: false, jump: false };    // キーボードの状態
@@ -224,6 +288,7 @@ const game = {
     this.pointers.clear();
     this.touch.left = this.touch.right = this.touch.jump = false;
     this.time = 0;
+    this.pvx = 0;
     this.lives = MAX_LIVES;
     this.points = 0;
     this.shell.setScore(0);
@@ -304,6 +369,7 @@ const game = {
       if (this.keys.left || this.touch.left) dir -= 1;
       if (this.keys.right || this.touch.right) dir += 1;
       p.x += dir * p.speed * dt;
+      this.pvx = dir * p.speed;
       p.x = Math.max(0, Math.min(stage.width - p.w, p.x));   // ステージの外に出ない
       if (dir !== 0) p.facing = dir;
 
@@ -341,13 +407,12 @@ const game = {
 
       const pcx = p.x + p.w / 2;
 
-      // 敵：左右に歩く。上から踏めば倒せる。横などから触れるとミス
+      // 敵：近づくと追いかけてきてジャンプもする。上から踏めば倒せる。横などから触れるとミス
       if (this.invuln > 0) this.invuln -= dt;
       for (const en of this.enemies) {
         if (en.dead !== null) { en.dead += dt; continue; }
-        en.x += en.dir * en.speed * dt;
-        if (en.x < en.min) { en.x = en.min; en.dir = 1; }
-        if (en.x > en.max) { en.x = en.max; en.dir = -1; }
+        this.moveEnemy(en, dt, pcx, p);
+        if (en.dead !== null) continue;                       // 穴に落ちた
         const hitX = Math.abs(en.x - pcx) < (p.w + en.w) / 2 - 8;
         const hitZ = p.z < en.z + en.h && p.z + p.h > en.z + 4;
         if (!hitX || !hitZ) continue;
@@ -374,6 +439,56 @@ const game = {
     const f = Math.min(1, dt * 8);
     this.cameraX += (this.cameraTargetX() - this.cameraX) * f;
     this.cameraY += (this.cameraTargetY() - this.cameraY) * f;
+  },
+
+  // 敵1体の動き：プレイヤーが近ければ追いかける（上にいたらジャンプ）。遠ければ範囲内を歩く
+  moveEnemy(en, dt, pcx, p) {
+    const stage = this.stage;
+    const dx = pcx - en.x;
+    en.chasing = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
+    let speed = en.speed * PATROL_RATIO;
+    let lo = en.min, hi = en.max;
+    let move = en.dir, wantJump = false;
+    if (en.chasing) {
+      speed = en.speed;
+      lo = Math.max(0, en.min - LEASH);
+      hi = Math.min(stage.width, en.max + LEASH);
+      const d = this.decideEnemy(en, p, pcx);                // AI（なければルール）が動きとジャンプを決める
+      move = d.move;
+      wantJump = d.jump;
+      if (move !== 0) en.dir = move;
+    } else {
+      if (en.x <= en.min) en.dir = 1;
+      if (en.x >= en.max) en.dir = -1;
+      move = en.dir;
+    }
+
+    // 横に動く（地面にいるときは、落とし穴には入らずに手前で止まる）
+    let nx = en.x + move * speed * dt;
+    nx = Math.max(lo, Math.min(hi, nx));
+    if (en.grounded && en.z === 0 && this.inPit(nx)) nx = en.x;
+    en.x = nx;
+
+    // ジャンプ
+    en.jumpWait -= dt;
+    if (wantJump && en.grounded) {
+      en.vz = en.jump; en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
+    }
+
+    // 重力と着地（足場の上か、地面の上。穴の上なら落ちる）
+    const prevZ = en.z;
+    en.vz -= GRAVITY * dt;
+    en.z += en.vz * dt;
+    en.grounded = false;
+    if (en.vz <= 0) {
+      let landTop = -1;
+      for (const pl of stage.platforms) {
+        if (en.x > pl.x && en.x < pl.x + pl.w && prevZ >= pl.top - 0.5 && en.z <= pl.top && pl.top > landTop) landTop = pl.top;
+      }
+      if (landTop >= 0) { en.z = landTop; en.vz = 0; en.grounded = true; }
+      else if (en.z <= 0 && !this.inPit(en.x)) { en.z = 0; en.vz = 0; en.grounded = true; }
+    }
+    if (en.z < -300) en.dead = 1;                              // 穴に落ちて消える
   },
 
   // ミス：ライフが1つ減る。0になったらゲームオーバー
@@ -497,6 +612,9 @@ const game = {
     ctx.fillText("♥ ×" + this.lives, w - 16, 34);
     ctx.font = "700 14px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.fillText(this.points + " 点", w - 16, 56);
+    ctx.globalAlpha = 0.6;
+    ctx.fillText(this.ai ? "敵AI：ニューラルネット" : "敵AI：ルール", w - 16, 76);
+    ctx.globalAlpha = 1;
     ctx.textAlign = "left";
 
     // ステージが始まったときの大きな表示
@@ -510,7 +628,7 @@ const game = {
     }
   },
 
-  // 敵のお茶を描く（マグカップに怒った顔。種類ごとに色と飾りが違う）
+  // 敵のお茶を描く（四角い体に怒った顔。種類ごとに色と大きさが違う）
   drawDrink(ctx, en, groundY) {
     const d = DRINKS[en.type];
     const squash = en.dead === null ? 1 : 0.25;
@@ -518,76 +636,41 @@ const game = {
     const ex = en.x - en.w / 2, ey = groundY - en.z - eh;
     const face = en.dir;                                      // 進む向き（1=右）
 
-    // 取っ手（進む向きと反対側）
-    ctx.strokeStyle = d.body;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(face > 0 ? ex - 2 : ex + en.w + 2, ey + eh * 0.5, Math.max(2, eh * 0.25), 0, Math.PI * 2);
-    ctx.stroke();
-    // 本体
     ctx.fillStyle = d.body;
-    ctx.beginPath();
-    ctx.roundRect(ex, ey, en.w, eh, 8);
-    ctx.fill();
+    ctx.strokeStyle = d.dark;
+    ctx.lineWidth = 3;
+    ctx.fillRect(ex, ey, en.w, eh);
+    ctx.strokeRect(ex + 1.5, ey + 1.5, en.w - 3, eh - 3);
     if (en.dead !== null) return;
 
-    // 中身（上のふち）
-    ctx.fillStyle = d.liquid;
-    ctx.beginPath();
-    ctx.ellipse(en.x, ey + 2, en.w / 2 - 2, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // 飾り
-    if (en.type === "kocha") {                                // レモンのスライス
-      ctx.fillStyle = "#f7e04a";
-      ctx.beginPath();
-      ctx.arc(en.x + face * 8, ey - 2, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#e8b923";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(en.x + face * 8 - 7, ey - 2); ctx.lineTo(en.x + face * 8 + 7, ey - 2);
-      ctx.moveTo(en.x + face * 8, ey - 9); ctx.lineTo(en.x + face * 8, ey + 5);
-      ctx.stroke();
-    } else if (en.type === "oolong") {                        // 茶葉
-      ctx.fillStyle = "#5f8a3a";
-      for (const off of [-8, 6]) {
-        ctx.beginPath();
-        ctx.ellipse(en.x + off, ey - 3, 7, 3.5, off > 0 ? 0.5 : -0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else {                                                  // ほうじ茶：湯気
-      ctx.strokeStyle = "rgba(90, 90, 90, 0.5)";
-      ctx.lineWidth = 2;
-      for (const off of [-7, 7]) {
-        ctx.beginPath();
-        for (let k = 0; k <= 8; k++) {
-          const x = en.x + off + Math.sin(this.time * 4 + k * 0.7 + off) * 2;
-          const y = ey - 2 - k * 1.5;
-          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      }
-    }
-    // 怒った顔
-    const fx = en.x + face * 3;
+    // 怒った顔（追いかけているときは眉がつり上がる）
+    const u = en.w / 34;                                      // 大きさに合わせた倍率
+    const fx = en.x + face * 3 * u;
+    const eyeY = ey + en.h * 0.36;
     ctx.fillStyle = "#fff";
-    ctx.fillRect(fx - 9, ey + 11, 7, 8);
-    ctx.fillRect(fx + 2, ey + 11, 7, 8);
+    ctx.fillRect(fx - 10 * u, eyeY, 8 * u, 9 * u);
+    ctx.fillRect(fx + 2 * u,  eyeY, 8 * u, 9 * u);
     ctx.fillStyle = "#1c2433";
-    ctx.fillRect(fx - 9 + (face > 0 ? 3 : 0), ey + 14, 4, 5);
-    ctx.fillRect(fx + 2 + (face > 0 ? 3 : 0), ey + 14, 4, 5);
+    ctx.fillRect(fx - 10 * u + (face > 0 ? 4 * u : 0), eyeY + 3 * u, 4 * u, 5 * u);
+    ctx.fillRect(fx + 2 * u  + (face > 0 ? 4 * u : 0), eyeY + 3 * u, 4 * u, 5 * u);
+    const brow = en.chasing ? 6 * u : 3 * u;
     ctx.strokeStyle = "#1c2433";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(fx - 11, ey + 8); ctx.lineTo(fx - 2, ey + 12);
-    ctx.moveTo(fx + 11, ey + 8); ctx.lineTo(fx + 2, ey + 12);
+    ctx.moveTo(fx - 12 * u, eyeY - brow); ctx.lineTo(fx - 2 * u, eyeY);
+    ctx.moveTo(fx + 12 * u, eyeY - brow); ctx.lineTo(fx + 2 * u, eyeY);
     ctx.stroke();
+    // 口
+    ctx.beginPath();
+    ctx.moveTo(en.x - 7 * u, ey + en.h * 0.8); ctx.lineTo(en.x + 7 * u, ey + en.h * 0.8);
+    ctx.stroke();
+
     // 名前
     ctx.fillStyle = "#1c2433";
     ctx.globalAlpha = 0.7;
     ctx.font = "700 11px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(d.name, en.x, ey - 12);
+    ctx.fillText(d.name, en.x, ey - 6);
     ctx.textAlign = "left";
     ctx.globalAlpha = 1;
   },
@@ -640,6 +723,9 @@ const game = {
 
   // shell からの入力（今回は使わない。入力は onReady で自分で受け取っている）
   onPointer(type, x, y) {},
+
+  // shell からのキー入力（今回は使わない。キーは onReady で自分で受け取っている）
+  onKey(e) {},
 
   // 終了時に呼ばれる
   onEnd() {
