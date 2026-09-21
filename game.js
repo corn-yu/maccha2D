@@ -1,18 +1,18 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 8）
+   game.js ── maccha2D（ver 11）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
    ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）
    ・カメラが主人公を追いかける（横も縦も）
-   ・敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
+   ・敵に当たると、大きい敵なら吸収されてミス／同じか小さい敵なら分裂（かけらを拾うと回復）。敵同士も戦う。敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
    ===================================================================== */
 
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 8）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
-  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏んでたおそう。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
+  tagline:    "2Dアクションゲーム（ver 11）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏むと吸収して大きくなるよ。敵に当たったとき、相手が自分より大きいと吸収されてミス、同じ大きさか小さいと分裂（かけらを拾えば元にもどる）。敵同士も戦って、吸収したり分裂したりするよ。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
 };
@@ -23,6 +23,19 @@ const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const MAX_LIVES  = 3;      // ライフの数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const STOMP_POINT = 200;   // 敵を踏んだときの点数
+const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
+const GROW_RATIO  = 0.1;   // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+4）
+const MAX_SIZE    = 60;    // 大きくなれる限界（ライフを失うとふつうの大きさに戻る）
+const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
+const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
+const SPLIT_KEEP  = 0.6;   // 敵に当たったとき、本体に残る大きさの割合（残りは2つのかけらになって飛び出す）
+const FRAG_LIFE   = 8;     // かけらが消えるまでの秒数
+const FRAG_DELAY  = 0.5;   // 飛び出したかけらを拾えるようになるまでの秒数
+const ENEMY_MAX   = 90;    // 敵が大きくなれる限界
+const ENEMY_SPLIT_MIN = 28;// これより小さい敵は分裂できない
+const MAX_ENEMIES = 12;    // 同時にいられる敵の数（分裂で増えすぎないように）
+const FIGHT_COOLDOWN = 1.2;// 敵同士が戦ったあと、また戦えるまでの秒数
+const BRAWL_SIGHT = 300;   // 敵が、ほかの敵に気づく距離
 const STAGE_POINT = 1000;  // ステージクリアの点数
 const LIFE_POINT  = 500;   // 全クリア時、残りライフ1つあたりの点数
 
@@ -50,6 +63,7 @@ const STAGES = [
     pits: [],
     enemies: [
       { x: 1550, z: 0, min: 1480, max: 1950 },
+      { x: 1800, z: 0, min: 1720, max: 1960 },
     ],
     cup: { x: 2100, base: 0 },
   },
@@ -67,6 +81,7 @@ const STAGES = [
     enemies: [
       { x: 350,  z: 0, min: 250,  max: 520 },
       { x: 1500, z: 0, min: 1480, max: 1780 },
+      { x: 1700, z: 0, min: 1620, max: 1780 },
     ],
     cup: { x: 1960, base: 210 },
   },
@@ -85,6 +100,8 @@ const STAGES = [
     pits: [ { x: 400, w: 100 }, { x: 1450, w: 110 } ],
     enemies: [
       { x: 600, z: 0, min: 520, max: 690 },
+      { x: 1700, z: 0, min: 1600, max: 1780 },
+      { x: 1900, z: 0, min: 1800, max: 2000 },
     ],
     cup: { x: 2210, base: 280 },
   },
@@ -103,6 +120,7 @@ const STAGES = [
       { x: 1100, z: 0,   min: 1020, max: 1280 },
       { x: 1450, z: 0,   min: 1430, max: 1560 },
       { x: 2330, z: 140, min: 2310, max: 2380 },
+      { x: 800,  z: 0, min: 640,  max: 880 },
     ],
     cup: { x: 2500, base: 140 },
   },
@@ -126,16 +144,17 @@ const STAGES = [
       { x: 1350, z: 160, min: 1270, max: 1440 },
       { x: 1250, z: 0,   min: 1200, max: 1480 },
       { x: 2600, z: 320, min: 2530, max: 2620 },
+      { x: 530,  z: 0, min: 440,  max: 590 },
     ],
     cup: { x: 2720, base: 320 },
   },
 ];
 
 // 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
-//   size=大きさ / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
+//   size=大きさ（主人公と同じ40） / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
 const DRINKS = {
-  kocha:   { name: "紅茶",     size: 34, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
-  hojicha: { name: "ほうじ茶", size: 30, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
+  kocha:   { name: "紅茶",     size: 40, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
+  hojicha: { name: "ほうじ茶", size: 40, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
   oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
@@ -147,12 +166,13 @@ const ENEMY_JUMP_WAIT = 1.1;// 敵が続けてジャンプできるまでの秒�
 
 // ステージのデータから、遊んでいる間に変わる敵の状態を作る
 function stage_enemies(stage) {
-  // x は中心の位置。vz は上向きの速さ。dead は倒されてからの秒数（null なら生きている）
+  // x は中心の位置。vz は上向きの速さ。size は目指す大きさ（w・h は今の大きさ）。
+  // dead は倒されてからの秒数（null なら生きている）。absorber は吸収した相手（主人公なら null）
   return stage.enemies.map((e, i) => {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
-    return { type, x: e.x, z: e.z, vz: 0, grounded: true, w: d.size, h: d.size, min: e.min, max: e.max,
-             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, dead: null };
+    return { type, x: e.x, z: e.z, vz: 0, grounded: true, size: d.size, w: d.size, h: d.size, min: e.min, max: e.max,
+             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null };
   });
 }
 
@@ -290,6 +310,7 @@ const game = {
     this.time = 0;
     this.pvx = 0;
     this.lives = MAX_LIVES;
+    this.size = PLAYER_SIZE;                                   // 主人公が目指す大きさ（敵を吸収すると増える）
     this.points = 0;
     this.shell.setScore(0);
     this.loadStage(0);
@@ -314,9 +335,10 @@ const game = {
     this.stageIndex = index;
     this.stage = STAGES[index];
     // 主人公：x は左端の位置、z は地面からの高さ、vz は上向きの速さ
-    this.player = { x: 120, z: 0, vz: 0, w: 40, h: 40, speed: 240, facing: 1, grounded: true };
+    this.player = { x: 120, z: 0, vz: 0, w: this.size, h: this.size, speed: 240, facing: 1, grounded: true };
     this.jumpBuffer = 0;
     this.invuln = 0;                           // 無敵の残り秒数
+    this.frags = [];                           // 分裂で飛び出した、拾えるかけら
     this.enemies = stage_enemies(this.stage);
     this.entering = null;                      // カップに入っている最中の情報
     this.banner = { t: 0 };                    // 「ステージ ○」の表示
@@ -353,6 +375,13 @@ const game = {
   onUpdate(dt) {
     const p = this.player, stage = this.stage;
     this.time += dt;
+
+    // 大きさをなめらかに変える（横の中心は動かさない）
+    if (Math.abs(p.w - this.size) > 0.05) {
+      const cx = p.x + p.w / 2;
+      p.w = p.h = p.w + (this.size - p.w) * Math.min(1, dt * 10);
+      p.x = Math.max(0, Math.min(stage.width - p.w, cx - p.w / 2));
+    }
     this.banner.t += dt;
 
     if (this.entering) {
@@ -409,23 +438,37 @@ const game = {
 
       // 敵：近づくと追いかけてきてジャンプもする。上から踏めば倒せる。横などから触れるとミス
       if (this.invuln > 0) this.invuln -= dt;
+      this.enemyFights();
       for (const en of this.enemies) {
         if (en.dead !== null) { en.dead += dt; continue; }
+        if (Math.abs(en.w - en.size) > 0.05) {                // 大きさをなめらかに変える
+          en.w = en.h = en.w + (en.size - en.w) * Math.min(1, dt * 10);
+        }
         this.moveEnemy(en, dt, pcx, p);
         if (en.dead !== null) continue;                       // 穴に落ちた
         const hitX = Math.abs(en.x - pcx) < (p.w + en.w) / 2 - 8;
         const hitZ = p.z < en.z + en.h && p.z + p.h > en.z + 4;
         if (!hitX || !hitZ) continue;
         if (fallSpeed < 0 && prevZ >= en.z + en.h * 0.5) {
-          en.dead = 0;                                        // 踏んだ！
+          en.dead = 0;                                        // 踏んだ！敵を吸収して大きくなる
+          en.absorber = null;
+          this.size = Math.min(MAX_SIZE, this.size + Math.max(2, Math.round(en.size * GROW_RATIO)));
           p.vz = JUMP_SPEED * 0.65;
           p.grounded = false;
           this.addPoints(STOMP_POINT);
         } else if (this.invuln <= 0) {
-          this.loseLife();
-          return;
+          if (en.size > this.size + 0.5 || this.size <= MIN_SIZE) {
+            // 自分より大きい敵に当たった（か、もう小さくなれない）：吸収されてミス。敵は大きくなる
+            en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+            this.loseLife();
+            return;
+          }
+          this.splitPlayer();                                     // 同じ大きさか小さい敵に当たった：分裂
+          continue;
         }
       }
+
+      this.updateFrags(dt, p);
 
       // ゴール判定：カップの真上あたりで、カップと同じ高さにいたら「入った」
       const cup = stage.cup;
@@ -441,6 +484,53 @@ const game = {
     this.cameraY += (this.cameraTargetY() - this.cameraY) * f;
   },
 
+  // いちばん近い、ほかの敵（同じ高さにいて、戦ったばかりでないもの）
+  nearestFoe(en) {
+    if (en.fightCd > 0) return null;
+    let best = null, bestD = BRAWL_SIGHT;
+    for (const o of this.enemies) {
+      if (o === en || o.dead !== null) continue;
+      const d = Math.abs(o.x - en.x);
+      if (d < bestD && Math.abs(o.z - en.z) < 40) { best = o; bestD = d; }
+    }
+    return best;
+  },
+
+  // 敵同士がぶつかったとき：大きさが違えば大きいほうが吸収して大きくなる。同じなら両方分裂する
+  enemyFights() {
+    const list = this.enemies;
+    const n = list.length;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const a = list[i], b = list[j];
+        if (a.dead !== null || b.dead !== null || a.fightCd > 0 || b.fightCd > 0) continue;
+        if (Math.abs(a.x - b.x) >= (a.w + b.w) / 2 - 4) continue;
+        if (!(a.z < b.z + b.h - 4 && b.z < a.z + a.h - 4)) continue;
+        a.fightCd = b.fightCd = FIGHT_COOLDOWN;
+        if (Math.abs(a.size - b.size) < 0.5) {
+          this.splitEnemy(a);
+          this.splitEnemy(b);
+        } else {
+          const big = a.size > b.size ? a : b, small = big === a ? b : a;
+          big.size = Math.min(ENEMY_MAX, big.size + small.size * 0.5);
+          small.dead = 0;
+          small.absorber = big;
+        }
+      }
+    }
+  },
+
+  // 敵の分裂：小さくなって、失った分が新しい敵になって飛び出す（小さすぎる敵や、数が多すぎるときは分裂しない）
+  splitEnemy(e) {
+    e.vz = 250; e.grounded = false;
+    if (e.size < ENEMY_SPLIT_MIN || this.enemies.filter((o) => o.dead === null).length >= MAX_ENEMIES) return;
+    const keep = Math.round(e.size * SPLIT_KEEP);
+    const childSize = e.size - keep;
+    e.size = keep;
+    this.enemies.push({ ...e, size: childSize, w: childSize, h: childSize, x: e.x, vz: 350, grounded: false,
+                        dir: -e.dir, jumpWait: 0, chasing: false, fightCd: FIGHT_COOLDOWN, dead: null, absorber: null });
+  },
+
   // 敵1体の動き：プレイヤーが近ければ追いかける（上にいたらジャンプ）。遠ければ範囲内を歩く
   moveEnemy(en, dt, pcx, p) {
     const stage = this.stage;
@@ -448,7 +538,8 @@ const game = {
     en.chasing = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
     let speed = en.speed * PATROL_RATIO;
     let lo = en.min, hi = en.max;
-    let move = en.dir, wantJump = false;
+    let move = en.dir, wantJump = false, foe = null;
+    en.fightCd -= dt;
     if (en.chasing) {
       speed = en.speed;
       lo = Math.max(0, en.min - LEASH);
@@ -457,6 +548,13 @@ const game = {
       move = d.move;
       wantJump = d.jump;
       if (move !== 0) en.dir = move;
+    } else if ((foe = this.nearestFoe(en))) {
+      // プレイヤーに気づいていないときは、近くの別の敵に向かっていく（戦う）
+      speed = en.speed * 0.8;
+      lo = Math.max(0, en.min - LEASH);
+      hi = Math.min(stage.width, en.max + LEASH);
+      move = foe.x > en.x ? 1 : -1;
+      en.dir = move;
     } else {
       if (en.x <= en.min) en.dir = 1;
       if (en.x >= en.max) en.dir = -1;
@@ -491,6 +589,53 @@ const game = {
     if (en.z < -300) en.dead = 1;                              // 穴に落ちて消える
   },
 
+  // 分裂：敵に当たると小さくなり、失った分が2つのかけらになって飛び出す（拾えば戻る）
+  splitPlayer() {
+    const p = this.player;
+    const oldSize = this.size;
+    this.size = Math.max(MIN_SIZE, Math.round(oldSize * SPLIT_KEEP));
+    const mass = (oldSize - this.size) / 2;                    // かけら1つぶんの大きさ
+    const cx = p.x + p.w / 2, cz = p.z + p.h / 2;
+    for (const dir of [-1, 1]) {
+      this.frags.push({ x: cx, z: cz, vx: dir * (130 + Math.random() * 70), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0 });
+    }
+    p.vz = 320; p.grounded = false;                            // 少し跳ね上がる
+    this.invuln = INVULN_TIME;
+  },
+
+  // かけらの動き：重力で落ちて弾む。触れると吸収して大きさが戻る。時間が経つと消える
+  updateFrags(dt, p) {
+    const stage = this.stage;
+    const pcx = p.x + p.w / 2;
+    this.frags = this.frags.filter((f) => {
+      f.t += dt;
+      if (f.t > FRAG_LIFE) return false;
+      const prevZ = f.z;
+      f.x = Math.max(0, Math.min(stage.width, f.x + f.vx * dt));
+      f.vx *= Math.pow(0.5, dt);                               // 横の勢いはだんだん弱まる
+      f.vz -= GRAVITY * dt;
+      f.z += f.vz * dt;
+      if (f.vz <= 0) {
+        let landTop = -1;
+        for (const pl of stage.platforms) {
+          if (f.x > pl.x && f.x < pl.x + pl.w && prevZ >= pl.top - 0.5 && f.z <= pl.top && pl.top > landTop) landTop = pl.top;
+        }
+        if (landTop < 0 && f.z <= 0 && !this.inPit(f.x)) landTop = 0;
+        if (landTop >= 0) {
+          f.z = landTop;
+          f.vz = f.vz < -200 ? -f.vz * 0.35 : 0;              // 弾む
+          f.vx *= 0.6;
+        }
+      }
+      if (f.z < -300) return false;                            // 穴に落ちた
+      if (f.t > FRAG_DELAY && Math.abs(f.x - pcx) < (p.w + f.s) / 2 && p.z < f.z + f.s && p.z + p.h > f.z) {
+        this.size = Math.min(MAX_SIZE, this.size + f.mass);    // 拾って元にもどる
+        return false;
+      }
+      return true;
+    });
+  },
+
   // ミス：ライフが1つ減る。0になったらゲームオーバー
   loseLife() {
     this.lives--;
@@ -499,6 +644,9 @@ const game = {
       return;
     }
     const p = this.player;
+    this.size = PLAYER_SIZE;                                   // ライフを失うとふつうの大きさに戻る
+    this.frags = [];
+    p.w = p.h = PLAYER_SIZE;
     p.x = 120; p.z = 0; p.vz = 0; p.grounded = true;
     this.jumpBuffer = 0;
     this.invuln = INVULN_TIME;
@@ -569,11 +717,21 @@ const game = {
     // ゴールのティーカップ
     this.drawCup(ctx, stage.cup.x, groundY - stage.cup.base, stage);
 
-    // 敵（踏まれたらぺしゃんこになって消える）
+    // 敵（踏まれたら主人公に吸収される）
     for (const en of this.enemies) {
-      if (en.dead !== null && en.dead > 0.3) continue;
+      if (en.dead !== null && en.dead > ABSORB_TIME) continue;
       if (en.x + en.w < cam || en.x - en.w > cam + w) continue;
-      this.drawDrink(ctx, en, groundY);
+      this.drawDrink(ctx, en, groundY, p);
+    }
+
+    // かけら（消える直前はちかちかする）
+    for (const f of this.frags) {
+      if (f.x + f.s < cam || f.x - f.s > cam + w) continue;
+      if (f.t > FRAG_LIFE - 2 && Math.floor(f.t * 8) % 2 === 0) continue;
+      ctx.fillStyle = "#6aa84f";
+      ctx.fillRect(f.x - f.s / 2, groundY - f.z - f.s, f.s, f.s);
+      ctx.fillStyle = "#1c2433";
+      ctx.fillRect(f.x - f.s * 0.05, groundY - f.z - f.s * 0.75, Math.max(2, f.s * 0.2), Math.max(2, f.s * 0.2));
     }
 
     // 影（高く跳ぶほど小さく薄くなる）
@@ -629,18 +787,24 @@ const game = {
   },
 
   // 敵のお茶を描く（四角い体に怒った顔。種類ごとに色と大きさが違う）
-  drawDrink(ctx, en, groundY) {
+  drawDrink(ctx, en, groundY, p) {
     const d = DRINKS[en.type];
-    const squash = en.dead === null ? 1 : 0.25;
-    const eh = en.h * squash;
+    if (en.dead !== null) {                                   // 吸収：主人公の中心へ小さくなりながら吸い込まれる
+      const t = Math.min(1, en.dead / ABSORB_TIME);
+      const ecx = en.x, ecy = groundY - en.z - en.h / 2;
+      const a = en.absorber;                                  // 吸収した相手（敵か主人公）のほうへ動く
+      const pcx = a ? a.x : p.x + p.w / 2, pcy = a ? groundY - a.z - a.h / 2 : groundY - p.z - p.h / 2;
+      const cx = ecx + (pcx - ecx) * t, cy = ecy + (pcy - ecy) * t, sc = 1 - t;
+      ctx.fillStyle = d.body;
+      ctx.fillRect(cx - en.w * sc / 2, cy - en.h * sc / 2, en.w * sc, en.h * sc);
+      return;
+    }
+    const eh = en.h;
     const ex = en.x - en.w / 2, ey = groundY - en.z - eh;
     const face = en.dir;                                      // 進む向き（1=右）
 
     ctx.fillStyle = d.body;
-    ctx.strokeStyle = d.dark;
-    ctx.lineWidth = 3;
     ctx.fillRect(ex, ey, en.w, eh);
-    ctx.strokeRect(ex + 1.5, ey + 1.5, en.w - 3, eh - 3);
     if (en.dead !== null) return;
 
     // 怒った顔（追いかけているときは眉がつり上がる）
