@@ -1,17 +1,17 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 11）
+   game.js ── maccha2D（ver 12）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
    ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）
    ・カメラが主人公を追いかける（横も縦も）
-   ・敵に当たると、大きい敵なら吸収されてミス／同じか小さい敵なら分裂（かけらを拾うと回復）。敵同士も戦う。敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
+   ・キャラは液体（跳ぶとのびて、着地でぷるぷる、しぶきが飛ぶ）。敵に当たると、大きい敵なら吸収されてミス／同じか小さい敵なら分裂（かけらを拾うと回復）。敵同士も戦う。敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
    ===================================================================== */
 
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 11）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 12）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏むと吸収して大きくなるよ。敵に当たったとき、相手が自分より大きいと吸収されてミス、同じ大きさか小さいと分裂（かけらを拾えば元にもどる）。敵同士も戦って、吸収したり分裂したりするよ。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
@@ -36,6 +36,8 @@ const ENEMY_SPLIT_MIN = 28;// これより小さい敵は分裂できない
 const MAX_ENEMIES = 12;    // 同時にいられる敵の数（分裂で増えすぎないように）
 const FIGHT_COOLDOWN = 1.2;// 敵同士が戦ったあと、また戦えるまでの秒数
 const BRAWL_SIGHT = 300;   // 敵が、ほかの敵に気づく距離
+const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
+const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
 const STAGE_POINT = 1000;  // ステージクリアの点数
 const LIFE_POINT  = 500;   // 全クリア時、残りライフ1つあたりの点数
 
@@ -172,7 +174,7 @@ function stage_enemies(stage) {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
     return { type, x: e.x, z: e.z, vz: 0, grounded: true, size: d.size, w: d.size, h: d.size, min: e.min, max: e.max,
-             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null };
+             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   });
 }
 
@@ -339,6 +341,9 @@ const game = {
     this.jumpBuffer = 0;
     this.invuln = 0;                           // 無敵の残り秒数
     this.frags = [];                           // 分裂で飛び出した、拾えるかけら
+    this.drops = [];                           // 飛び散るしずく（見た目だけ）
+    this.spr = { x: 0, v: 0 };                 // 主人公のぷるぷる（バネ）。正=つぶれる／負=のびる
+    this.dropTimer = 0;
     this.enemies = stage_enemies(this.stage);
     this.entering = null;                      // カップに入っている最中の情報
     this.banner = { t: 0 };                    // 「ステージ ○」の表示
@@ -375,6 +380,8 @@ const game = {
   onUpdate(dt) {
     const p = this.player, stage = this.stage;
     this.time += dt;
+    this.stepSpring(this.spr, dt);
+    this.updateDrops(dt);
 
     // 大きさをなめらかに変える（横の中心は動かさない）
     if (Math.abs(p.w - this.size) > 0.05) {
@@ -399,6 +406,13 @@ const game = {
       if (this.keys.right || this.touch.right) dir += 1;
       p.x += dir * p.speed * dt;
       this.pvx = dir * p.speed;
+      if (dir !== 0 && p.grounded) {                           // 歩くと足元にしずくが散る
+        this.dropTimer -= dt;
+        if (this.dropTimer <= 0) {
+          this.dropTimer = 0.09;
+          this.spawnDrops(p.x + p.w / 2 - dir * p.w * 0.4, 2, PLAYER_COLOR, 1, 40);
+        }
+      }
       p.x = Math.max(0, Math.min(stage.width - p.w, p.x));   // ステージの外に出ない
       if (dir !== 0) p.facing = dir;
 
@@ -408,6 +422,8 @@ const game = {
         p.vz = JUMP_SPEED;
         p.grounded = false;
         this.jumpBuffer = 0;
+        this.kick(this.spr, -7);                               // 跳ぶ瞬間にびよんとのびる
+        this.spawnDrops(p.x + p.w / 2, 2, PLAYER_COLOR, 3, 90);
       }
 
       // 重力：ボタンを早く離すと低いジャンプになる
@@ -419,6 +435,7 @@ const game = {
       p.z += p.vz * dt;
 
       // 着地の判定：落ちているとき、足場の上面をまたいだら、その上に乗る
+      const wasGrounded = p.grounded;
       let grounded = false;
       if (p.vz <= 0) {
         let landTop = -1;
@@ -430,6 +447,11 @@ const game = {
         else if (p.z <= 0 && !this.inPit(p.x + p.w / 2)) { p.z = 0; p.vz = 0; grounded = true; }
       }
       p.grounded = grounded;
+      if (!wasGrounded && grounded && fallSpeed < -150) {      // 着地：ぺちゃっとつぶれてしぶきが飛ぶ
+        const k = Math.min(1, -fallSpeed / 700);
+        this.kick(this.spr, 3 + k * 9);
+        this.spawnDrops(p.x + p.w / 2, 2, PLAYER_COLOR, Math.round(3 + k * 6), 90 + k * 140);
+      }
 
       // 落とし穴に落ちたらミス
       if (p.z < -300) { this.loseLife(); return; }
@@ -452,6 +474,9 @@ const game = {
         if (fallSpeed < 0 && prevZ >= en.z + en.h * 0.5) {
           en.dead = 0;                                        // 踏んだ！敵を吸収して大きくなる
           en.absorber = null;
+          this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
+          this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
+          this.kick(this.spr, 8);
           this.size = Math.min(MAX_SIZE, this.size + Math.max(2, Math.round(en.size * GROW_RATIO)));
           p.vz = JUMP_SPEED * 0.65;
           p.grounded = false;
@@ -460,6 +485,9 @@ const game = {
           if (en.size > this.size + 0.5 || this.size <= MIN_SIZE) {
             // 自分より大きい敵に当たった（か、もう小さくなれない）：吸収されてミス。敵は大きくなる
             en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+            this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);      // 吸収されて飛び散る
+            this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
+            this.kick(en.spr, 8);
             this.loseLife();
             return;
           }
@@ -515,6 +543,8 @@ const game = {
           big.size = Math.min(ENEMY_MAX, big.size + small.size * 0.5);
           small.dead = 0;
           small.absorber = big;
+          this.spawnDrops(small.x, small.z + small.h / 2, DRINKS[small.type].body, 10, 200);
+          this.kick(big.spr, 6);
         }
       }
     }
@@ -523,11 +553,13 @@ const game = {
   // 敵の分裂：小さくなって、失った分が新しい敵になって飛び出す（小さすぎる敵や、数が多すぎるときは分裂しない）
   splitEnemy(e) {
     e.vz = 250; e.grounded = false;
+    this.kick(e.spr, 8);
+    this.spawnDrops(e.x, e.z + e.h / 2, DRINKS[e.type].body, 8, 220);
     if (e.size < ENEMY_SPLIT_MIN || this.enemies.filter((o) => o.dead === null).length >= MAX_ENEMIES) return;
     const keep = Math.round(e.size * SPLIT_KEEP);
     const childSize = e.size - keep;
     e.size = keep;
-    this.enemies.push({ ...e, size: childSize, w: childSize, h: childSize, x: e.x, vz: 350, grounded: false,
+    this.enemies.push({ ...e, spr: { x: 0, v: 0 }, size: childSize, w: childSize, h: childSize, x: e.x, vz: 350, grounded: false,
                         dir: -e.dir, jumpWait: 0, chasing: false, fightCd: FIGHT_COOLDOWN, dead: null, absorber: null });
   },
 
@@ -571,11 +603,15 @@ const game = {
     en.jumpWait -= dt;
     if (wantJump && en.grounded) {
       en.vz = en.jump; en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
+      this.kick(en.spr, -7);
     }
 
     // 重力と着地（足場の上か、地面の上。穴の上なら落ちる）
+    this.stepSpring(en.spr, dt);
+    const wasG = en.grounded;
     const prevZ = en.z;
     en.vz -= GRAVITY * dt;
+    const vzBefore = en.vz;
     en.z += en.vz * dt;
     en.grounded = false;
     if (en.vz <= 0) {
@@ -586,7 +622,82 @@ const game = {
       if (landTop >= 0) { en.z = landTop; en.vz = 0; en.grounded = true; }
       else if (en.z <= 0 && !this.inPit(en.x)) { en.z = 0; en.vz = 0; en.grounded = true; }
     }
+    if (!wasG && en.grounded && vzBefore < -200) {              // 着地でぺちゃっとつぶれる
+      this.kick(en.spr, 3 + Math.min(1, -vzBefore / 700) * 8);
+      this.spawnDrops(en.x, en.z + 2, DRINKS[en.type].body, 3, 100);
+    }
     if (en.z < -300) en.dead = 1;                              // 穴に落ちて消える
+  },
+
+  // ---- 液体の見た目まわり ----------------------------------------------------
+  // バネ：x(位置) が 0 に戻ろうとして、ぷるぷる揺れる
+  stepSpring(sp, dt) {
+    sp.v += (-240 * sp.x - 9 * sp.v) * dt;
+    sp.x += sp.v * dt;
+    if (sp.x > 0.8) sp.x = 0.8; else if (sp.x < -0.8) sp.x = -0.8;
+  },
+  kick(sp, v) { sp.v += v; },
+
+  // つぶれ具合：バネ + 空中での縦のび + 立っているときの呼吸
+  squashOf(sp, vz, grounded, seed) {
+    let q = sp.x;
+    if (!grounded) q -= Math.min(0.3, Math.abs(vz) / 2200);
+    else q += Math.sin(this.time * 3 + seed) * 0.03;
+    return Math.max(-0.5, Math.min(0.6, q));
+  },
+
+  // しずくを飛ばす（x=中心 / z=地面からの高さ / power=勢い）
+  spawnDrops(x, z, color, n, power) {
+    for (let i = 0; i < n; i++) {
+      const life = 0.45 + Math.random() * 0.4;
+      this.drops.push({ x, z, vx: (Math.random() * 2 - 1) * power, vz: 60 + Math.random() * power * 1.1,
+                        life, max: life, r: 2 + Math.random() * 3, color });
+    }
+    if (this.drops.length > MAX_DROPS) this.drops.splice(0, this.drops.length - MAX_DROPS);
+  },
+  updateDrops(dt) {
+    this.drops = this.drops.filter((d) => {
+      d.life -= dt;
+      d.vz -= GRAVITY * 0.8 * dt;
+      d.x += d.vx * dt;
+      d.z += d.vz * dt;
+      if (d.life <= 0 || d.z < -300) return false;
+      if (d.z <= 0 && d.vz < 0 && !this.inPit(d.x)) return false;   // 地面に落ちて消える
+      return true;
+    });
+  },
+
+  // 液体の形（足元の中心が原点。上のふちが波うち、横がふくらむ）。塗るのは呼び出し側
+  blobPath(ctx, W, H, q, seed) {
+    const r = Math.min(W, H) * 0.32;
+    const bulge = q * W * 0.08;
+    const amp = Math.min(3, H * 0.07) * (1 + Math.abs(q) * 2);
+    const x0 = -W / 2, x1 = W / 2, yb = 0, yt = -H, ym = -H / 2;
+    ctx.beginPath();
+    ctx.moveTo(x0 + r, yb);
+    ctx.lineTo(x1 - r, yb);
+    ctx.quadraticCurveTo(x1, yb, x1, yb - r);
+    ctx.quadraticCurveTo(x1 + bulge, ym, x1, yt + r);
+    ctx.quadraticCurveTo(x1, yt, x1 - r, yt + Math.sin(this.time * 5 + seed) * amp);
+    for (let px = x1 - r; px >= x0 + r; px -= 4) {
+      ctx.lineTo(px, yt + Math.sin(this.time * 5 + px * 0.25 + seed) * amp);
+    }
+    ctx.quadraticCurveTo(x0, yt, x0, yt + r);
+    ctx.quadraticCurveTo(x0 - bulge, ym, x0, yb - r);
+    ctx.quadraticCurveTo(x0, yb, x0 + r, yb);
+    ctx.closePath();
+  },
+  // つやと、下のほうの濃い影（blobPath を塗ったあとに呼ぶ）
+  shine(ctx, W, H) {
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.10)";
+    ctx.fillRect(-W, -H * 0.35, W * 2, H);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(-W * 0.2, -H * 0.72, W * 0.14, H * 0.09, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   },
 
   // 分裂：敵に当たると小さくなり、失った分が2つのかけらになって飛び出す（拾えば戻る）
@@ -600,6 +711,8 @@ const game = {
       this.frags.push({ x: cx, z: cz, vx: dir * (130 + Math.random() * 70), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0 });
     }
     p.vz = 320; p.grounded = false;                            // 少し跳ね上がる
+    this.spawnDrops(cx, cz, PLAYER_COLOR, 16, 300);            // 分裂のしぶき
+    this.kick(this.spr, 10);
     this.invuln = INVULN_TIME;
   },
 
@@ -623,6 +736,7 @@ const game = {
         if (landTop < 0 && f.z <= 0 && !this.inPit(f.x)) landTop = 0;
         if (landTop >= 0) {
           f.z = landTop;
+          if (f.vz < -200) this.spawnDrops(f.x, f.z, PLAYER_COLOR, 3, 110);
           f.vz = f.vz < -200 ? -f.vz * 0.35 : 0;              // 弾む
           f.vx *= 0.6;
         }
@@ -630,6 +744,8 @@ const game = {
       if (f.z < -300) return false;                            // 穴に落ちた
       if (f.t > FRAG_DELAY && Math.abs(f.x - pcx) < (p.w + f.s) / 2 && p.z < f.z + f.s && p.z + p.h > f.z) {
         this.size = Math.min(MAX_SIZE, this.size + f.mass);    // 拾って元にもどる
+        this.kick(this.spr, 4);
+        this.spawnDrops(f.x, f.z + f.s / 2, PLAYER_COLOR, 4, 110);
         return false;
       }
       return true;
@@ -724,14 +840,19 @@ const game = {
       this.drawDrink(ctx, en, groundY, p);
     }
 
-    // かけら（消える直前はちかちかする）
+    // かけら（しずくの形。消える直前はちかちかする）
     for (const f of this.frags) {
       if (f.x + f.s < cam || f.x - f.s > cam + w) continue;
       if (f.t > FRAG_LIFE - 2 && Math.floor(f.t * 8) % 2 === 0) continue;
-      ctx.fillStyle = "#6aa84f";
-      ctx.fillRect(f.x - f.s / 2, groundY - f.z - f.s, f.s, f.s);
-      ctx.fillStyle = "#1c2433";
-      ctx.fillRect(f.x - f.s * 0.05, groundY - f.z - f.s * 0.75, Math.max(2, f.s * 0.2), Math.max(2, f.s * 0.2));
+      const fq = Math.max(-0.4, Math.min(0.5, -Math.min(0.3, Math.abs(f.vz) / 1800) + Math.sin(f.t * 14) * 0.12 * Math.max(0, 1 - f.t * 1.5)));
+      ctx.save();
+      ctx.translate(f.x, groundY - f.z);
+      ctx.scale(1 + fq * 0.6, 1 - fq * 0.7);
+      ctx.fillStyle = PLAYER_COLOR;
+      this.blobPath(ctx, f.s, f.s, fq, f.x);
+      ctx.fill();
+      this.shine(ctx, f.s, f.s);
+      ctx.restore();
     }
 
     // 影（高く跳ぶほど小さく薄くなる）
@@ -744,19 +865,37 @@ const game = {
       ctx.fill();
     }
 
-    // 主人公（緑の四角）。z の分だけ上に持ち上げる。カップに入るときは小さくなる
-    // 無敵の間はちかちか点滅する
+    // 主人公（抹茶の液体）。z の分だけ上に持ち上げる。カップに入るときは小さくなる
+    // 無敵の間はちかちか点滅する。跳ぶとのびて、着地するとつぶれてぷるぷる揺れる。動くと進む向きにかたむく
     const s = this.entering ? Math.max(0.05, 1 - this.entering.t / ENTER_TIME) : 1;
-    const cxp = p.x + p.w / 2, cyp = groundY - p.z - p.h / 2;
+    const cxp = p.x + p.w / 2;
     if (this.invuln > 0 && Math.floor(this.invuln * 10) % 2 === 0) ctx.globalAlpha = 0.35;
+    const q = this.squashOf(this.spr, p.vz, p.grounded, 0);
+    const lean = Math.max(-1, Math.min(1, this.pvx / 240)) * 0.1;
     ctx.save();
-    ctx.translate(cxp, cyp);
+    ctx.translate(cxp, groundY - p.z);
     ctx.scale(s, s);
-    ctx.fillStyle = "#6aa84f";
-    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.transform(1, 0, -lean, 1, 0, 0);
+    ctx.scale(1 + q * 0.6, 1 - q * 0.7);
+    ctx.fillStyle = PLAYER_COLOR;
+    this.blobPath(ctx, p.w, p.h, q, 0);
+    ctx.fill();
+    this.shine(ctx, p.w, p.h);
+    const u = p.w / 40;
     ctx.fillStyle = "#1c2433";                                  // 目（向いている方向に寄せる）
-    ctx.fillRect(p.facing > 0 ? p.w / 2 - 14 : -p.w / 2 + 6, -p.h / 2 + 10, 8, 8);
+    ctx.fillRect(p.facing > 0 ? p.w / 2 - 14 * u : -p.w / 2 + 6 * u, -p.h + 10 * u, 8 * u, 8 * u);
     ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // しずく（キャラの手前に飛び散る）
+    for (const d of this.drops) {
+      if (d.x + 10 < cam || d.x - 10 > cam + w) continue;
+      ctx.globalAlpha = Math.min(1, d.life / 0.25);
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.ellipse(d.x, groundY - d.z, d.r, d.r * (1 + Math.min(0.6, Math.abs(d.vz) / 900)), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
 
     ctx.restore();
@@ -789,28 +928,38 @@ const game = {
   // 敵のお茶を描く（四角い体に怒った顔。種類ごとに色と大きさが違う）
   drawDrink(ctx, en, groundY, p) {
     const d = DRINKS[en.type];
-    if (en.dead !== null) {                                   // 吸収：主人公の中心へ小さくなりながら吸い込まれる
+    if (en.dead !== null) {                                   // 吸収：しずくの形で、吸収した相手のほうへ吸い込まれる
       const t = Math.min(1, en.dead / ABSORB_TIME);
       const ecx = en.x, ecy = groundY - en.z - en.h / 2;
-      const a = en.absorber;                                  // 吸収した相手（敵か主人公）のほうへ動く
+      const a = en.absorber;                                  // 吸収した相手（敵か主人公）
       const pcx = a ? a.x : p.x + p.w / 2, pcy = a ? groundY - a.z - a.h / 2 : groundY - p.z - p.h / 2;
       const cx = ecx + (pcx - ecx) * t, cy = ecy + (pcy - ecy) * t, sc = 1 - t;
+      const W = en.w * sc, H = en.h * sc;
+      ctx.save();
+      ctx.translate(cx, cy + H / 2);
       ctx.fillStyle = d.body;
-      ctx.fillRect(cx - en.w * sc / 2, cy - en.h * sc / 2, en.w * sc, en.h * sc);
+      this.blobPath(ctx, W, H, Math.sin(t * 20) * 0.2, en.x);
+      ctx.fill();
+      ctx.restore();
       return;
     }
-    const eh = en.h;
-    const ex = en.x - en.w / 2, ey = groundY - en.z - eh;
     const face = en.dir;                                      // 進む向き（1=右）
+    const W = en.w, H = en.h;
+    const q = this.squashOf(en.spr, en.vz, en.grounded, en.x);
 
+    ctx.save();
+    ctx.translate(en.x, groundY - en.z);
+    ctx.transform(1, 0, -face * 0.06, 1, 0, 0);               // 進む向きに少しかたむく
+    ctx.scale(1 + q * 0.6, 1 - q * 0.7);
     ctx.fillStyle = d.body;
-    ctx.fillRect(ex, ey, en.w, eh);
-    if (en.dead !== null) return;
+    this.blobPath(ctx, W, H, q, en.x);
+    ctx.fill();
+    this.shine(ctx, W, H);
 
     // 怒った顔（追いかけているときは眉がつり上がる）
-    const u = en.w / 34;                                      // 大きさに合わせた倍率
-    const fx = en.x + face * 3 * u;
-    const eyeY = ey + en.h * 0.36;
+    const u = W / 34;                                         // 大きさに合わせた倍率
+    const fx = face * 3 * u;
+    const eyeY = -H + H * 0.36;
     ctx.fillStyle = "#fff";
     ctx.fillRect(fx - 10 * u, eyeY, 8 * u, 9 * u);
     ctx.fillRect(fx + 2 * u,  eyeY, 8 * u, 9 * u);
@@ -826,15 +975,16 @@ const game = {
     ctx.stroke();
     // 口
     ctx.beginPath();
-    ctx.moveTo(en.x - 7 * u, ey + en.h * 0.8); ctx.lineTo(en.x + 7 * u, ey + en.h * 0.8);
+    ctx.moveTo(-7 * u, -H + H * 0.8); ctx.lineTo(7 * u, -H + H * 0.8);
     ctx.stroke();
+    ctx.restore();
 
     // 名前
     ctx.fillStyle = "#1c2433";
     ctx.globalAlpha = 0.7;
     ctx.font = "700 11px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(d.name, en.x, ey - 6);
+    ctx.fillText(d.name, en.x, groundY - en.z - H * (1 - q * 0.7) - 6);
     ctx.textAlign = "left";
     ctx.globalAlpha = 1;
   },
