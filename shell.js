@@ -19,6 +19,7 @@
   $("tagline").textContent = CONFIG.tagline;
   $("howto").textContent = CONFIG.howTo;
   if (CONFIG.timeLimit == null) $("timeWrap").style.display = "none";
+  if (CONFIG.noScore) $("hud").style.display = "none";
 
   try { best = parseInt(localStorage.getItem(CONFIG.storageKey), 10) || 0; } catch (e) {}
   $("best").textContent = best;
@@ -75,14 +76,19 @@
     if (state !== "playing") return;
     state = "result";
     game.onEnd();
-    const isBest = score > best;
-    if (isBest) {
-      best = score; $("best").textContent = best;
-      try { localStorage.setItem(CONFIG.storageKey, String(best)); } catch (e) {}
-    }
     $("resultMsg").textContent = msg || "おつかれさま！";
-    $("finalScore").textContent = score;
-    $("bestMsg").textContent = isBest ? "ベスト更新！" : "ベスト " + best;
+    if (CONFIG.noScore) {
+      $("finalScore").style.display = "none";
+      $("bestMsg").style.display = "none";
+    } else {
+      const isBest = score > best;
+      if (isBest) {
+        best = score; $("best").textContent = best;
+        try { localStorage.setItem(CONFIG.storageKey, String(best)); } catch (e) {}
+      }
+      $("finalScore").textContent = score;
+      $("bestMsg").textContent = isBest ? "ベスト更新！" : "ベスト " + best;
+    }
     resultScreen.hidden = false;
   }
 

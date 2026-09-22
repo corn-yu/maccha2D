@@ -55,9 +55,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 #startScreen > :not(.title-art) { position: relative; z-index: 1; }
 #startScreen h1 {
   color: #fff; opacity: .78; letter-spacing: .06em; font-size: clamp(34px, 9vw, 64px);
-  text-shadow: 0 2px 14px rgba(20, 80, 140, .65), 0 0 3px rgba(20, 80, 140, .4);
+  text-shadow: 0 2px 14px rgba(50, 35, 110, .6), 0 0 3px rgba(50, 35, 110, .4);
 }
-#startScreen #tagline { color: #fff; opacity: .6; font-size: 14px; text-shadow: 0 1px 8px rgba(20, 80, 140, .7); }
+#startScreen #tagline { color: #fff; opacity: .6; font-size: 14px; text-shadow: 0 1px 8px rgba(50, 35, 110, .65); }
 #startScreen #startBtn {
   margin-top: auto; opacity: .72; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, .35);
   background: #6aa84f; border: 2px solid rgba(255, 255, 255, .7);

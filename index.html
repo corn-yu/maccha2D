@@ -18,32 +18,46 @@
     <canvas id="canvas"></canvas>
 
     <section class="screen" id="startScreen">
-      <!-- 背景の絵（昼間）：ティーカップに乗った抹茶が、遠くのお城を見つめている -->
+      <!-- 背景の絵（日の出）：宙にういたティーカップの抹茶が、遠くのお城を見つめている -->
       <svg class="title-art" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
         <defs>
           <linearGradient id="taSky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#3d9be9"/>
-            <stop offset="0.45" stop-color="#7cc4f4"/>
-            <stop offset="0.72" stop-color="#d5efff"/>
+            <stop offset="0" stop-color="#3f4fa8"/>
+            <stop offset="0.30" stop-color="#7d6ec0"/>
+            <stop offset="0.50" stop-color="#f09fa6"/>
+            <stop offset="0.64" stop-color="#ffcf98"/>
+            <stop offset="0.76" stop-color="#fff1c9"/>
           </linearGradient>
           <radialGradient id="taSunGlow">
-            <stop offset="0" stop-color="#fff6b0" stop-opacity="0.75"/>
-            <stop offset="1" stop-color="#fff6b0" stop-opacity="0"/>
+            <stop offset="0" stop-color="#fff2b8" stop-opacity="0.95"/>
+            <stop offset="0.35" stop-color="#ffd58a" stop-opacity="0.5"/>
+            <stop offset="1" stop-color="#ffb37a" stop-opacity="0"/>
           </radialGradient>
+          <linearGradient id="taRay" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stop-color="#fff6c8" stop-opacity="0.5"/>
+            <stop offset="1" stop-color="#fff6c8" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="taHaze" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffe2b8" stop-opacity="0"/>
+            <stop offset="0.6" stop-color="#ffe2b8" stop-opacity="0.5"/>
+            <stop offset="1" stop-color="#ffe2b8" stop-opacity="0"/>
+          </linearGradient>
           <linearGradient id="taGround" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#6fc063"/>
-            <stop offset="1" stop-color="#3a8a47"/>
+            <stop offset="0" stop-color="#93c66c"/>
+            <stop offset="1" stop-color="#2f6b4c"/>
           </linearGradient>
           <linearGradient id="taShade" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#0b3a1e" stop-opacity="0"/>
-            <stop offset="1" stop-color="#0b3a1e" stop-opacity="0.3"/>
+            <stop offset="0" stop-color="#0b2a1a" stop-opacity="0"/>
+            <stop offset="1" stop-color="#0b2a1a" stop-opacity="0.32"/>
           </linearGradient>
         </defs>
         <style>
-          .ta-cloud { animation: taCloud 26s ease-in-out infinite alternate; }
-          .ta-cloud.b { animation-duration: 34s; animation-delay: -12s; }
-          .ta-cloud.c { animation-duration: 30s; animation-delay: -6s; }
-          .ta-sun { transform-box: fill-box; transform-origin: 50% 50%; animation: taSun 6s ease-in-out infinite; }
+          .ta-cloud { animation: taCloud 28s ease-in-out infinite alternate; }
+          .ta-cloud.b { animation-duration: 36s; animation-delay: -12s; }
+          .ta-cloud.c { animation-duration: 32s; animation-delay: -6s; }
+          .ta-rays { transform-box: fill-box; transform-origin: 50% 100%; animation: taRays 7s ease-in-out infinite; }
+          .ta-hover { animation: taHover 4.2s ease-in-out infinite; }
+          .ta-shadow { transform-box: fill-box; transform-origin: 50% 50%; animation: taShadow 4.2s ease-in-out infinite; }
           .ta-steam { animation: taSteam 3.6s ease-in-out infinite; }
           .ta-steam.b { animation-delay: -1.8s; }
           .ta-blob { transform-box: fill-box; transform-origin: 50% 100%; animation: taBreath 3.4s ease-in-out infinite; }
@@ -52,97 +66,99 @@
           .ta-bird { animation: taBird 5s ease-in-out infinite; }
           .ta-bird.b { animation-duration: 6.5s; animation-delay: -2s; }
           @keyframes taCloud { 0% { transform: translateX(-30px); } 100% { transform: translateX(40px); } }
-          @keyframes taSun { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .92; } }
+          @keyframes taRays { 0%, 100% { opacity: .85; transform: scale(1); } 50% { opacity: .5; transform: scale(1.03); } }
+          @keyframes taHover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+          @keyframes taShadow { 0%, 100% { transform: scale(1); opacity: .28; } 50% { transform: scale(.86); opacity: .18; } }
           @keyframes taSteam { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: .6; } 100% { opacity: 0; transform: translateY(-14px); } }
           @keyframes taBreath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.04, 0.95); } }
-          @keyframes taFly { 0%, 100% { transform: translate(0, 0); opacity: .95; } 50% { transform: translate(16px, -20px); opacity: .5; } }
+          @keyframes taFly { 0%, 100% { transform: translate(0, 0); opacity: .95; } 50% { transform: translate(16px, -20px); opacity: .4; } }
           @keyframes taBird { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(22px, -8px); } }
-          @media (prefers-reduced-motion: reduce) { .ta-cloud, .ta-sun, .ta-steam, .ta-blob, .ta-fly, .ta-bird { animation: none; } }
+          @media (prefers-reduced-motion: reduce) { .ta-cloud, .ta-rays, .ta-hover, .ta-shadow, .ta-steam, .ta-blob, .ta-fly, .ta-bird { animation: none; } }
         </style>
 
-        <!-- 空・太陽・雲 -->
+        <!-- 日の出の空 -->
         <rect width="1000" height="600" fill="url(#taSky)"/>
-        <circle cx="505" cy="232" r="130" fill="url(#taSunGlow)"/>
-        <circle class="ta-sun" cx="505" cy="232" r="36" fill="#fff8c4"/>
-        <g fill="#fff" opacity="0.92">
-          <g class="ta-cloud"><ellipse cx="330" cy="262" rx="50" ry="15"/><ellipse cx="365" cy="250" rx="34" ry="16"/><ellipse cx="305" cy="252" rx="26" ry="12"/></g>
-          <g class="ta-cloud b"><ellipse cx="700" cy="150" rx="58" ry="16"/><ellipse cx="735" cy="138" rx="36" ry="17"/><ellipse cx="672" cy="140" rx="28" ry="12"/></g>
-          <g class="ta-cloud c"><ellipse cx="180" cy="215" rx="60" ry="17"/><ellipse cx="215" cy="203" rx="38" ry="17"/><ellipse cx="150" cy="205" rx="28" ry="12"/></g>
-          <g class="ta-cloud b"><ellipse cx="880" cy="235" rx="46" ry="13"/><ellipse cx="905" cy="225" rx="28" ry="13"/></g>
+        <circle cx="590" cy="412" r="260" fill="url(#taSunGlow)"/>
+        <g class="ta-rays" fill="url(#taRay)">
+          <polygon points="590,412 520,120 560,120"/><polygon points="590,412 590,100 630,100"/>
+          <polygon points="590,412 660,120 700,130"/><polygon points="590,412 380,200 410,180"/>
+          <polygon points="590,412 790,210 810,240"/><polygon points="590,412 300,300 300,330"/>
+          <polygon points="590,412 880,320 880,350"/>
         </g>
-        <g fill="none" stroke="#2f4a63" stroke-width="2.4" stroke-linecap="round" opacity="0.7">
-          <path class="ta-bird" d="M600 190 q7 -8 14 0 q7 -8 14 0"/>
-          <path class="ta-bird b" d="M632 212 q5 -6 10 0 q5 -6 10 0"/>
+        <circle cx="590" cy="412" r="60" fill="#ffd27a" opacity="0.5"/>
+        <circle cx="590" cy="412" r="46" fill="#fff6c0"/>
+
+        <!-- 朝日に照らされた雲 -->
+        <g opacity="0.95">
+          <g class="ta-cloud"><ellipse cx="320" cy="262" rx="56" ry="15" fill="#ffd9d0"/><ellipse cx="358" cy="250" rx="36" ry="16" fill="#ffe9de"/><ellipse cx="292" cy="252" rx="28" ry="12" fill="#ffe9de"/></g>
+          <g class="ta-cloud b"><ellipse cx="760" cy="215" rx="62" ry="16" fill="#ffd0c8"/><ellipse cx="798" cy="203" rx="38" ry="17" fill="#ffe6d8"/><ellipse cx="730" cy="205" rx="30" ry="12" fill="#ffe6d8"/></g>
+          <g class="ta-cloud c"><ellipse cx="160" cy="330" rx="64" ry="17" fill="#ffcfc6"/><ellipse cx="198" cy="318" rx="40" ry="17" fill="#ffe4d6"/><ellipse cx="128" cy="320" rx="30" ry="12" fill="#ffe4d6"/></g>
+          <g class="ta-cloud b"><ellipse cx="880" cy="330" rx="50" ry="13" fill="#ffd6cc"/><ellipse cx="906" cy="320" rx="30" ry="13" fill="#ffe8dc"/></g>
         </g>
-
-        <!-- 遠くの山と丘 -->
-        <path d="M0 412 L0 365 L90 330 L170 375 L260 325 L350 378 L430 350 L520 395 L700 380 L780 335 L860 372 L940 340 L1000 368 L1000 440 L0 440 Z" fill="#9fc3e6"/>
-        <path d="M0 418 L0 392 L120 372 L230 396 L340 380 L470 408 L700 402 L820 378 L930 398 L1000 386 L1000 440 L0 440 Z" fill="#7fb4cf"/>
-
-        <!-- お城（遠くにぽつんと） -->
-        <g transform="translate(-20 0)">
-          <path d="M450 442 Q490 412 560 404 Q600 399 640 404 Q710 412 750 442 Z" fill="#86cc7a"/>
-          <g fill="#efe4cf">
-            <rect x="565" y="350" width="70" height="62"/>
-            <rect x="565" y="344" width="8" height="7"/><rect x="577" y="344" width="8" height="7"/><rect x="589" y="344" width="8" height="7"/>
-            <rect x="601" y="344" width="8" height="7"/><rect x="613" y="344" width="8" height="7"/><rect x="625" y="344" width="8" height="7"/>
-            <rect x="545" y="330" width="22" height="82"/>
-            <rect x="633" y="340" width="22" height="72"/>
-            <rect x="588" y="300" width="24" height="52"/>
-          </g>
-          <g fill="#d3c4a4" opacity="0.7">
-            <rect x="612" y="350" width="23" height="62"/><rect x="557" y="330" width="10" height="82"/>
-            <rect x="646" y="340" width="9" height="72"/><rect x="604" y="300" width="8" height="52"/>
-          </g>
-          <polygon points="541,330 571,330 556,300" fill="#c9484f"/>
-          <polygon points="629,340 659,340 644,312" fill="#c9484f"/>
-          <polygon points="584,300 616,300 600,262" fill="#3f6fc0"/>
-          <rect x="599" y="244" width="2" height="20" fill="#7a6a55"/>
-          <polygon points="601,244 617,250 601,256" fill="#ff5a6a"/>
-          <g fill="#4a5f86">
-            <rect x="578" y="368" width="5" height="9"/><rect x="597" y="372" width="6" height="10"/>
-            <rect x="618" y="368" width="5" height="9"/><rect x="553" y="350" width="4" height="8"/>
-            <rect x="641" y="360" width="4" height="8"/><rect x="597" y="318" width="5" height="9"/>
-          </g>
-          <path d="M593 412 L593 398 Q600 388 607 398 L607 412 Z" fill="#6b4a34"/>
+        <g fill="none" stroke="#5a4a7e" stroke-width="2.2" stroke-linecap="round" opacity="0.65">
+          <path class="ta-bird" d="M690 300 q7 -8 14 0 q7 -8 14 0"/>
+          <path class="ta-bird b" d="M722 322 q5 -6 10 0 q5 -6 10 0"/>
         </g>
 
-        <!-- 草原と、お城へ続く道、お花 -->
-        <path d="M0 432 Q250 414 480 428 Q720 440 1000 418 L1000 600 L0 600 Z" fill="#86cc7a"/>
-        <path d="M0 600 L0 468 Q260 440 470 456 Q720 470 1000 440 L1000 600 Z" fill="url(#taGround)"/>
-        <path d="M352 600 C420 545 520 500 580 440 L580 412 L592 412 C596 470 530 535 476 600 Z" fill="#f6e7b8" opacity="0.6"/>
-        <rect x="0" y="470" width="1000" height="130" fill="url(#taShade)"/>
+        <!-- いちばん遠い山と、その上のお城（うんと遠く。朝日を背にしたシルエット） -->
+        <path d="M0 452 L0 420 L110 396 L210 430 L320 402 L430 436 L520 408 L590 418 L680 404 L790 434 L890 400 L1000 424 L1000 452 Z" fill="#b49bd2"/>
+        <g transform="translate(590 424) scale(.42) translate(-600 -412)" fill="#7d63a6">
+          <rect x="565" y="350" width="70" height="62"/>
+          <rect x="565" y="344" width="8" height="7"/><rect x="577" y="344" width="8" height="7"/><rect x="589" y="344" width="8" height="7"/>
+          <rect x="601" y="344" width="8" height="7"/><rect x="613" y="344" width="8" height="7"/><rect x="625" y="344" width="8" height="7"/>
+          <rect x="545" y="330" width="22" height="82"/><polygon points="541,330 571,330 556,300"/>
+          <rect x="633" y="340" width="22" height="72"/><polygon points="629,340 659,340 644,312"/>
+          <rect x="588" y="300" width="24" height="52"/><polygon points="584,300 616,300 600,262"/>
+          <rect x="599" y="244" width="2" height="20"/>
+          <polygon points="601,244 617,250 601,256" fill="#c85a78"/>
+          <rect x="597" y="318" width="6" height="10" fill="#ffe08a"/><rect x="578" y="368" width="6" height="10" fill="#ffe08a"/><rect x="618" y="368" width="6" height="10" fill="#ffe08a"/>
+        </g>
+        <rect x="0" y="392" width="1000" height="70" fill="url(#taHaze)"/>
+
+        <!-- 手前の山（お城の下のほうを隠す） -->
+        <path d="M0 470 L0 440 L140 414 L260 448 L380 420 L470 398 L560 402 L640 396 L730 418 L820 444 L920 420 L1000 438 L1000 470 Z" fill="#8f78b4"/>
+        <path d="M0 500 L0 462 Q200 440 420 462 Q640 484 820 452 Q920 438 1000 450 L1000 500 Z" fill="#7fae7a"/>
+
+        <!-- 朝の草原 -->
+        <path d="M0 600 L0 488 Q260 462 500 480 Q740 498 1000 466 L1000 600 Z" fill="url(#taGround)"/>
+        <ellipse cx="600" cy="476" rx="320" ry="34" fill="#ffe9a8" opacity="0.18"/>
+        <rect x="0" y="480" width="1000" height="120" fill="url(#taShade)"/>
         <g>
-          <circle cx="250" cy="500" r="3.2" fill="#fff"/><circle cx="286" cy="524" r="2.8" fill="#ffd0e0"/>
-          <circle cx="330" cy="562" r="3.2" fill="#fff5a0"/><circle cx="215" cy="560" r="2.8" fill="#fff"/>
-          <circle cx="640" cy="520" r="3.2" fill="#ffd0e0"/><circle cx="700" cy="498" r="2.8" fill="#fff"/>
-          <circle cx="720" cy="556" r="3.2" fill="#fff5a0"/><circle cx="600" cy="568" r="2.8" fill="#fff"/>
-          <circle cx="800" cy="520" r="3.2" fill="#ffd0e0"/><circle cx="130" cy="520" r="2.8" fill="#fff5a0"/>
+          <circle cx="250" cy="520" r="3" fill="#fff"/><circle cx="286" cy="544" r="2.6" fill="#ffd0e0"/>
+          <circle cx="330" cy="574" r="3" fill="#fff5a0"/><circle cx="215" cy="570" r="2.6" fill="#fff"/>
+          <circle cx="640" cy="530" r="3" fill="#ffd0e0"/><circle cx="700" cy="510" r="2.6" fill="#fff"/>
+          <circle cx="720" cy="566" r="3" fill="#fff5a0"/><circle cx="600" cy="578" r="2.6" fill="#fff"/>
+          <circle cx="800" cy="530" r="3" fill="#ffd0e0"/><circle cx="130" cy="530" r="2.6" fill="#fff5a0"/>
         </g>
 
-        <!-- ティーカップに乗った抹茶 -->
-        <g transform="translate(455 478) scale(.86) translate(-430 -500)">
-          <ellipse cx="430" cy="512" rx="88" ry="10" fill="#0b3a1e" opacity="0.28"/>
-          <ellipse cx="430" cy="503" rx="74" ry="11" fill="#efe9dc"/>
-          <ellipse cx="430" cy="501" rx="50" ry="7" fill="#dcd3bf"/>
-          <path d="M373 452 C338 446 338 490 376 488" fill="none" stroke="#d6ccb4" stroke-width="8" stroke-linecap="round"/>
-          <path d="M370 442 L490 442 Q486 500 430 500 Q374 500 370 442 Z" fill="#fbf7ee" stroke="#cbbf9f" stroke-width="3"/>
-          <path d="M373 458 Q430 470 487 458" fill="none" stroke="#d9b45a" stroke-width="3"/>
-          <ellipse cx="430" cy="442" rx="60" ry="9" fill="#86b84a"/>
-          <g class="ta-blob">
-            <path d="M386 444 C382 418 396 396 430 394 C464 396 478 418 474 444 C462 452 398 452 386 444 Z" fill="#6aa84f"/>
-            <ellipse cx="408" cy="414" rx="9" ry="5" transform="rotate(-30 408 414)" fill="#fff" opacity="0.4"/>
-            <rect x="450" y="416" width="9" height="9" fill="#1c2433"/>
+        <!-- 空にういている、ティーカップに乗った抹茶（地面には小さな影） -->
+        <ellipse class="ta-shadow" cx="452" cy="548" rx="66" ry="8" fill="#0b2a1a" opacity="0.28"/>
+        <g transform="translate(452 408) scale(.86) translate(-430 -500)">
+          <g class="ta-hover">
+            <g transform="rotate(-5 430 480)">
+              <ellipse cx="430" cy="503" rx="74" ry="11" fill="#efe9dc"/>
+              <ellipse cx="430" cy="501" rx="50" ry="7" fill="#dcd3bf"/>
+              <path d="M373 452 C338 446 338 490 376 488" fill="none" stroke="#d6ccb4" stroke-width="8" stroke-linecap="round"/>
+              <ellipse cx="430" cy="442" rx="60" ry="9" fill="#86b84a"/>
+              <g class="ta-blob">
+                <rect x="408" y="398" width="44" height="50" rx="14" fill="#6aa84f"/>
+                <ellipse cx="418" cy="412" rx="7" ry="4" transform="rotate(-30 418 412)" fill="#fff" opacity="0.4"/>
+                <rect x="439" y="414" width="8" height="8" fill="#1c2433"/>
+              </g>
+              <path d="M370 442 L490 442 Q486 500 430 500 Q374 500 370 442 Z" fill="#fbf7ee" stroke="#cbbf9f" stroke-width="3"/>
+              <path d="M373 458 Q430 470 487 458" fill="none" stroke="#d9b45a" stroke-width="3"/>
+              <path d="M372 443 Q430 455 488 443" fill="none" stroke="#cbbf9f" stroke-width="3"/>
+              <path class="ta-steam" d="M394 436 q-8 -14 0 -26 q8 -12 0 -24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+              <path class="ta-steam b" d="M466 436 q8 -14 0 -26 q-8 -12 0 -24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+            </g>
           </g>
-          <path class="ta-steam" d="M392 436 q-8 -14 0 -26 q8 -12 0 -24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
-          <path class="ta-steam b" d="M468 436 q8 -14 0 -26 q-8 -12 0 -24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
         </g>
 
-        <!-- ちょうちょ・花びら -->
-        <g fill="#ffe0ec">
-          <circle class="ta-fly" cx="390" cy="505" r="3"/><circle class="ta-fly" cx="420" cy="545" r="2.4"/>
-          <circle class="ta-fly" cx="540" cy="515" r="2.8"/><circle class="ta-fly" cx="575" cy="555" r="2.4"/>
-          <circle class="ta-fly" cx="370" cy="570" r="2.6"/><circle class="ta-fly" cx="600" cy="490" r="2.8"/>
+        <!-- 光のつぶ -->
+        <g fill="#fff3b0">
+          <circle class="ta-fly" cx="390" cy="380" r="3"/><circle class="ta-fly" cx="420" cy="440" r="2.4"/>
+          <circle class="ta-fly" cx="540" cy="360" r="2.8"/><circle class="ta-fly" cx="575" cy="470" r="2.4"/>
+          <circle class="ta-fly" cx="372" cy="470" r="2.6"/><circle class="ta-fly" cx="610" cy="330" r="2.8"/>
         </g>
       </svg>
 
