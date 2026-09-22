@@ -45,6 +45,7 @@ const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボス�
 const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
 const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
+const BOSS_DATA_SCALE = 0.7;// ボスの「サイズの数値」(en.size)は、見た目・当たり判定(en.w/en.h)より小さくする
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
 
@@ -84,96 +85,132 @@ const STAGES = [
     ],
     cup: { x: 2100, base: 0 },
   },
-  { // ステージ2：落とし穴と足場。登った先にカップがある
-    name: "ステージ 2", width: 2400,
-    sky: "#f7dfc4", ground: "#7a5a3a", pillar: "#9c774f", plat: "#b98a57", platTop: "#d99a4e", text: "#3a2412",
-    platforms: [
-      { x: 800,  w: 160, top: 70 },
-      { x: 1060, w: 160, top: 140 },
-      { x: 1320, w: 140, top: 70 },
-      { x: 1560, w: 160, top: 140 },
-      { x: 1820, w: 260, top: 210 },
+  { // ステージ2：午後の草原。足場と穴はなくして、坂と丘にした
+    name: "ステージ 2", width: 2400, deco: "meadow",
+    sky: "#f7dfc4", ground: "#7a5a3a", grass: "#c8d95a", pillar: "#9c774f", plat: "#b98a57", platTop: "#d99a4e", text: "#3a2412",
+    platforms: [],
+    pits: [],
+    hills: [
+      { x: 0,    h: 0 },
+      { x: 240,  h: 0 },
+      { x: 480,  h: 150 },
+      { x: 700,  h: 30 },
+      { x: 940,  h: 0 },
+      { x: 1180, h: 200 },
+      { x: 1420, h: 70 },
+      { x: 1660, h: 0 },
+      { x: 1900, h: 0 },
+      { x: 2400, h: 0 },
     ],
-    pits: [ { x: 560, w: 100 } ],
     enemies: [
       { x: 350,  z: 0, min: 250,  max: 520 },
       { x: 1500, z: 0, min: 1480, max: 1780 },
       { x: 1700, z: 0, min: 1620, max: 1780 },
     ],
-    cup: { x: 1960, base: 210 },
+    cup: { x: 2150, base: 0 },
   },
-  { // ステージ3：高い足場をいくつも渡る
-    name: "ステージ 3", width: 2700,
-    sky: "#26335f", ground: "#3f3550", pillar: "#54497a", plat: "#6b5a94", platTop: "#9d8ad0", text: "#f2f0ff",
-    platforms: [
-      { x: 700,  w: 150, top: 70 },
-      { x: 930,  w: 150, top: 140 },
-      { x: 1160, w: 150, top: 210 },
-      { x: 1390, w: 150, top: 140 },
-      { x: 1620, w: 150, top: 210 },
-      { x: 1850, w: 150, top: 280 },
-      { x: 2080, w: 260, top: 280 },
+  { // ステージ3：夕暮れの草原。足場と穴はなくして、坂と丘にした
+    name: "ステージ 3", width: 2700, deco: "meadow",
+    sky: "#26335f", ground: "#3f3550", grass: "#7fae6f", pillar: "#54497a", plat: "#6b5a94", platTop: "#9d8ad0", text: "#f2f0ff",
+    platforms: [],
+    pits: [],
+    hills: [
+      { x: 0,    h: 0 },
+      { x: 220,  h: 0 },
+      { x: 460,  h: 170 },
+      { x: 660,  h: 60 },
+      { x: 880,  h: 220 },
+      { x: 1100, h: 80 },
+      { x: 1340, h: 0 },
+      { x: 1580, h: 230 },
+      { x: 1820, h: 90 },
+      { x: 2060, h: 0 },
+      { x: 2300, h: 0 },
+      { x: 2700, h: 0 },
     ],
-    pits: [ { x: 400, w: 100 }, { x: 1450, w: 110 } ],
     enemies: [
       { x: 600, z: 0, min: 520, max: 690 },
       { x: 1700, z: 0, min: 1600, max: 1780 },
       { x: 1900, z: 0, min: 1800, max: 2000 },
     ],
-    cup: { x: 2210, base: 280 },
+    cup: { x: 2450, base: 0 },
   },
-  { // ステージ4：落とし穴が続く夕暮れの道
-    name: "ステージ 4", width: 3000,
-    sky: "#f4c6cf", ground: "#6b4a4f", pillar: "#8c646b", plat: "#a8767d", platTop: "#e58ea0", text: "#3d1f27",
-    platforms: [
-      { x: 1600, w: 150, top: 70 },
-      { x: 1830, w: 150, top: 140 },
-      { x: 2060, w: 150, top: 70 },
-      { x: 2300, w: 300, top: 140 },
+  { // ステージ4：夕焼けの草原。足場と穴はなくして、坂と丘にした
+    name: "ステージ 4", width: 3000, deco: "meadow",
+    sky: "#f4c6cf", ground: "#6b4a4f", grass: "#8fbf6a", pillar: "#8c646b", plat: "#a8767d", platTop: "#e58ea0", text: "#3d1f27",
+    platforms: [],
+    pits: [],
+    hills: [
+      { x: 0,    h: 0 },
+      { x: 200,  h: 0 },
+      { x: 420,  h: 130 },
+      { x: 600,  h: 40 },
+      { x: 820,  h: 190 },
+      { x: 1020, h: 60 },
+      { x: 1240, h: 0 },
+      { x: 1460, h: 240 },
+      { x: 1680, h: 90 },
+      { x: 1900, h: 260 },
+      { x: 2120, h: 100 },
+      { x: 2340, h: 0 },
+      { x: 2560, h: 0 },
+      { x: 3000, h: 0 },
     ],
-    pits: [ { x: 500, w: 100 }, { x: 900, w: 100 }, { x: 1300, w: 110 } ],
     enemies: [
-      { x: 700,  z: 0,   min: 620,  max: 880 },
-      { x: 1100, z: 0,   min: 1020, max: 1280 },
-      { x: 1450, z: 0,   min: 1430, max: 1560 },
-      { x: 2330, z: 140, min: 2310, max: 2380 },
+      { x: 700,  z: 0, min: 620,  max: 880 },
+      { x: 1100, z: 0, min: 1020, max: 1280 },
+      { x: 1450, z: 0, min: 1430, max: 1560 },
+      { x: 2330, z: 0, min: 2310, max: 2380 },
       { x: 800,  z: 0, min: 640,  max: 880 },
     ],
-    cup: { x: 2500, base: 140 },
+    cup: { x: 2750, base: 0 },
   },
-  { // ステージ5：ラスト。高い階段と落とし穴の夜
-    name: "ステージ 5", width: 3200,
-    sky: "#0f1830", ground: "#2a2440", pillar: "#3a3358", plat: "#4a4275", platTop: "#7d6fd0", text: "#eceaff",
-    platforms: [
-      { x: 600,  w: 140, top: 80 },
-      { x: 820,  w: 140, top: 160 },
-      { x: 1040, w: 140, top: 240 },
-      { x: 1260, w: 200, top: 160 },
-      { x: 1560, w: 140, top: 80 },
-      { x: 1800, w: 140, top: 160 },
-      { x: 2040, w: 140, top: 240 },
-      { x: 2280, w: 140, top: 320 },
-      { x: 2520, w: 300, top: 320 },
+  { // ステージ5：ラスト。夜の草原。足場と穴はなくして、坂と丘にした
+    name: "ステージ 5", width: 3200, deco: "meadow",
+    sky: "#0f1830", ground: "#2a2440", grass: "#5f8f6a", pillar: "#3a3358", plat: "#4a4275", platTop: "#7d6fd0", text: "#eceaff",
+    platforms: [],
+    pits: [],
+    hills: [
+      { x: 0,    h: 0 },
+      { x: 180,  h: 0 },
+      { x: 380,  h: 160 },
+      { x: 560,  h: 50 },
+      { x: 760,  h: 210 },
+      { x: 960,  h: 70 },
+      { x: 1160, h: 260 },
+      { x: 1380, h: 100 },
+      { x: 1600, h: 0 },
+      { x: 1820, h: 280 },
+      { x: 2060, h: 110 },
+      { x: 2280, h: 300 },
+      { x: 2520, h: 120 },
+      { x: 2740, h: 0 },
+      { x: 2960, h: 0 },
+      { x: 3200, h: 0 },
     ],
-    pits: [ { x: 300, w: 100 }, { x: 1500, w: 100 }, { x: 1900, w: 120 } ],
     enemies: [
-      { x: 480,  z: 0,   min: 420,  max: 590 },
-      { x: 1350, z: 160, min: 1270, max: 1440 },
-      { x: 1250, z: 0,   min: 1200, max: 1480 },
-      { x: 2600, z: 320, min: 2530, max: 2620 },
+      { x: 480,  z: 0, min: 420,  max: 590 },
+      { x: 1350, z: 0, min: 1270, max: 1440 },
+      { x: 1250, z: 0, min: 1200, max: 1480 },
+      { x: 2600, z: 0, min: 2530, max: 2620 },
       { x: 530,  z: 0, min: 440,  max: 590 },
     ],
-    cup: { x: 2720, base: 320 },
+    cup: { x: 2960, base: 0 },
   },
-  { // ステージ6：ボス戦。巨大アールグレイ（カップはない。ボスを倒せばクリア）
-    name: "ボス戦", width: 1200, boss: true,
-    sky: "#2a1f3d", ground: "#3b2a4d", pillar: "#54406e", plat: "#6a5390", platTop: "#b39ae6", text: "#f3ecff",
-    platforms: [
-      { x: 180, w: 170, top: 80 },
-      { x: 850, w: 170, top: 80 },
-      { x: 515, w: 170, top: 150 },
-    ],
+  { // ステージ6：ボス戦。巨大アールグレイ（カップはない。ボスを倒せばクリア）。ここも、なだらかな草原のアリーナに
+    name: "ボス戦", width: 1200, boss: true, deco: "meadow",
+    sky: "#2a1f3d", ground: "#3b2a4d", grass: "#7a6fae", pillar: "#54406e", plat: "#6a5390", platTop: "#b39ae6", text: "#f3ecff",
+    platforms: [],
     pits: [],
+    hills: [                                                   // 高すぎると衝撃波をよけずに立っていられるので、低めに
+      { x: 0,   h: 0 },
+      { x: 220, h: 70 },
+      { x: 420, h: 0 },
+      { x: 600, h: 0 },
+      { x: 780, h: 0 },
+      { x: 960, h: 70 },
+      { x: 1200, h: 0 },
+    ],
     enemies: [],
     cup: null,
   },
@@ -587,8 +624,10 @@ const game = {
       this.enemyFights();
       for (const en of this.enemies) {
         if (en.dead !== null) { en.dead += dt; continue; }
-        if (Math.abs(en.w - en.size) > 0.05) {                // 大きさをなめらかに変える
-          en.w = en.h = en.w + (en.size - en.w) * Math.min(1, dt * 10);
+        // 大きさをなめらかに変える。ボスは、サイズの数値(en.size)より、見た目・当たり判定(en.w/en.h)のほうが大きい
+        const growTarget = en.boss ? en.size / BOSS_DATA_SCALE : en.size;
+        if (Math.abs(en.w - growTarget) > 0.05) {
+          en.w = en.h = en.w + (growTarget - en.w) * Math.min(1, dt * 10);
         }
         if (en.boss) this.updateBoss(en, dt, p, pcx);
         else this.moveEnemy(en, dt, pcx, p);
@@ -936,6 +975,7 @@ const game = {
     const b = this.makeEnemy("earlgrey", this.stage.width - 320, 0, BOSS_SIZE, 0, this.stage.width);
     b.boss = true; b.hp = BOSS_HP; b.phase = "walk"; b.t = 0; b.stun = 0; b.flash = 0; b.vx = 0; b.dir = -1; b.chasing = true;
     b.form = 1; b.headT = 0; b.blast = 0; b.blastHit = false; b.combo = 0; b.next = "jump";
+    b.size = BOSS_SIZE * BOSS_DATA_SCALE;                     // 見た目・当たり判定(w/h)はBOSS_SIZEのまま、サイズの数値だけ小さく
     return b;
   },
 
@@ -952,10 +992,11 @@ const game = {
     const f2 = en.form === 2;
     const col = this.bossColor(en);
     if (f2 && Math.random() < 0.25) this.spawnDrops(en.x + (Math.random() - 0.5) * en.w, en.z + en.h, "#ff7a3d", 1, 50);   // 炎
-    if (en.phase !== "air" && (en.z > 0 || en.vz !== 0)) {    // 空中で踏まれたときは、落ちてくる
+    const floorZ = this.groundAt(en.x);                        // 坂・丘の地面（無いステージは平らな0）
+    if (en.phase !== "air" && (en.z > floorZ || en.vz !== 0)) {   // 空中で踏まれたときは、落ちてくる
       en.vz -= GRAVITY * dt;
       en.z += en.vz * dt;
-      if (en.z <= 0) { en.z = 0; en.vz = 0; en.grounded = true; }
+      if (en.z <= floorZ) { en.z = floorZ; en.vz = 0; en.grounded = true; }
     }
 
     // 頭の上にいすわられたら、ふりはらう（予告 → 真上への衝撃）
@@ -981,16 +1022,17 @@ const game = {
       en.phase = "walk"; en.t = 0;
       return;
     }
-    const rage = (f2 ? 1.6 : 1.25) + (BOSS_HP - en.hp) * 0.12;
+    const rage = (f2 ? 1.25 : 1) + (BOSS_HP - en.hp) * 0.07;
     const half = en.w / 2;
     en.t += dt;
     if (en.phase === "walk") {
       en.dir = pcx >= en.x ? 1 : -1;
       en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.dir * en.speed * rage * dt));
-      if (en.t > 1.5 / rage) {                                // 次の攻撃：ジャンプか、突進
+      en.z = this.groundAt(en.x);                             // 坂を歩いても、地面の高さにそのまま合わせる
+      if (en.t > 2.0 / rage) {                                // 次の攻撃：ジャンプか、突進
         en.phase = "wind"; en.t = 0;
         en.dir = pcx >= en.x ? 1 : -1;
-        en.next = Math.random() < (f2 ? 0.5 : 0.35) ? "charge" : "jump";
+        en.next = Math.random() < (f2 ? 0.35 : 0.2) ? "charge" : "jump";
       }
     } else if (en.phase === "wind") {                         // かがんで力をためる
       en.spr.x = 0.5 * Math.min(1, en.t / 0.45);
@@ -1003,8 +1045,9 @@ const game = {
         this.kick(en.spr, -14);
       }
     } else if (en.phase === "charge") {                       // 突進：一直線に走る。壁にぶつかるまで止まらない
-      const spd = f2 ? 780 : 640;
+      const spd = f2 ? 620 : 500;
       en.x += en.dir * spd * dt;
+      en.z = this.groundAt(en.x);                             // 坂を突進しても、地面の高さにそのまま合わせる
       en.spr.x = -0.15;
       if (Math.random() < 0.7) this.spawnDrops(en.x - en.dir * half, 6, col, 1, 120);
       if (en.x <= half || en.x >= this.stage.width - half || en.t > 1.4) {
@@ -1018,17 +1061,18 @@ const game = {
       en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.vx * dt));
       en.vz -= GRAVITY * dt;
       en.z += en.vz * dt;
-      if (en.z <= 0) {                                        // 着地：衝撃波が左右に走る
-        en.z = 0; en.vz = 0; en.grounded = true;
+      const land = this.groundAt(en.x);
+      if (en.z <= land) {                                     // 着地：衝撃波が左右に走る
+        en.z = land; en.vz = 0; en.grounded = true;
         en.phase = "walk"; en.t = 0;
         this.kick(en.spr, 16);
         this.shake = 0.35;
-        this.spawnDrops(en.x, 4, col, 24, 380);
-        const speeds = f2 ? [320, 460, 620] : [320, 440];      // 速さのちがう波が続けて走る（第二形態は3本）
+        this.spawnDrops(en.x, land + 4, col, 24, 380);
+        const speeds = f2 ? [280, 400] : [280];                // 速さのちがう波が続けて走る（第二形態は2本）
         for (const dir of [-1, 1]) {
           for (const sp of speeds) this.waves.push({ x: en.x + dir * half * 0.8, dir, life: 2.4, speed: sp, color: col });
         }
-        if (en.combo < (f2 ? 2 : 1) && Math.random() < 0.7) {  // すぐにもう一度跳ぶことがある（第二形態は2回まで）
+        if (en.combo < (f2 ? 1 : 0) && Math.random() < 0.5) {  // すぐにもう一度跳ぶことがある（第二形態のみ、1回まで）
           en.combo++; en.phase = "wind"; en.t = 0.2; en.next = "jump";
         } else {
           en.combo = 0;
@@ -1048,7 +1092,7 @@ const game = {
     en.flash = 0.35;
     const col = this.bossColor(en);
     const oldSize = en.size;
-    en.size = (en.form === 2 ? BOSS_SIZE_2 : BOSS_SIZE) - (BOSS_HP - Math.max(0, en.hp)) * 10;
+    en.size = ((en.form === 2 ? BOSS_SIZE_2 : BOSS_SIZE) - (BOSS_HP - Math.max(0, en.hp)) * 10) * BOSS_DATA_SCALE;
     this.kick(en.spr, 12);
     this.shake = 0.3;
     this.spawnDrops(en.x, en.z + en.h * 0.6, col, 22, 340);
@@ -1078,7 +1122,7 @@ const game = {
   transformBoss(en) {
     en.form = 2;
     en.hp = BOSS_HP;
-    en.size = BOSS_SIZE_2;
+    en.size = BOSS_SIZE_2 * BOSS_DATA_SCALE;
     en.stun = 2.2;                                            // 変身中は、こちらもボスも動けない
     en.flash = 1.2;
     en.phase = "walk"; en.t = 0; en.combo = 0; en.headT = 0;
@@ -1112,7 +1156,7 @@ const game = {
     });
     if (this.invuln <= 0) {
       for (const w of this.waves) {
-        if (p.z < 26 && Math.abs(w.x - pcx) < p.w / 2 + 12) {  // 地面すれすれを走る。ジャンプでよける
+        if (p.z < this.groundAt(pcx) + 26 && Math.abs(w.x - pcx) < p.w / 2 + 12) {  // 地面すれすれを走る。ジャンプでよける
           this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 10, 220);
           this.loseLife();                                    // ボスの攻撃は、分裂ではなく、そのままミス
           return true;
@@ -1129,17 +1173,10 @@ const game = {
     return false;
   },
 
-  // ミス：ゲームオーバーにはならず、大きさが元にもどって、ステージの最初からやりなおす
+  // ミス：やられたら、そこで終わり。結果画面の「もう一度」で、ステージセレクトからやりなおす
   loseLife() {
-    const p = this.player;
-    this.size = PLAYER_SIZE;                                   // ミスすると、ふつうの大きさに戻る
-    this.frags = [];
-    p.w = p.h = PLAYER_SIZE;
-    p.x = 120; p.z = this.groundAt(120); p.vz = 0; p.grounded = true;
-    this.jumpBuffer = 0;
-    this.invuln = this.stage.boss ? 0.8 : INVULN_TIME;         // ボス戦は、ミスしたあとの無敵が短い
-    this.cameraX = this.cameraTargetX();
-    this.cameraY = 0;
+    const label = this.stage.boss ? "ボス戦" : "ステージ " + (this.stageIndex + 1);
+    this.shell.end("やられた…（" + label + " で力つきた）");
   },
 
   // ゴールしたあと：次のステージへ、最後ならクリア
@@ -1284,14 +1321,15 @@ const game = {
 
     // ボスの衝撃波（地面をはう波。ジャンプでよける）
     for (const wv of this.waves) {
+      const wgy = groundY - this.groundAt(wv.x);                // 坂・丘の高さに沿わせる
       ctx.fillStyle = wv.color || DRINKS.earlgrey.body;
       ctx.globalAlpha = Math.min(1, wv.life / 0.4);
       ctx.beginPath();
-      ctx.ellipse(wv.x, groundY, 22, 30, 0, Math.PI, Math.PI * 2);
+      ctx.ellipse(wv.x, wgy, 22, 30, 0, Math.PI, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
       ctx.beginPath();
-      ctx.ellipse(wv.x - wv.dir * 4, groundY - 12, 6, 10, 0, 0, Math.PI * 2);
+      ctx.ellipse(wv.x - wv.dir * 4, wgy - 12, 6, 10, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -1358,11 +1396,12 @@ const game = {
     }
     if (en.phase === "wind" && en.next === "charge") {        // 突進の予告：走る向きに、赤い帯
       const len = 700, x1 = en.dir > 0 ? en.x : en.x - len;
+      const by = groundY - en.z;                               // ボスの足元の高さを基準にする
       ctx.fillStyle = "rgba(255, 60, 90, " + (0.16 + 0.12 * Math.sin(this.time * 30)) + ")";
-      ctx.fillRect(x1, groundY - 60, len, 60);
+      ctx.fillRect(x1, by - 60, len, 60);
       ctx.strokeStyle = "rgba(255, 60, 90, 0.7)";
       ctx.lineWidth = 3;
-      ctx.strokeRect(x1, groundY - 60, len, 60);
+      ctx.strokeRect(x1, by - 60, len, 60);
     }
     if (en.blast > 0) {
       const a = en.blast / BLAST_TIME;
