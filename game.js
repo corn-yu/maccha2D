@@ -1,9 +1,9 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 12）
+   game.js ── maccha2D（ver 13）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
-   ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）
+   ・ティーカップに入るとゴール → 次のステージへ（全5ステージ）→ 最後は巨大アールグレイとのボス戦
    ・カメラが主人公を追いかける（横も縦も）
    ・キャラは液体（跳ぶとのびて、着地でぷるぷる、しぶきが飛ぶ）。敵に当たると、大きい敵なら吸収されてミス／同じか小さい敵なら分裂（かけらを拾うと回復）。敵同士も戦う。敵は抹茶のライバルのお茶（紅茶・ほうじ茶・ウーロン茶）。四角い体で追いかけてジャンプする。踏むと倒せる / 落とし穴 / ライフ3つ
    ===================================================================== */
@@ -11,8 +11,8 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 12）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
-  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏むと吸収して大きくなるよ。敵に当たったとき、相手が自分より大きいと吸収されてミス、同じ大きさか小さいと分裂（かけらを拾えば元にもどる）。敵同士も戦って、吸収したり分裂したりするよ。落とし穴と横からの接触に注意（ライフ3つ）。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
+  tagline:    "2Dアクションゲーム（ver 13）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏むと吸収して大きくなるよ。敵に当たったとき、相手が自分より大きいと吸収されてミス、同じ大きさか小さいと分裂（かけらを拾えば元にもどる）。敵同士も戦って、吸収したり分裂したりするよ。落とし穴と横からの接触に注意（ライフ3つ）。5ステージをクリアすると、巨大アールグレイとのボス戦！ ジャンプして上から踏むとダメージ、地面をはう衝撃波はジャンプでよけよう。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
 };
@@ -38,6 +38,11 @@ const FIGHT_COOLDOWN = 0.8;// 敵同士が戦ったあと、また戦えるま�
 const BRAWL_SIGHT = 480;   // 敵が、ほかの敵に気づく距離
 const BRAWL_LEASH = 420;   // 敵同士で戦うとき、ふだん歩く範囲の外まで追いかけていける距離
 const FOE_PRIORITY = 150;  // ほかの敵のほうが、プレイヤーよりこれだけ遠くても、敵のほうを優先して襲いにいく
+const BOSS_HP      = 6;     // ボスの体力（上から踏むと1減る）
+const BOSS_SIZE    = 150;   // ボスの最初の大きさ（体力が減るごとに10ずつ小さくなる）
+const BOSS_POINT   = 3000;  // ボスを倒した点数
+const BOSS_STUN    = 1.2;   // 踏まれたあと、ボスが動けなくなる秒数
+const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
 const STAGE_POINT = 1000;  // ステージクリアの点数
@@ -152,6 +157,18 @@ const STAGES = [
     ],
     cup: { x: 2720, base: 320 },
   },
+  { // ステージ6：ボス戦。巨大アールグレイ（カップはない。ボスを倒せばクリア）
+    name: "ボス戦", width: 1200, boss: true,
+    sky: "#2a1f3d", ground: "#3b2a4d", pillar: "#54406e", plat: "#6a5390", platTop: "#b39ae6", text: "#f3ecff",
+    platforms: [
+      { x: 180, w: 170, top: 80 },
+      { x: 850, w: 170, top: 80 },
+      { x: 515, w: 170, top: 150 },
+    ],
+    pits: [],
+    enemies: [],
+    cup: null,
+  },
 ];
 
 // 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
@@ -159,6 +176,7 @@ const STAGES = [
 const DRINKS = {
   kocha:   { name: "紅茶",     size: 40, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
   hojicha: { name: "ほうじ茶", size: 40, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
+  earlgrey:{ name: "巨大アールグレイ", size: BOSS_SIZE, speed: 70, jump: 0, body: "#5b4b9a", dark: "#3a2f66" },
   oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
@@ -347,6 +365,10 @@ const game = {
     this.spr = { x: 0, v: 0 };                 // 主人公のぷるぷる（バネ）。正=つぶれる／負=のびる
     this.dropTimer = 0;
     this.enemies = stage_enemies(this.stage);
+    this.waves = [];                           // ボスの衝撃波
+    this.bossWin = 0;                          // ボスを倒したあと、クリアまでの残り秒数
+    this.shake = 0;                            // 画面のゆれ
+    if (this.stage.boss) this.enemies.push(this.makeBoss());
     this.entering = null;                      // カップに入っている最中の情報
     this.banner = { t: 0 };                    // 「ステージ ○」の表示
     this.cameraX = this.cameraTargetX();       // 最初からカメラを主人公に合わせる
@@ -469,14 +491,17 @@ const game = {
         if (Math.abs(en.w - en.size) > 0.05) {                // 大きさをなめらかに変える
           en.w = en.h = en.w + (en.size - en.w) * Math.min(1, dt * 10);
         }
-        this.moveEnemy(en, dt, pcx, p);
+        if (en.boss) this.updateBoss(en, dt, p, pcx);
+        else this.moveEnemy(en, dt, pcx, p);
         if (en.dead !== null) continue;                       // 穴に落ちた
         const hitX = Math.abs(en.x - pcx) < (p.w + en.w) / 2 - 8;
         const hitZ = p.z < en.z + en.h && p.z + p.h > en.z + 4;
         if (!hitX || !hitZ) continue;
-        if (fallSpeed < 0 && prevZ >= en.z + en.h * 0.5) {
+        if (fallSpeed < 0 && prevZ >= en.z + en.h * (en.boss ? BOSS_STOMP : 0.5)) {
           // 踏んだ！吸収が起きるのは、大きいほうが小さいほうを攻撃したときだけ
-          if (this.size > en.size + 0.5) {
+          if (en.boss) {
+            if (en.stun <= 0) this.damageBoss(en);   // ボスは吸収できない。踏むとダメージ（目を回している間は入らない）
+          } else if (this.size > en.size + 0.5) {
             en.dead = 0;                                      // 自分のほうが大きい：敵を吸収して大きくなる
             en.absorber = null;
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
@@ -493,10 +518,10 @@ const game = {
           p.grounded = false;
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           this.invuln = Math.max(this.invuln, 0.4);
-        } else if (this.invuln <= 0) {
+        } else if (this.invuln <= 0 && !(en.boss && en.stun > 0)) {   // ボスが目を回している間は、横から当たってもだいじょうぶ
           if (en.size > this.size + 0.5) {
             // 自分より大きい敵に当たった：吸収されてミス。敵は大きくなる
-            en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+            if (!en.boss) en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
             this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);      // 吸収されて飛び散る
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
             this.kick(en.spr, 8);
@@ -515,11 +540,12 @@ const game = {
       }
 
       this.updateFrags(dt, p);
+      if (this.updateBossFx(dt, p, pcx)) return;
 
       // ゴール判定：カップの真上あたりで、カップと同じ高さにいたら「入った」
       const cup = stage.cup;
       const cx = p.x + p.w / 2;
-      if (Math.abs(cx - cup.x) <= 26 && p.z >= cup.base - 2 && p.z <= cup.base + 30) {
+      if (cup && Math.abs(cx - cup.x) <= 26 && p.z >= cup.base - 2 && p.z <= cup.base + 30) {
         this.entering = { t: 0, fromX: p.x, fromZ: p.z };
       }
     }
@@ -535,7 +561,7 @@ const game = {
     if (en.fightCd > 0) return null;
     let best = null, bestD = BRAWL_SIGHT;
     for (const o of this.enemies) {
-      if (o === en || o.dead !== null) continue;
+      if (o === en || o.dead !== null || o.boss) continue;
       const d = Math.abs(o.x - en.x);
       if (d < bestD && Math.abs(o.z - en.z) < 120) { best = o; bestD = d; }
     }
@@ -549,7 +575,7 @@ const game = {
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const a = list[i], b = list[j];
-        if (a.dead !== null || b.dead !== null || a.fightCd > 0 || b.fightCd > 0) continue;
+        if (a.boss || b.boss || a.dead !== null || b.dead !== null || a.fightCd > 0 || b.fightCd > 0) continue;
         if (Math.abs(a.x - b.x) >= (a.w + b.w) / 2 - 4) continue;
         if (!(a.z < b.z + b.h - 4 && b.z < a.z + a.h - 4)) continue;
         a.fightCd = b.fightCd = FIGHT_COOLDOWN;
@@ -782,6 +808,127 @@ const game = {
     });
   },
 
+  // ---- ボス：巨大アールグレイ -------------------------------------------------
+  // 敵を1体つくる（ボスがはなつ子分にも使う）
+  makeEnemy(type, x, z, size, min, max) {
+    const d = DRINKS[type];
+    return { type, x, z, vz: 0, grounded: true, size, w: size, h: size, min, max, dir: 1, speed: d.speed, jump: d.jump,
+             jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
+  },
+  makeBoss() {
+    const b = this.makeEnemy("earlgrey", this.stage.width - 320, 0, BOSS_SIZE, 0, this.stage.width);
+    b.boss = true; b.hp = BOSS_HP; b.phase = "walk"; b.t = 0; b.stun = 0; b.flash = 0; b.vx = 0; b.dir = -1; b.chasing = true;
+    return b;
+  },
+
+  // ボスの動き：追いかける → かがむ → 大ジャンプ → 着地で衝撃波（ダメージを受けるほど速くなる）
+  updateBoss(en, dt, p, pcx) {
+    this.stepSpring(en.spr, dt);
+    en.flash = Math.max(0, en.flash - dt);
+    en.chasing = true;
+    if (en.phase !== "air" && (en.z > 0 || en.vz !== 0)) {    // 空中で踏まれたときは、落ちてくる
+      en.vz -= GRAVITY * dt;
+      en.z += en.vz * dt;
+      if (en.z <= 0) { en.z = 0; en.vz = 0; en.grounded = true; }
+    }
+    if (en.stun > 0) {                                        // 踏まれて目を回している
+      en.stun -= dt;
+      en.phase = "walk"; en.t = 0;
+      return;
+    }
+    const rage = 1 + (BOSS_HP - en.hp) * 0.12;
+    const half = en.w / 2;
+    en.t += dt;
+    if (en.phase === "walk") {
+      en.dir = pcx >= en.x ? 1 : -1;
+      en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.dir * en.speed * rage * dt));
+      if (en.t > 2.2 / rage) { en.phase = "wind"; en.t = 0; }
+    } else if (en.phase === "wind") {                         // かがんで力をためる
+      en.spr.x = 0.5 * Math.min(1, en.t / 0.6);
+      en.spr.v = 0;
+      if (en.t > 0.6) {
+        en.phase = "air"; en.t = 0;
+        en.vz = 820; en.grounded = false;
+        en.vx = Math.max(-420, Math.min(420, (pcx - en.x) / 0.9));   // プレイヤーの位置を狙って跳ぶ
+        this.kick(en.spr, -14);
+      }
+    } else {                                                  // 空中
+      en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.vx * dt));
+      en.vz -= GRAVITY * dt;
+      en.z += en.vz * dt;
+      if (en.z <= 0) {                                        // 着地：衝撃波が左右に走る
+        en.z = 0; en.vz = 0; en.grounded = true;
+        en.phase = "walk"; en.t = 0;
+        this.kick(en.spr, 16);
+        this.shake = 0.35;
+        this.spawnDrops(en.x, 4, DRINKS.earlgrey.body, 24, 380);
+        for (const dir of [-1, 1]) this.waves.push({ x: en.x + dir * half * 0.8, dir, life: 2.2 });
+      }
+    }
+  },
+
+  // 踏まれた：体力が減って、少し小さくなり、子分が飛び出す。体力が0なら撃破
+  damageBoss(en) {
+    en.hp--;
+    en.stun = BOSS_STUN;
+    en.flash = 0.35;
+    en.size = BOSS_SIZE - (BOSS_HP - Math.max(0, en.hp)) * 10;
+    this.kick(en.spr, 12);
+    this.shake = 0.3;
+    this.spawnDrops(en.x, en.z + en.h * 0.6, DRINKS.earlgrey.body, 22, 340);
+    this.addPoints(500);
+    if (en.hp <= 0) {                                         // 撃破！
+      this.bossWin = 2.0;
+      this.invuln = 99;
+      en.dead = 0; en.absorber = null;
+      this.waves = [];
+      for (const o of this.enemies) {                         // 子分もはじける
+        if (o !== en && o.dead === null) { o.dead = 0; o.absorber = null; this.spawnDrops(o.x, o.z + o.h / 2, DRINKS[o.type].body, 8, 240); }
+      }
+      this.spawnDrops(en.x, en.z + en.h / 2, DRINKS.earlgrey.body, 60, 520);
+      return;
+    }
+    const types = ["kocha", "hojicha", "oolong"];
+    const max = this.stage.width - 30;
+    for (const dir of [-1, 1]) {                              // 子分が2体、左右に飛び出す
+      const type = types[Math.floor(Math.random() * types.length)];
+      const m = this.makeEnemy(type, Math.max(30, Math.min(max, en.x + dir * en.w * 0.6)), en.z + 20, 30, 30, max);
+      m.grounded = false; m.vz = 520; m.dir = dir; m.fightCd = FIGHT_COOLDOWN;
+      this.enemies.push(m);
+    }
+  },
+
+  // 衝撃波の動きと当たり／ボスを倒したあとの演出。ゲームを終えたら true
+  updateBossFx(dt, p, pcx) {
+    this.shake = Math.max(0, this.shake - dt);
+    if (this.bossWin > 0) {
+      this.bossWin -= dt;
+      if (Math.random() < 0.6) this.spawnDrops(p.x + Math.random() * 300 - 100, 40 + Math.random() * 60, DRINKS.earlgrey.body, 3, 200);
+      if (this.bossWin <= 0) {
+        this.addPoints(BOSS_POINT + this.lives * LIFE_POINT);
+        this.shell.end("巨大アールグレイをたおした！ぜんぶクリア！おめでとう！");
+        return true;
+      }
+      return false;
+    }
+    this.waves = this.waves.filter((w) => {
+      w.x += w.dir * 300 * dt;
+      w.life -= dt;
+      return w.life > 0 && w.x > -20 && w.x < this.stage.width + 20;
+    });
+    if (this.invuln <= 0) {
+      for (const w of this.waves) {
+        if (p.z < 26 && Math.abs(w.x - pcx) < p.w / 2 + 12) {  // 地面すれすれを走る。ジャンプでよける
+          this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 10, 220);
+          if (this.size > MIN_SIZE) { this.splitPlayer(); return false; }
+          this.loseLife();
+          return true;
+        }
+      }
+    }
+    return false;
+  },
+
   // ミス：ライフが1つ減る。0になったらゲームオーバー
   loseLife() {
     this.lives--;
@@ -824,7 +971,8 @@ const game = {
     ctx.fillRect(0, 0, w, h);
 
     ctx.save();
-    ctx.translate(-cam, this.cameraY);    // ここから先は「ステージの座標」で描く
+    const sh = this.shake > 0 ? this.shake * 24 : 0;     // ボスの着地・被弾で画面がゆれる
+    ctx.translate(-cam + (Math.random() - 0.5) * sh, this.cameraY + (Math.random() - 0.5) * sh);    // ここから先は「ステージの座標」で描く
 
     // 地面（見えている範囲だけ）
     // （落とし穴のところは地面を描かない）
@@ -861,7 +1009,7 @@ const game = {
     }
 
     // ゴールのティーカップ
-    this.drawCup(ctx, stage.cup.x, groundY - stage.cup.base, stage);
+    if (stage.cup) this.drawCup(ctx, stage.cup.x, groundY - stage.cup.base, stage);
 
     // 敵（踏まれたら主人公に吸収される）
     for (const en of this.enemies) {
@@ -917,6 +1065,20 @@ const game = {
     ctx.restore();
     ctx.globalAlpha = 1;
 
+    // ボスの衝撃波（地面をはう波。ジャンプでよける）
+    for (const wv of this.waves) {
+      ctx.fillStyle = DRINKS.earlgrey.body;
+      ctx.globalAlpha = Math.min(1, wv.life / 0.4);
+      ctx.beginPath();
+      ctx.ellipse(wv.x, groundY, 22, 30, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.beginPath();
+      ctx.ellipse(wv.x - wv.dir * 4, groundY - 12, 6, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
     // しずく（キャラの手前に飛び散る）
     for (const d of this.drops) {
       if (d.x + 10 < cam || d.x - 10 > cam + w) continue;
@@ -934,7 +1096,19 @@ const game = {
     ctx.fillStyle = stage.text;
     ctx.font = "700 18px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(stage.name + " / " + STAGES.length, 16, 34);
+    ctx.fillText(stage.boss ? stage.name : stage.name + " / " + (STAGES.length - 1), 16, 34);
+    const boss = this.enemies.find((e) => e.boss);
+    if (boss) {                                               // ボスの体力ゲージ
+      const bw = Math.min(260, w - 200), bx = w / 2 - bw / 2;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(bx, 46, bw, 12);
+      ctx.fillStyle = "#b478ff";
+      ctx.fillRect(bx, 46, bw * Math.max(0, boss.hp) / BOSS_HP, 12);
+      ctx.font = "700 12px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("巨大アールグレイ", w / 2, 40);
+      ctx.font = "700 18px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+    }
     ctx.textAlign = "right";
     ctx.fillText("♥ ×" + this.lives, w - 16, 34);
     ctx.font = "700 14px 'Hiragino Sans', 'Yu Gothic', sans-serif";
@@ -985,6 +1159,25 @@ const game = {
     this.blobPath(ctx, W, H, q, en.x);
     ctx.fill();
     this.shine(ctx, W, H);
+    if (en.boss) {
+      if (en.flash > 0) {                                     // ダメージを受けたら白くひかる
+        ctx.fillStyle = "rgba(255, 255, 255, " + Math.min(0.7, en.flash * 2.5) + ")";
+        this.blobPath(ctx, W, H, q, en.x);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#f2c230";                              // 王冠
+      ctx.beginPath();
+      ctx.moveTo(-W * 0.22, -H + 3); ctx.lineTo(-W * 0.22, -H - H * 0.16); ctx.lineTo(-W * 0.11, -H - H * 0.06);
+      ctx.lineTo(0, -H - H * 0.2); ctx.lineTo(W * 0.11, -H - H * 0.06); ctx.lineTo(W * 0.22, -H - H * 0.16);
+      ctx.lineTo(W * 0.22, -H + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#f28c28";                              // ベルガモット（アールグレイの香りづけ）
+      ctx.beginPath();
+      ctx.arc(-W * 0.3, -H * 0.2, W * 0.07, 0, Math.PI * 2);
+      ctx.arc(W * 0.3, -H * 0.2, W * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // 怒った顔（追いかけているときは眉がつり上がる）
     const u = W / 34;                                         // 大きさに合わせた倍率
@@ -998,7 +1191,7 @@ const game = {
     ctx.fillRect(fx + 2 * u  + (face > 0 ? 4 * u : 0), eyeY + 3 * u, 4 * u, 5 * u);
     const brow = en.chasing ? 6 * u : 3 * u;
     ctx.strokeStyle = "#1c2433";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(2, u * 1.1);
     ctx.beginPath();
     ctx.moveTo(fx - 12 * u, eyeY - brow); ctx.lineTo(fx - 2 * u, eyeY);
     ctx.moveTo(fx + 12 * u, eyeY - brow); ctx.lineTo(fx + 2 * u, eyeY);
@@ -1012,9 +1205,9 @@ const game = {
     // 名前
     ctx.fillStyle = "#1c2433";
     ctx.globalAlpha = 0.7;
-    ctx.font = "700 11px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+    ctx.font = (en.boss ? "700 16px" : "700 11px") + " 'Hiragino Sans', 'Yu Gothic', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(d.name, en.x, groundY - en.z - H * (1 - q * 0.7) - 6);
+    ctx.fillText(d.name, en.x, groundY - en.z - H * (1 - q * 0.7) - 6 - (en.boss ? H * 0.22 : 0));
     ctx.textAlign = "left";
     ctx.globalAlpha = 1;
   },
