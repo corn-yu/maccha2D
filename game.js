@@ -36,15 +36,19 @@ const FIGHT_COOLDOWN = 0.8;// 敵同士が戦ったあと、また戦えるま�
 const BRAWL_SIGHT = 480;   // 敵が、ほかの敵に気づく距離
 const BRAWL_LEASH = 420;   // 敵同士で戦うとき、ふだん歩く範囲の外まで追いかけていける距離
 const FOE_PRIORITY = 150;  // ほかの敵のほうが、プレイヤーよりこれだけ遠くても、敵のほうを優先して襲いにいく
-const BOSS_HP      = 6;     // ボスの体力（上から踏むと1減る）
-const BOSS_SIZE    = 150;   // ボスの最初の大きさ（体力が減るごとに10ずつ小さくなる）
+const BOSS_HP      = 30;    // ボスの体力（上から踏むと1減る）
+const BOSS_SHRINK  = 0.5;   // 体力が0になるまでに、最初の大きさの何割まで縮むか（HPが多くても縮みすぎない）
+const BOSS_SIZE    = 130;   // ボスの最初の大きさ（体力が減るごとに10ずつ小さくなる）
 const BOSS_STUN    = 0.9;   // 踏まれたあと、ボスが動けなくなる秒数
-const BOSS_SIZE_2  = 170;   // 第二形態になったときの大きさ
+const BOSS_SIZE_2  = 148;   // 第二形態になったときの大きさ
 const BOSS_COLOR_2 = "#8f2a6b";   // 第二形態の体の色
 const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボスがふりはらう
 const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
 const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
+const SLAM_UP_SPEED = 1000; // 滞空技：真上に跳ぶ強さ（ふつうのジャンプより高い）
+const SLAM_HOVER    = 1.0;  // 滞空技：頂上で静止している秒数（第二形態はもう少し短い）
+const SLAM_FALL_MULT = 2.4; // 滞空技：落ちるときの重力の倍率（ふつうより速く落ちる）
 const BOSS_DATA_SCALE = 0.6;// ボスの「サイズの数値」(en.size)は、見た目・当たり判定(en.w/en.h)より小さくする（最初は150*0.6=90）
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
@@ -202,13 +206,13 @@ const STAGES = [
     sky: "#2a1f3d", ground: "#3b2a4d", grass: "#7a6fae", pillar: "#54406e", plat: "#6a5390", platTop: "#b39ae6", text: "#f3ecff",
     platforms: [],
     pits: [],
-    hills: [                                                   // 高すぎると衝撃波をよけずに立っていられるので、低めに
+    hills: [                                                   // 真ん中に、ボスより高い丘（衝撃波は地面基準でよけるので、高くてもズルはできない）
       { x: 0,   h: 0 },
-      { x: 220, h: 70 },
-      { x: 420, h: 0 },
-      { x: 600, h: 0 },
-      { x: 780, h: 0 },
-      { x: 960, h: 70 },
+      { x: 200, h: 0 },
+      { x: 380, h: 0 },
+      { x: 620, h: 190 },
+      { x: 860, h: 0 },
+      { x: 1040, h: 0 },
       { x: 1200, h: 0 },
     ],
     enemies: [],
@@ -992,8 +996,9 @@ const game = {
     const f2 = en.form === 2;
     const col = this.bossColor(en);
     if (f2 && Math.random() < 0.25) this.spawnDrops(en.x + (Math.random() - 0.5) * en.w, en.z + en.h, "#ff7a3d", 1, 50);   // 炎
+    const airPhases = en.phase === "air" || en.phase === "slamUp" || en.phase === "slamHover" || en.phase === "slamFall";
     const floorZ = this.groundAt(en.x);                        // 坂・丘の地面（無いステージは平らな0）
-    if (en.phase !== "air" && (en.z > floorZ || en.vz !== 0)) {   // 空中で踏まれたときは、落ちてくる
+    if (!airPhases && (en.z > floorZ || en.vz !== 0)) {         // 空中で踏まれたときは、落ちてくる
       en.vz -= GRAVITY * dt;
       en.z += en.vz * dt;
       if (en.z <= floorZ) { en.z = floorZ; en.vz = 0; en.grounded = true; }
@@ -1002,7 +1007,7 @@ const game = {
     // 頭の上にいすわられたら、ふりはらう（予告 → 真上への衝撃）
     const above = Math.abs(pcx - en.x) < en.w / 2 + 20 && p.z >= en.z + en.h * 0.6 && p.z <= en.z + en.h + 260;
     en.headT = above ? en.headT + dt : Math.max(0, en.headT - dt * 2);
-    if (en.phase !== "shake" && en.phase !== "air" && en.headT >= SHAKE_HEAD) { en.phase = "shake"; en.t = 0; en.headT = 0; }
+    if (en.phase !== "shake" && !airPhases && en.headT >= SHAKE_HEAD) { en.phase = "shake"; en.t = 0; en.headT = 0; }
     if (en.phase === "shake") {
       en.t += dt;
       en.spr.x = 0.5 * Math.min(1, en.t / SHAKE_TELE);
@@ -1022,23 +1027,32 @@ const game = {
       en.phase = "walk"; en.t = 0;
       return;
     }
-    const rage = (f2 ? 1.25 : 1) + (BOSS_HP - en.hp) * 0.07;
+    const rage = (f2 ? 1.25 : 1) + ((BOSS_HP - en.hp) / BOSS_HP) * 0.42;   // 体力が減るほど速くなる（HPの数が変わっても、増え方は同じにする）
     const half = en.w / 2;
     en.t += dt;
     if (en.phase === "walk") {
       en.dir = pcx >= en.x ? 1 : -1;
       en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.dir * en.speed * rage * dt));
       en.z = this.groundAt(en.x);                             // 坂を歩いても、地面の高さにそのまま合わせる
-      if (en.t > 2.0 / rage) {                                // 次の攻撃：ジャンプか、突進
+      if (en.t > 2.0 / rage) {                                // 次の攻撃：ジャンプか、突進か、滞空
         en.phase = "wind"; en.t = 0;
         en.dir = pcx >= en.x ? 1 : -1;
-        en.next = Math.random() < (f2 ? 0.35 : 0.2) ? "charge" : "jump";
+        const r = Math.random();
+        en.next = r < (f2 ? 0.3 : 0.18) ? "charge" : r < (f2 ? 0.55 : 0.35) ? "slam" : "jump";
       }
     } else if (en.phase === "wind") {                         // かがんで力をためる
       en.spr.x = 0.5 * Math.min(1, en.t / 0.45);
       en.spr.v = 0;
       if (en.t > 0.45) {
         if (en.next === "charge") { en.phase = "charge"; en.t = 0; this.shake = 0.2; return; }   // 突進（向きは予告のときに決まっている）
+        if (en.next === "slam") {                             // 滞空技：真上に高く跳んで、しばらく浮いてから落ちてくる
+          en.phase = "slamUp"; en.t = 0;
+          en.vz = SLAM_UP_SPEED; en.grounded = false;
+          en.vx = Math.max(-300, Math.min(300, (pcx - en.x) / 1.2));
+          this.kick(en.spr, -18);
+          this.shake = 0.25;
+          return;
+        }
         en.phase = "air"; en.t = 0;
         en.vz = 820; en.grounded = false;
         en.vx = Math.max(-420, Math.min(420, (pcx - en.x) / 0.9));   // プレイヤーの位置を狙って跳ぶ
@@ -1057,7 +1071,7 @@ const game = {
         this.shake = 0.4;
         this.spawnDrops(en.x + en.dir * half, 40, col, 20, 320);
       }
-    } else {                                                  // 空中
+    } else if (en.phase === "air") {                          // 空中（ふつうのジャンプ）
       en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.vx * dt));
       en.vz -= GRAVITY * dt;
       en.z += en.vz * dt;
@@ -1078,6 +1092,32 @@ const game = {
           en.combo = 0;
         }
       }
+    } else if (en.phase === "slamUp") {                       // 滞空技：真上に高く跳んでいく
+      en.x = Math.max(half, Math.min(this.stage.width - half, en.x + en.vx * dt));
+      en.vz -= GRAVITY * dt;
+      en.z += en.vz * dt;
+      en.vx *= Math.pow(0.3, dt);                             // 横の勢いはすぐに弱まる（頂上ではほぼ真下に落ちる）
+      if (en.vz <= 0) { en.phase = "slamHover"; en.t = 0; en.vz = 0; }   // 頂上に着いたら、静止して浮く
+    } else if (en.phase === "slamHover") {                    // 滞空技：頂上でしばらく静止する（真下に着地の予告が出る）
+      en.vz = 0;
+      en.spr.x = Math.sin(en.t * 6) * 0.06;                   // ゆらゆら浮いているような揺れ
+      if (Math.random() < 0.3) this.spawnDrops(en.x + (Math.random() - 0.5) * en.w * 0.6, en.z, col, 1, 40);
+      if (en.t > (f2 ? SLAM_HOVER * 0.7 : SLAM_HOVER)) { en.phase = "slamFall"; en.t = 0; }
+    } else if (en.phase === "slamFall") {                     // 滞空技：真下へ、ふつうより速く落ちる
+      en.vz -= GRAVITY * SLAM_FALL_MULT * dt;
+      en.z += en.vz * dt;
+      const land = this.groundAt(en.x);
+      if (en.z <= land) {                                     // 着地：大きな衝撃と、いつもより多い衝撃波
+        en.z = land; en.vz = 0; en.grounded = true;
+        en.phase = "walk"; en.t = 0; en.combo = 0;
+        this.kick(en.spr, 24);
+        this.shake = 0.6;
+        this.spawnDrops(en.x, land + 4, col, 40, 480);
+        const speeds = f2 ? [280, 420, 560] : [280, 420];
+        for (const dir of [-1, 1]) {
+          for (const sp of speeds) this.waves.push({ x: en.x + dir * half * 0.6, dir, life: 2.6, speed: sp, color: col });
+        }
+      }
     }
   },
 
@@ -1092,7 +1132,8 @@ const game = {
     en.flash = 0.35;
     const col = this.bossColor(en);
     const oldSize = en.size;
-    en.size = ((en.form === 2 ? BOSS_SIZE_2 : BOSS_SIZE) - (BOSS_HP - Math.max(0, en.hp)) * 10) * BOSS_DATA_SCALE;
+    const baseSize = en.form === 2 ? BOSS_SIZE_2 : BOSS_SIZE;
+    en.size = (baseSize * (1 - (1 - BOSS_SHRINK) * (BOSS_HP - Math.max(0, en.hp)) / BOSS_HP)) * BOSS_DATA_SCALE;
     this.kick(en.spr, 12);
     this.shake = 0.3;
     this.spawnDrops(en.x, en.z + en.h * 0.6, col, 22, 340);
@@ -1412,6 +1453,27 @@ const game = {
       ctx.globalAlpha = 0.6 * a;
       ctx.fillRect(x0 + wd * 0.3, top, wd * 0.4, bottom - top);
       ctx.globalAlpha = 1;
+    }
+    if (en.phase === "slamUp" || en.phase === "slamHover") {   // 滞空技：真下の地面に、落ちてくる場所の予告
+      const gy = groundY - this.groundAt(en.x);
+      const pulse = 0.5 + 0.35 * Math.sin(this.time * 14);
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = "rgba(255, 60, 90, 0.4)";
+      ctx.beginPath();
+      ctx.ellipse(en.x, gy, en.w * 0.6, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 60, 90, 0.85)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+      // ボスから地面まで、うっすら光の筋
+      ctx.strokeStyle = "rgba(255, 200, 120, 0.35)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(en.x, gy - 6);
+      ctx.lineTo(en.x, groundY - en.z - en.h * 0.2);
+      ctx.stroke();
     }
   },
 
