@@ -18,10 +18,10 @@ function features(s) {
   ];
 }
 function teacher(s) {
-  const target = s.dx + 0.25 * s.pvx;                          // プレイヤーの少し先を狙う
+  const target = s.dx + 0.45 * s.pvx;                          // プレイヤーの、もう少し先を狙う（先読みを強化）
   const move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
   const pitAhead = move > 0 ? s.pitR : move < 0 ? s.pitL : 0;
-  const above = s.dz > 20 && Math.abs(s.dx) < 140;
+  const above = s.dz > 20 && Math.abs(s.dx) < 150;
   const dodge = !s.pGrounded && Math.abs(s.dx) < 110;
   const jump = s.eGrounded && s.ready && (above || pitAhead || dodge) ? 1 : 0;
   return { move, jump };

@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 18）
+   game.js ── maccha2D（ver 19）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 18）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 19）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -300,10 +300,10 @@ const game = {
       return { move, jump: o[3] > 0 && en.grounded && en.jumpWait <= 0 };
     }
     const dx = pcx - en.x;
-    const target = dx + 0.25 * tvx;
+    const target = dx + 0.45 * tvx;                            // 先読みを強化：プレイヤーの、もう少し先の位置を狙う
     const move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
-    const above = p.z > en.z + 20 && Math.abs(dx) < 140;
+    const above = p.z > en.z + 20 && Math.abs(dx) < 150;
     const dodge = !p.grounded && Math.abs(dx) < 110;
     return { move, jump: en.grounded && en.jumpWait <= 0 && (above || pitAhead === 1 || dodge) };
   },
@@ -633,6 +633,7 @@ const game = {
         if (Math.abs(en.w - growTarget) > 0.05) {
           en.w = en.h = en.w + (growTarget - en.w) * Math.min(1, dt * 10);
         }
+        const prevEnZ = en.z;                                  // 敵の、この処理直前の高さ（上から降ってきたか判定に使う）
         if (en.boss) this.updateBoss(en, dt, p, pcx);
         else this.moveEnemy(en, dt, pcx, p);
         if (en.dead !== null) continue;                       // 穴に落ちた
@@ -658,6 +659,15 @@ const game = {
           p.grounded = false;
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
+        } else if (!en.boss && en.vz < 0 && prevEnZ >= p.z + p.h * 0.5 && this.invuln <= 0) {
+          // 敵の方が上から降ってきて当たった：大きさに関係なく、こちらの負け
+          en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+          this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);
+          this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
+          this.kick(en.spr, 8);
+          if (this.size > MIN_SIZE) { this.splitPlayer(); continue; }
+          this.loseLife();
+          return;
         } else if (this.invuln <= 0 && !(en.boss && en.stun > 0)) {   // ボスが目を回している間は、横から当たってもだいじょうぶ
           if (!en.boss && this.size > en.size + 0.5) {
             // 横から当たっても、自分の方が大きい敵になら勝つ（踏んだときと同じく吸収して大きくなる）
@@ -789,6 +799,7 @@ const game = {
       if (move !== 0) en.dir = move;
     } else if (seesPlayer) {
       speed = en.speed;
+      if (en.z > p.z + 30) speed *= 1.5;                      // 高い場所にいるときは、勢いよく降りて上から仕掛ける
       lo = Math.max(0, en.min - LEASH);
       hi = Math.min(stage.width, en.max + LEASH);
       const d = this.decideEnemy(en, p, pcx, this.pvx);      // AI（なければルール）が動きとジャンプを決める
