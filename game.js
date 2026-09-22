@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 23）
+   game.js ── maccha2D（ver 24）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 23）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 24）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -471,6 +471,11 @@ const game = {
     });
   },
 
+  // いまの大きさに応じたジャンプの強さ（大きいほど高く跳べる。小さいと少し控えめ）
+  jumpPower() {
+    return JUMP_SPEED * (1 + (this.size - PLAYER_SIZE) / (MAX_SIZE - PLAYER_SIZE) * 0.6);
+  },
+
   // 指定した x が落とし穴の上か
   inPit(x) {
     for (const pit of this.stage.pits) {
@@ -583,7 +588,7 @@ const game = {
       // ジャンプ：どこかに立っているときにボタンが押されたら跳ぶ
       if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
       if (p.grounded && this.jumpBuffer > 0) {
-        p.vz = JUMP_SPEED;
+        p.vz = this.jumpPower();
         p.grounded = false;
         this.jumpBuffer = 0;
         this.kick(this.spr, -7);                               // 跳ぶ瞬間にびよんとのびる
@@ -659,7 +664,7 @@ const game = {
             this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
             en.fightCd = FIGHT_COOLDOWN;
           }
-          p.vz = JUMP_SPEED * 0.65;
+          p.vz = this.jumpPower() * 0.65;
           p.grounded = false;
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
