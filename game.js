@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 21）
+   game.js ── maccha2D（ver 22）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 21）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 22）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -23,7 +23,7 @@ const JUMP_SPEED = 640;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
-const GROW_RATIO  = 0.025; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+1）
+const GROW_RATIO  = 0.015; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+1）
 const MAX_SIZE    = 200;   // 大きくなれる限界（ミスするとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
@@ -665,7 +665,7 @@ const game = {
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
         } else if (!en.boss && en.vz < 0 && prevEnZ >= p.z + p.h * 0.5 && this.invuln <= 0) {
           // 敵の方が上から降ってきて当たった：大きさに関係なく、こちらの負け
-          en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+          en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.15);
           this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);
           this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
           this.kick(en.spr, 8);
@@ -686,7 +686,7 @@ const game = {
           }
           if (en.size > this.size + 0.5) {
             // 自分より大きい敵に当たった：吸収されてミス。敵は大きくなる
-            if (!en.boss) en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
+            if (!en.boss) en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.15);
             this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);      // 吸収されて飛び散る
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
             this.kick(en.spr, 8);
@@ -752,7 +752,7 @@ const game = {
           this.splitEnemy(b);
         } else {
           const big = a.size > b.size ? a : b, small = big === a ? b : a;
-          big.size = Math.min(ENEMY_MAX, big.size + small.size * 0.5);
+          big.size = Math.min(ENEMY_MAX, big.size + small.size * 0.3);
           small.dead = 0;
           small.absorber = big;
           this.spawnDrops(small.x, small.z + small.h / 2, DRINKS[small.type].body, 10, 200);
