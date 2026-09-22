@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 17）
+   game.js ── maccha2D（ver 18）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 17）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 18）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -23,8 +23,8 @@ const JUMP_SPEED = 640;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
-const GROW_RATIO  = 0.1;   // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+4）
-const MAX_SIZE    = 100;   // 大きくなれる限界（ミスするとふつうの大きさに戻る）
+const GROW_RATIO  = 0.05;  // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+2）
+const MAX_SIZE    = 200;   // 大きくなれる限界（ミスするとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
 const SPLIT_KEEP  = 0.6;   // 敵に当たったとき、本体に残る大きさの割合（残りは2つのかけらになって飛び出す）
@@ -649,7 +649,7 @@ const game = {
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
             this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
             this.kick(this.spr, 8);
-            this.size = Math.min(MAX_SIZE, this.size + Math.max(2, Math.round(en.size * GROW_RATIO)));
+            this.size = Math.min(MAX_SIZE, this.size + Math.max(1, Math.round(en.size * GROW_RATIO)));
           } else {
             this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
             en.fightCd = FIGHT_COOLDOWN;
