@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 13）
+   game.js ── maccha2D（ver 14）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,8 +11,8 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 13）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
-  howTo:      "ティーカップに入ればゴール！ ライバルのお茶（紅茶・ほうじ茶・ウーロン茶）は追いかけてきてジャンプもする！ 上から踏むと吸収して大きくなるよ。敵に当たったとき、相手が自分より大きいと吸収されてミス、同じ大きさか小さいと分裂（かけらを拾えば元にもどる）。敵同士も戦って、吸収したり分裂したりするよ。落とし穴と横からの接触に注意（ライフ3つ）。5ステージをクリアすると、巨大アールグレイとのボス戦！ ジャンプして上から踏むとダメージ、地面をはう衝撃波はジャンプでよけよう。← → キーで移動、スペースキーでジャンプ。スマホは画面の下の左右で移動、上をタッチでジャンプ。",
+  tagline:    "2Dアクションゲーム（ver 14）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   storageKey: "maccha2d-best",    // ベストスコアの保存名
 };
@@ -42,6 +42,11 @@ const BOSS_HP      = 6;     // ボスの体力（上から踏むと1減る）
 const BOSS_SIZE    = 150;   // ボスの最初の大きさ（体力が減るごとに10ずつ小さくなる）
 const BOSS_POINT   = 3000;  // ボスを倒した点数
 const BOSS_STUN    = 1.2;   // 踏まれたあと、ボスが動けなくなる秒数
+const BOSS_SIZE_2  = 170;   // 第二形態になったときの大きさ
+const BOSS_COLOR_2 = "#8f2a6b";   // 第二形態の体の色
+const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボスがふりはらう
+const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
+const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
@@ -370,7 +375,7 @@ const game = {
     this.shake = 0;                            // 画面のゆれ
     if (this.stage.boss) this.enemies.push(this.makeBoss());
     this.entering = null;                      // カップに入っている最中の情報
-    this.banner = { t: 0 };                    // 「ステージ ○」の表示
+    this.banner = { t: 0 };                    // 「ステージ ○」の表示（text があればそれを出す）
     this.cameraX = this.cameraTargetX();       // 最初からカメラを主人公に合わせる
     this.cameraY = 0;
   },
@@ -517,7 +522,7 @@ const game = {
           p.vz = JUMP_SPEED * 0.65;
           p.grounded = false;
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
-          this.invuln = Math.max(this.invuln, 0.4);
+          if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
         } else if (this.invuln <= 0 && !(en.boss && en.stun > 0)) {   // ボスが目を回している間は、横から当たってもだいじょうぶ
           if (en.size > this.size + 0.5) {
             // 自分より大きい敵に当たった：吸収されてミス。敵は大きくなる
@@ -818,25 +823,53 @@ const game = {
   makeBoss() {
     const b = this.makeEnemy("earlgrey", this.stage.width - 320, 0, BOSS_SIZE, 0, this.stage.width);
     b.boss = true; b.hp = BOSS_HP; b.phase = "walk"; b.t = 0; b.stun = 0; b.flash = 0; b.vx = 0; b.dir = -1; b.chasing = true;
+    b.form = 1; b.headT = 0; b.blast = 0; b.blastHit = false; b.combo = 0;
     return b;
   },
 
+  // ボスの色（第二形態は赤紫）
+  bossColor(en) { return en.form === 2 ? BOSS_COLOR_2 : DRINKS.earlgrey.body; },
+
   // ボスの動き：追いかける → かがむ → 大ジャンプ → 着地で衝撃波（ダメージを受けるほど速くなる）
+  // 第二形態は、さらに速く、連続ジャンプと速い衝撃波を使う。頭の上にいすわると、ふりはらわれる
   updateBoss(en, dt, p, pcx) {
     this.stepSpring(en.spr, dt);
     en.flash = Math.max(0, en.flash - dt);
     en.chasing = true;
+    if (en.blast > 0) en.blast -= dt;
+    const f2 = en.form === 2;
+    const col = this.bossColor(en);
+    if (f2 && Math.random() < 0.25) this.spawnDrops(en.x + (Math.random() - 0.5) * en.w, en.z + en.h, "#ff7a3d", 1, 50);   // 炎
     if (en.phase !== "air" && (en.z > 0 || en.vz !== 0)) {    // 空中で踏まれたときは、落ちてくる
       en.vz -= GRAVITY * dt;
       en.z += en.vz * dt;
       if (en.z <= 0) { en.z = 0; en.vz = 0; en.grounded = true; }
     }
+
+    // 頭の上にいすわられたら、ふりはらう（予告 → 真上への衝撃）
+    const above = Math.abs(pcx - en.x) < en.w / 2 + 20 && p.z >= en.z + en.h * 0.6 && p.z <= en.z + en.h + 260;
+    en.headT = above ? en.headT + dt : Math.max(0, en.headT - dt * 2);
+    if (en.phase !== "shake" && en.phase !== "air" && en.headT >= SHAKE_HEAD) { en.phase = "shake"; en.t = 0; en.headT = 0; }
+    if (en.phase === "shake") {
+      en.t += dt;
+      en.spr.x = 0.5 * Math.min(1, en.t / SHAKE_TELE);
+      en.spr.v = 0;
+      if (en.t >= SHAKE_TELE) {
+        en.blast = BLAST_TIME; en.blastHit = false;
+        en.phase = "walk"; en.t = 0;
+        this.kick(en.spr, -14);
+        this.shake = 0.4;
+        this.spawnDrops(en.x, en.z + en.h, col, 30, 360);
+      }
+      return;
+    }
+
     if (en.stun > 0) {                                        // 踏まれて目を回している
       en.stun -= dt;
       en.phase = "walk"; en.t = 0;
       return;
     }
-    const rage = 1 + (BOSS_HP - en.hp) * 0.12;
+    const rage = (f2 ? 1.35 : 1) + (BOSS_HP - en.hp) * 0.1;
     const half = en.w / 2;
     en.t += dt;
     if (en.phase === "walk") {
@@ -861,8 +894,16 @@ const game = {
         en.phase = "walk"; en.t = 0;
         this.kick(en.spr, 16);
         this.shake = 0.35;
-        this.spawnDrops(en.x, 4, DRINKS.earlgrey.body, 24, 380);
-        for (const dir of [-1, 1]) this.waves.push({ x: en.x + dir * half * 0.8, dir, life: 2.2 });
+        this.spawnDrops(en.x, 4, col, 24, 380);
+        for (const dir of [-1, 1]) {
+          this.waves.push({ x: en.x + dir * half * 0.8, dir, life: 2.2, speed: 300, color: col });
+          if (f2) this.waves.push({ x: en.x + dir * half * 0.8, dir, life: 1.6, speed: 460, color: col });   // 第二形態：速い波も
+        }
+        if (f2 && en.combo < 1 && Math.random() < 0.7) {      // 第二形態：すぐにもう一度跳ぶことがある
+          en.combo++; en.phase = "wind"; en.t = 0.3;
+        } else {
+          en.combo = 0;
+        }
       }
     }
   },
@@ -870,9 +911,10 @@ const game = {
   // 踏まれた：体力が減って、少し小さくなり、子分が飛び出す。体力が0なら撃破
   damageBoss(en) {
     en.hp--;
+    if (en.form === 1 && en.hp <= BOSS_HP / 2) { this.transformBoss(en); return; }   // 体力が半分になったら第二形態
     en.stun = BOSS_STUN;
     en.flash = 0.35;
-    en.size = BOSS_SIZE - (BOSS_HP - Math.max(0, en.hp)) * 10;
+    en.size = (en.form === 2 ? BOSS_SIZE_2 : BOSS_SIZE) - (BOSS_HP - Math.max(0, en.hp)) * 10;
     this.kick(en.spr, 12);
     this.shake = 0.3;
     this.spawnDrops(en.x, en.z + en.h * 0.6, DRINKS.earlgrey.body, 22, 340);
@@ -898,6 +940,26 @@ const game = {
     }
   },
 
+  // 第二形態：体力が全回復して、大きく、赤紫になる。子分は消える
+  transformBoss(en) {
+    en.form = 2;
+    en.hp = BOSS_HP;
+    en.size = BOSS_SIZE_2;
+    en.stun = 2.2;                                            // 変身中は、こちらもボスも動けない
+    en.flash = 1.2;
+    en.phase = "walk"; en.t = 0; en.combo = 0; en.headT = 0;
+    this.kick(en.spr, 16);
+    this.shake = 0.8;
+    this.waves = [];
+    this.banner = { t: 0, text: "第二形態！" };
+    this.addPoints(1000);
+    this.spawnDrops(en.x, en.z + en.h / 2, BOSS_COLOR_2, 50, 480);
+    this.spawnDrops(en.x, en.z + en.h / 2, "#ff7a3d", 30, 380);
+    for (const o of this.enemies) {                           // 子分ははじけて消える
+      if (o !== en && o.dead === null) { o.dead = 0; o.absorber = null; this.spawnDrops(o.x, o.z + o.h / 2, DRINKS[o.type].body, 8, 240); }
+    }
+  },
+
   // 衝撃波の動きと当たり／ボスを倒したあとの演出。ゲームを終えたら true
   updateBossFx(dt, p, pcx) {
     this.shake = Math.max(0, this.shake - dt);
@@ -912,7 +974,7 @@ const game = {
       return false;
     }
     this.waves = this.waves.filter((w) => {
-      w.x += w.dir * 300 * dt;
+      w.x += w.dir * (w.speed || 300) * dt;
       w.life -= dt;
       return w.life > 0 && w.x > -20 && w.x < this.stage.width + 20;
     });
@@ -925,6 +987,18 @@ const game = {
           return true;
         }
       }
+    }
+    const bs = this.enemies.find((e) => e.boss && e.blast > 0 && !e.blastHit && e.dead === null);
+    if (bs && this.invuln <= 0 && Math.abs(pcx - bs.x) < bs.w / 2 + 50 && p.z < bs.z + bs.h + 260) {
+      bs.blastHit = true;                                     // ふりはらいの衝撃：頭の上にいるとダメージ＋はじき飛ばされる
+      this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 14, 300);
+      const away = pcx >= bs.x ? 1 : -1;
+      const hurt = this.size > MIN_SIZE ? (this.splitPlayer(), false) : (this.loseLife(), true);
+      if (!hurt || this.lives > 0) {
+        p.vz = 520; p.grounded = false;
+        p.x = Math.max(0, Math.min(this.stage.width - p.w, p.x + away * 110));
+      }
+      return hurt;
     }
     return false;
   },
@@ -1016,6 +1090,7 @@ const game = {
       if (en.dead !== null && en.dead > ABSORB_TIME) continue;
       if (en.x + en.w < cam || en.x - en.w > cam + w) continue;
       this.drawDrink(ctx, en, groundY, p);
+      if (en.boss) this.drawBossFx(ctx, en, groundY);
     }
 
     // かけら（しずくの形。消える直前はちかちかする）
@@ -1067,7 +1142,7 @@ const game = {
 
     // ボスの衝撃波（地面をはう波。ジャンプでよける）
     for (const wv of this.waves) {
-      ctx.fillStyle = DRINKS.earlgrey.body;
+      ctx.fillStyle = wv.color || DRINKS.earlgrey.body;
       ctx.globalAlpha = Math.min(1, wv.life / 0.4);
       ctx.beginPath();
       ctx.ellipse(wv.x, groundY, 22, 30, 0, Math.PI, Math.PI * 2);
@@ -1102,11 +1177,11 @@ const game = {
       const bw = Math.min(260, w - 200), bx = w / 2 - bw / 2;
       ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
       ctx.fillRect(bx, 46, bw, 12);
-      ctx.fillStyle = "#b478ff";
+      ctx.fillStyle = boss.form === 2 ? "#ff5a7a" : "#b478ff";
       ctx.fillRect(bx, 46, bw * Math.max(0, boss.hp) / BOSS_HP, 12);
       ctx.font = "700 12px 'Hiragino Sans', 'Yu Gothic', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("巨大アールグレイ", w / 2, 40);
+      ctx.fillText(boss.form === 2 ? "巨大アールグレイ【第二形態】" : "巨大アールグレイ", w / 2, 40);
       ctx.font = "700 18px 'Hiragino Sans', 'Yu Gothic', sans-serif";
     }
     ctx.textAlign = "right";
@@ -1124,14 +1199,38 @@ const game = {
       ctx.globalAlpha = a;
       ctx.textAlign = "center";
       ctx.font = "700 44px 'Hiragino Sans', 'Yu Gothic', sans-serif";
-      ctx.fillText(stage.name, w / 2, h * 0.3);
+      ctx.fillText(this.banner.text || stage.name, w / 2, h * 0.3);
       ctx.globalAlpha = 1;
     }
   },
 
   // 敵のお茶を描く（四角い体に怒った顔。種類ごとに色と大きさが違う）
+  // ボスのふりはらい：予告の赤い柱と、衝撃の柱
+  drawBossFx(ctx, en, groundY) {
+    const x0 = en.x - en.w / 2 - 50, wd = en.w + 100;
+    const top = groundY - (en.z + en.h + 260), bottom = groundY - en.z - en.h * 0.3;
+    if (en.phase === "shake") {
+      ctx.fillStyle = "rgba(255, 60, 90, " + (0.14 + 0.1 * Math.sin(this.time * 30)) + ")";
+      ctx.fillRect(x0, top, wd, bottom - top);
+      ctx.strokeStyle = "rgba(255, 60, 90, 0.7)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x0, top, wd, bottom - top);
+    }
+    if (en.blast > 0) {
+      const a = en.blast / BLAST_TIME;
+      ctx.fillStyle = this.bossColor(en);
+      ctx.globalAlpha = 0.55 * a;
+      ctx.fillRect(x0, top, wd, bottom - top);
+      ctx.fillStyle = "#fff";
+      ctx.globalAlpha = 0.6 * a;
+      ctx.fillRect(x0 + wd * 0.3, top, wd * 0.4, bottom - top);
+      ctx.globalAlpha = 1;
+    }
+  },
+
   drawDrink(ctx, en, groundY, p) {
     const d = DRINKS[en.type];
+    const bodyColor = en.boss && en.form === 2 ? BOSS_COLOR_2 : d.body;
     if (en.dead !== null) {                                   // 吸収：しずくの形で、吸収した相手のほうへ吸い込まれる
       const t = Math.min(1, en.dead / ABSORB_TIME);
       const ecx = en.x, ecy = groundY - en.z - en.h / 2;
@@ -1141,7 +1240,7 @@ const game = {
       const W = en.w * sc, H = en.h * sc;
       ctx.save();
       ctx.translate(cx, cy + H / 2);
-      ctx.fillStyle = d.body;
+      ctx.fillStyle = bodyColor;
       this.blobPath(ctx, W, H, Math.sin(t * 20) * 0.2, en.x);
       ctx.fill();
       ctx.restore();
@@ -1155,7 +1254,7 @@ const game = {
     ctx.translate(en.x, groundY - en.z);
     ctx.transform(1, 0, -face * 0.06, 1, 0, 0);               // 進む向きに少しかたむく
     ctx.scale(1 + q * 0.6, 1 - q * 0.7);
-    ctx.fillStyle = d.body;
+    ctx.fillStyle = bodyColor;
     this.blobPath(ctx, W, H, q, en.x);
     ctx.fill();
     this.shine(ctx, W, H);
@@ -1172,6 +1271,15 @@ const game = {
       ctx.lineTo(W * 0.22, -H + 3);
       ctx.closePath();
       ctx.fill();
+      if (en.form === 2) {                                    // 第二形態：角
+        ctx.fillStyle = "#ffd0e0";
+        for (const sd of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(sd * W * 0.14, -H + 4); ctx.lineTo(sd * W * 0.4, -H - H * 0.22); ctx.lineTo(sd * W * 0.36, -H + 6);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
       ctx.fillStyle = "#f28c28";                              // ベルガモット（アールグレイの香りづけ）
       ctx.beginPath();
       ctx.arc(-W * 0.3, -H * 0.2, W * 0.07, 0, Math.PI * 2);

@@ -45,3 +45,24 @@ button {
 }
 button:active { transform: scale(.97); }
 button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+/* スタート画面：背景の絵の上に、半透明のタイトルとスタートボタン */
+#startScreen {
+  background: transparent; justify-content: flex-start; overflow: hidden;
+  gap: 8px; padding: clamp(28px, 9vh, 90px) 24px clamp(28px, 9vh, 90px);
+}
+#startScreen .title-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; pointer-events: none; }
+#startScreen > :not(.title-art) { position: relative; z-index: 1; }
+#startScreen h1 {
+  color: #fff; opacity: .78; letter-spacing: .06em; font-size: clamp(34px, 9vw, 64px);
+  text-shadow: 0 2px 14px rgba(20, 80, 140, .65), 0 0 3px rgba(20, 80, 140, .4);
+}
+#startScreen #tagline { color: #fff; opacity: .6; font-size: 14px; text-shadow: 0 1px 8px rgba(20, 80, 140, .7); }
+#startScreen #startBtn {
+  margin-top: auto; opacity: .72; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+  background: #6aa84f; border: 2px solid rgba(255, 255, 255, .7);
+  transition: opacity .15s, transform .1s;
+}
+#startScreen #startBtn:hover { opacity: .92; }
+#startScreen #startBtn:focus-visible { outline-color: #fff; }
+#howto:empty { display: none; }
