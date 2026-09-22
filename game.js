@@ -23,7 +23,7 @@ const JUMP_SPEED = 640;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
-const GROW_RATIO  = 0.05;  // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+2）
+const GROW_RATIO  = 0.025; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+1）
 const MAX_SIZE    = 200;   // 大きくなれる限界（ミスするとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
@@ -659,6 +659,17 @@ const game = {
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
         } else if (this.invuln <= 0 && !(en.boss && en.stun > 0)) {   // ボスが目を回している間は、横から当たってもだいじょうぶ
+          if (!en.boss && this.size > en.size + 0.5) {
+            // 横から当たっても、自分の方が大きい敵になら勝つ（踏んだときと同じく吸収して大きくなる）
+            en.dead = 0;
+            en.absorber = null;
+            this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);
+            this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
+            this.kick(this.spr, 8);
+            this.size = Math.min(MAX_SIZE, this.size + Math.max(1, Math.round(en.size * GROW_RATIO)));
+            this.invuln = Math.max(this.invuln, 0.4);
+            continue;
+          }
           if (en.size > this.size + 0.5) {
             // 自分より大きい敵に当たった：吸収されてミス。敵は大きくなる
             if (!en.boss) en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.25);
@@ -1199,7 +1210,8 @@ const game = {
       for (const w of this.waves) {
         if (p.z < this.groundAt(pcx) + 26 && Math.abs(w.x - pcx) < p.w / 2 + 12) {  // 地面すれすれを走る。ジャンプでよける
           this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 10, 220);
-          this.loseLife();                                    // ボスの攻撃は、分裂ではなく、そのままミス
+          if (this.size > MIN_SIZE) { this.splitPlayer(); return false; }   // ボスの特殊攻撃は、分裂するだけ（これ以上小さくなれないときだけミス）
+          this.loseLife();
           return true;
         }
       }
@@ -1208,7 +1220,8 @@ const game = {
     if (bs && this.invuln <= 0 && Math.abs(pcx - bs.x) < bs.w / 2 + 50 && p.z < bs.z + bs.h + 260) {
       bs.blastHit = true;                                     // ふりはらいの衝撃：頭の上にいるとダメージ＋はじき飛ばされる
       this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 14, 300);
-      this.loseLife();                                        // ボスの攻撃は、分裂ではなく、そのままミス
+      if (this.size > MIN_SIZE) { this.splitPlayer(); return false; }   // ボスの特殊攻撃は、分裂するだけ（これ以上小さくなれないときだけミス）
+      this.loseLife();
       return true;
     }
     return false;
