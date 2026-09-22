@@ -45,7 +45,7 @@ const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボス�
 const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
 const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
-const BOSS_DATA_SCALE = 0.7;// ボスの「サイズの数値」(en.size)は、見た目・当たり判定(en.w/en.h)より小さくする
+const BOSS_DATA_SCALE = 0.6;// ボスの「サイズの数値」(en.size)は、見た目・当たり判定(en.w/en.h)より小さくする（最初は150*0.6=90）
 const PLAYER_COLOR = "#6aa84f";   // 主人公（抹茶）の色。しぶきの色にも使う
 const MAX_DROPS = 240;     // 同時に飛ぶしずくの数の上限
 
