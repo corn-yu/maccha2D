@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 24）
+   game.js ── maccha2D（ver 25）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 24）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 25）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -471,9 +471,9 @@ const game = {
     });
   },
 
-  // いまの大きさに応じたジャンプの強さ（大きいほど高く跳べる。小さいと少し控えめ）
+  // いまの大きさに応じたジャンプの強さ（ジャンプの高さが、ふつうの大きさのときの何倍かが「大きさ ×」で決まる）
   jumpPower() {
-    return JUMP_SPEED * (1 + (this.size - PLAYER_SIZE) / (MAX_SIZE - PLAYER_SIZE) * 0.6);
+    return JUMP_SPEED * Math.sqrt(this.size / PLAYER_SIZE);
   },
 
   // 指定した x が落とし穴の上か
