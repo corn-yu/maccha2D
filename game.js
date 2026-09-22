@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 19）
+   game.js ── maccha2D（ver 20）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 19）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 20）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -229,6 +229,8 @@ const DRINKS = {
   oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
+const ENEMY_SIZE_MIN = 26;  // 敵の大きさのばらつき：小さいほう
+const ENEMY_SIZE_MAX = 58;  // 敵の大きさのばらつき：大きいほう
 const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
 const LEASH   = 220;        // 敵が「歩く範囲」の外まで追いかけていける距離
@@ -239,10 +241,12 @@ const ENEMY_JUMP_WAIT = 1.1;// 敵が続けてジャンプできるまでの秒�
 function stage_enemies(stage) {
   // x は中心の位置。vz は上向きの速さ。size は目指す大きさ（w・h は今の大きさ）。
   // dead は倒されてからの秒数（null なら生きている）。absorber は吸収した相手（主人公なら null）
+  // 大きさは、ステージ側で指定（e.size）が無ければ、毎回ランダムにばらつかせる
   return stage.enemies.map((e, i) => {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
-    return { type, x: e.x, z: e.z, vz: 0, grounded: true, size: d.size, w: d.size, h: d.size, min: e.min, max: e.max,
+    const size = e.size || Math.round(ENEMY_SIZE_MIN + Math.random() * (ENEMY_SIZE_MAX - ENEMY_SIZE_MIN));
+    return { type, x: e.x, z: e.z, vz: 0, grounded: true, size, w: size, h: size, min: e.min, max: e.max,
              dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   });
 }
