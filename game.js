@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 22）
+   game.js ── maccha2D（ver 23）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 22）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 23）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -39,7 +39,7 @@ const FOE_PRIORITY = 150;  // ほかの敵のほうが、プレイヤーより�
 const BOSS_HP      = 30;    // ボスの体力（上から踏むと1減る）
 const BOSS_SHRINK  = 0.5;   // 体力が0になるまでに、最初の大きさの何割まで縮むか（HPが多くても縮みすぎない）
 const BOSS_SIZE    = 130;   // ボスの最初の大きさ（体力が減るごとに10ずつ小さくなる）
-const BOSS_STUN    = 0.9;   // 踏まれたあと、ボスが動けなくなる秒数
+const BOSS_STUN    = 1.15;  // 踏まれたあと、ボスが動けなくなる秒数
 const BOSS_SIZE_2  = 148;   // 第二形態になったときの大きさ
 const BOSS_COLOR_2 = "#8f2a6b";   // 第二形態の体の色
 const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボスがふりはらう
@@ -1053,7 +1053,7 @@ const game = {
       en.phase = "walk"; en.t = 0;
       return;
     }
-    const rage = (f2 ? 1.25 : 1) + ((BOSS_HP - en.hp) / BOSS_HP) * 0.42;   // 体力が減るほど速くなる（HPの数が変わっても、増え方は同じにする）
+    const rage = (f2 ? 1.15 : 0.9) + ((BOSS_HP - en.hp) / BOSS_HP) * 0.3;   // 体力が減るほど速くなる（HPの数が変わっても、増え方は同じにする）
     const half = en.w / 2;
     en.t += dt;
     if (en.phase === "walk") {
@@ -1085,7 +1085,7 @@ const game = {
         this.kick(en.spr, -14);
       }
     } else if (en.phase === "charge") {                       // 突進：一直線に走る。壁にぶつかるまで止まらない
-      const spd = f2 ? 620 : 500;
+      const spd = f2 ? 560 : 450;
       en.x += en.dir * spd * dt;
       en.z = this.groundAt(en.x);                             // 坂を突進しても、地面の高さにそのまま合わせる
       en.spr.x = -0.15;
