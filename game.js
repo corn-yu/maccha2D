@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 25）
+   game.js ── maccha2D（ver 26）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 25）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 26）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -23,7 +23,7 @@ const JUMP_SPEED = 640;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
-const GROW_RATIO  = 0.015; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（40の敵なら+1）
+const GROW_RATIO  = 0.007; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
 const MAX_SIZE    = 200;   // 大きくなれる限界（ミスするとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
@@ -399,6 +399,7 @@ const game = {
     this.time = 0;
     this.pvx = 0;
     this.size = PLAYER_SIZE;                                   // 主人公が目指す大きさ（敵を吸収すると大きくなる）
+    this.growPool = 0;                                         // 大きくなる量の端数（少しずつ貯まって、1を超えたら実際に大きくなる）
     this.loadStage(0);
   },
 
@@ -473,7 +474,17 @@ const game = {
 
   // いまの大きさに応じたジャンプの強さ（ジャンプの高さが、ふつうの大きさのときの何倍かが「大きさ ×」で決まる）
   jumpPower() {
-    return JUMP_SPEED * Math.sqrt(this.size / PLAYER_SIZE);
+    return JUMP_SPEED * (this.size / PLAYER_SIZE);
+  },
+
+  // 主人公を大きくする（端数を貯めておいて、1を超えたら実際に大きさへ反映＝小さい敵を倒しても無駄にならず、でも一気に大きくはならない）
+  growPlayer(amount) {
+    this.growPool += amount;
+    const inc = Math.floor(this.growPool);
+    if (inc > 0) {
+      this.growPool -= inc;
+      this.size = Math.min(MAX_SIZE, this.size + inc);
+    }
   },
 
   // 指定した x が落とし穴の上か
@@ -659,7 +670,7 @@ const game = {
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);   // 敵がはじけてしぶきになる
             this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
             this.kick(this.spr, 8);
-            this.size = Math.min(MAX_SIZE, this.size + Math.max(1, Math.round(en.size * GROW_RATIO)));
+            this.growPlayer(en.size * GROW_RATIO);
           } else {
             this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
             en.fightCd = FIGHT_COOLDOWN;
@@ -685,7 +696,7 @@ const game = {
             this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 12, 260);
             this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
             this.kick(this.spr, 8);
-            this.size = Math.min(MAX_SIZE, this.size + Math.max(1, Math.round(en.size * GROW_RATIO)));
+            this.growPlayer(en.size * GROW_RATIO);
             this.invuln = Math.max(this.invuln, 0.4);
             continue;
           }
