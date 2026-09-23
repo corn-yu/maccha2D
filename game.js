@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 49）
+   game.js ── maccha2D（ver 50）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 49）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 50）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -35,7 +35,6 @@ const ENEMY_MAX   = 140;   // 敵が大きくなれる限界
 const ENEMY_SPLIT_MIN = 28;// これより小さい敵は分裂できない
 const FIGHT_COOLDOWN = 0.8;// 敵同士が戦ったあと、また戦えるまでの秒数
 const BRAWL_SIGHT = 480;   // 敵が、ほかの敵に気づく距離
-const BRAWL_LEASH = 420;   // 敵同士で戦うとき、ふだん歩く範囲の外まで追いかけていける距離
 const FOE_PRIORITY = 150;  // ほかの敵のほうが、プレイヤーよりこれだけ遠くても、敵のほうを優先して襲いにいく
 const BOSS_HP      = 30;    // ボスの体力（上から踏むと1減る）
 const BOSS_SHRINK  = 0.5;   // 体力が0になるまでに、最初の大きさの何割まで縮むか（HPが多くても縮みすぎない）
@@ -251,7 +250,6 @@ const ENEMY_SIZE_MIN = 14;  // 敵の大きさのばらつき：小さいほう
 const ENEMY_SIZE_MAX = 80;  // 敵の大きさのばらつき：大きいほう
 const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
-const LEASH   = 220;        // 敵が「歩く範囲」の外まで追いかけていける距離
 const PATROL_RATIO = 0.55;  // 気づいていないときの歩く速さ（追いかける速さに対する割合）
 const ENEMY_JUMP_WAIT = 1.1;// 敵が続けてジャンプできるまでの秒数
 
@@ -265,7 +263,7 @@ function stage_enemies(stage) {
     const d = DRINKS[type];
     const size = e.size || Math.round(ENEMY_SIZE_MIN + Math.random() * (ENEMY_SIZE_MAX - ENEMY_SIZE_MIN));
     return { type, x: e.x, z: e.z, vz: 0, grounded: true, size, w: size, h: size, min: e.min, max: e.max,
-             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, stuckT: 0, giveUpT: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
+             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   });
 }
 
@@ -831,12 +829,10 @@ const game = {
   // 敵1体の動き：プレイヤーが近ければ追いかける（上にいたらジャンプ）。遠ければ範囲内を歩く
   moveEnemy(en, dt, pcx, p) {
     const stage = this.stage;
-    en.giveUpT -= dt;                                          // なわばりの端まで追いついてもどうしても届かないときは、しばらくあきらめる（でないと壁際に張り付いたまま動かなくなる）
-    const giveUp = en.giveUpT > 0;
     const dx = pcx - en.x;
-    const seesPlayer = !giveUp && Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
+    const seesPlayer = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
     // 積極的に戦う：ほかの敵が見えたら、プレイヤーがよほど近くにいない限り、そっちを襲いにいく
-    const foe = giveUp ? null : this.nearestFoe(en);
+    const foe = this.nearestFoe(en);
     const hunt = !!foe && (!seesPlayer || Math.abs(foe.x - en.x) < Math.abs(dx) + FOE_PRIORITY);
     en.chasing = seesPlayer || hunt;
     let speed = en.speed * PATROL_RATIO;
@@ -847,8 +843,7 @@ const game = {
       speed = en.speed;
       const hasEdgeFoe = en.z > foe.z + 30;                   // 相手の敵より高い場所にいる＝上から狙えるチャンス
       if (hasEdgeFoe) speed *= 1.5;
-      lo = Math.max(0, en.min - BRAWL_LEASH);
-      hi = Math.min(stage.width, en.max + BRAWL_LEASH);
+      lo = 0; hi = stage.width;                               // 追いかけているあいだは、なわばりの外まで（ステージの端まで）ずっと追える
       // 相手の敵に向かって、AI（なければルール）が動きとジャンプを決める（避けジャンプはしない）
       const d = this.decideEnemy(en, { z: foe.z, vz: foe.vz, grounded: true }, foe.x, 0);
       if (foe.size > en.size + 0.5 && !hasEdgeFoe) {
@@ -862,8 +857,7 @@ const game = {
       speed = en.speed;
       const hasEdge = en.z > p.z + 30;                        // 高い場所にいる＝上から狙えるチャンス（上から当たれば大きさに関係なく勝てる）
       if (hasEdge) speed *= 1.5;                              // 高い場所にいるときは、勢いよく降りて上から仕掛ける
-      lo = Math.max(0, en.min - LEASH);
-      hi = Math.min(stage.width, en.max + LEASH);
+      lo = 0; hi = stage.width;                               // 追いかけているあいだは、なわばりの外まで（ステージの端まで）ずっと追える
       const d = this.decideEnemy(en, p, pcx, this.pvx);      // AI（なければルール）が動きとジャンプを決める
       if (this.size > en.size + 0.5 && !hasEdge) {
         move = dx > 0 ? -1 : 1;                               // 自分より大きいプレイヤーからは、ふだんは追いかけずに逃げる
@@ -886,16 +880,6 @@ const game = {
     if (en.x <= hi) nx = Math.min(nx, hi);
     if (en.x >= lo) nx = Math.max(nx, lo);
     if (en.grounded && en.z === 0 && this.inPit(nx)) nx = en.x;
-
-    // 追う／逃げたい方向があるのに、なわばりの端に張り付いてこれ以上進めていないなら、しばらくあきらめてパトロールに戻す
-    //   （でないと、届かない相手をずっと追い続けて壁際に固まったまま動かなくなってしまう）
-    if (en.chasing && ((move > 0 && en.x >= hi - 0.5) || (move < 0 && en.x <= lo + 0.5))) {
-      en.stuckT += dt;
-      if (en.stuckT > 0.6) { en.giveUpT = 2.5; en.fightCd = FIGHT_COOLDOWN; en.stuckT = 0; }
-    } else {
-      en.stuckT = 0;
-    }
-
     en.x = nx;
 
     // ジャンプ
@@ -1075,7 +1059,7 @@ const game = {
   makeEnemy(type, x, z, size, min, max) {
     const d = DRINKS[type];
     return { type, x, z, vz: 0, grounded: true, size, w: size, h: size, min, max, dir: 1, speed: d.speed, jump: d.jump,
-             jumpWait: 0, chasing: false, fightCd: 0, stuckT: 0, giveUpT: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
+             jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   },
   makeBoss() {
     const b = this.makeEnemy("earlgrey", this.stage.width - 320, 0, BOSS_SIZE, 0, this.stage.width);
