@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 64）
+   game.js ── maccha2D（ver 65）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 64）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 65）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -244,10 +244,10 @@ const STAGES = [
 // 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
 //   size=大きさ（主人公と同じ40） / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
 const DRINKS = {
-  kocha:   { name: "紅茶",     size: 40, speed: 135, jump: 560, body: "#c4501f", dark: "#8f2f0e" },
-  hojicha: { name: "ほうじ茶", size: 40, speed: 188, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
-  earlgrey:{ name: "巨大アールグレイ", size: BOSS_SIZE, speed: 143, jump: 0, body: "#5b4b9a", dark: "#3a2f66" },
-  oolong:  { name: "ウーロン茶", size: 40, speed: 98,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
+  kocha:   { name: "紅茶",     size: 40, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
+  hojicha: { name: "ほうじ茶", size: 40, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
+  earlgrey:{ name: "巨大アールグレイ", size: BOSS_SIZE, speed: 95, jump: 0, body: "#5b4b9a", dark: "#3a2f66" },
+  oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
 const ENEMY_SIZE_MIN = 14;  // 敵の大きさのばらつき：小さいほう
