@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 44）
+   game.js ── maccha2D（ver 45）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 44）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 45）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -689,9 +689,9 @@ const game = {
             this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
             this.kick(this.spr, 8);
             this.growPlayer(en.size * GROW_RATIO);
-          } else {
+          } else if (en.fightCd <= 0) {
             this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
-            en.fightCd = FIGHT_COOLDOWN;
+            en.fightCd = FIGHT_COOLDOWN;                       // 直後にもう一度踏んでも、連続で分裂はしない
           }
           p.vz = this.jumpPower() * 0.65;
           p.grounded = false;
