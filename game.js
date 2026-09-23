@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 59）
+   game.js ── maccha2D（ver 60）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 59）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 60）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -25,6 +25,7 @@ const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const BASE_SPEED  = 240;   // 主人公のふつうの大きさのときの移動速度
 const SPEED_EXP   = 0.5;   // 小さいほど速く・大きいほど遅くなる度合い（大きいほど差が激しくなる）
+const GRAVITY_EXP = 0.4;   // ジャンプが高いほど重力を弱くする度合い（大きいほど滞空時間の差が激しくなる）
 const GROW_RATIO  = 0.25; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
 const KAKERA_GROW_RATIO = 0.02; // かけらを拾ったときは、敵を直接吸収するときよりずっと大きくなりにくい（かけらの大きさの何割が実際の成長になるか）
 const MAX_SIZE    = Infinity; // 大きくなれる上限はなし（ミスするとふつうの大きさに戻る）
@@ -505,6 +506,11 @@ const game = {
     return BASE_SPEED * Math.pow(PLAYER_SIZE / this.size, SPEED_EXP);
   },
 
+  // いまの大きさに応じた重力（ジャンプが高いほど重力を弱くして、滞空時間を長く伸ばす）
+  playerGravity() {
+    return GRAVITY * Math.pow(PLAYER_SIZE / this.size, GRAVITY_EXP);
+  },
+
   // 敵を踏んだときの跳ね返りの強さ（大きくなるほど少しだけ弾みは強くなるが、画面外まで飛んでいかないよう上限あり）
   stompBouncePower() {
     return Math.min(this.jumpPower() * 0.65, JUMP_SPEED * 0.9);
@@ -640,9 +646,10 @@ const game = {
         this.spawnDrops(p.x + p.w / 2, p.z + 2, PLAYER_COLOR, 3, 90);
       }
 
-      // 重力：ボタンを早く離すと低いジャンプになる
+      // 重力：ボタンを早く離すと低いジャンプになる。大きさで跳ぶ高さが変わる分、重力も一緒に変えて滞空時間を伸ばす
       const jumpHeld = this.keys.jump || this.touch.jump;
-      const g = (p.vz > 0 && !jumpHeld) ? GRAVITY * 2.5 : GRAVITY;
+      const baseG = this.playerGravity();
+      const g = (p.vz > 0 && !jumpHeld) ? baseG * 2.5 : baseG;
       const prevZ = p.z;
       p.vz -= g * dt;
       const fallSpeed = p.vz;                                  // 着地で0にされる前の速さ（敵を踏む判定に使う）
