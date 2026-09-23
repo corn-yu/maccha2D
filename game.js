@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 38）
+   game.js ── maccha2D（ver 39）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 38）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 39）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -24,6 +24,7 @@ const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const GROW_RATIO  = 0.009; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
+const KAKERA_GROW_RATIO = 0.02; // かけらを拾ったときは、敵を直接吸収するときより大きくなりにくい（かけらの大きさの何割が実際の成長になるか）
 const MAX_SIZE    = Infinity; // 大きくなれる上限はなし（ミスするとふつうの大きさに戻る）
 const ABSORB_TIME = 0.3;   // 敵が吸い込まれる秒数
 const MIN_SIZE    = 24;    // 分裂で小さくなれる限界
@@ -1009,7 +1010,7 @@ const game = {
       if (f.z < -20 && this.inPit(f.x)) return false;          // 穴に落ちたら、すぐ消える
       if (f.t <= FRAG_DELAY) return true;
       if (Math.abs(f.x - pcx) < (p.w + f.s) / 2 && p.z < f.z + f.s && p.z + p.h > f.z) {
-        this.size = Math.min(MAX_SIZE, this.size + f.mass);    // 拾って元にもどる
+        this.growPlayer(f.mass * KAKERA_GROW_RATIO);            // 拾うと大きくなるが、敵をまるごと吸収するときより控えめ
         this.kick(this.spr, 4);
         this.spawnDrops(f.x, f.z + f.s / 2, PLAYER_COLOR, 4, 110);
         return false;
