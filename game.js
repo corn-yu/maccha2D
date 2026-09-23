@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 73）
+   game.js ── maccha2D（ver 74）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 73）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 74）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -26,6 +26,10 @@ const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const BASE_SPEED  = 360;   // 主人公のふつうの大きさのときの移動速度
 const JUMP_LOG_K  = 0.6;   // 大きさが2倍になるごとに、ジャンプ力がどれだけ増えるか（対数なので、最初は変化が大きく、育つほど変わりにくくなる）
 const SPEED_LOG_K = 0.6;   // 同様に、大きさが2倍になるごとに、移動速度がどれだけ落ちるか
+const JUMP_MULT_MIN = 0.5; // 大きさがどれだけ変わっても、ジャンプ力はふつうの何倍〜何倍までに収める（プレイに支障が出ないように）
+const JUMP_MULT_MAX = 1.8;
+const SPEED_MULT_MIN = 0.35; // 同様に、移動速度もふつうの何倍〜何倍までに収める
+const SPEED_MULT_MAX = 1.6;
 const GRAVITY_EXP = 0.4;   // ジャンプが高いほど重力を弱くする度合い（大きいほど滞空時間の差が激しくなる）
 const JUMP_SIZE_EXP = 0.6; // 敵が大きいほど高く跳ぶようにする度合い（主人公のジャンプ力と同じ度合い）
 const GROW_RATIO  = 0.25; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
@@ -509,14 +513,18 @@ const game = {
 
   // いまの大きさに応じたジャンプの強さ。対数で変わるので、ふつうの大きさに近いうちは変化が大きく、
   //   どんどん育つと、同じだけ倍になっても増え方はゆるやかになっていく
+  //   （大きさに上限が無いので、どれだけ育っても・小さくなってもプレイに支障が出ないよう、最終的な倍率に上下限を設けている）
   jumpPower() {
-    return JUMP_SPEED * Math.max(0.3, 1 + JUMP_LOG_K * Math.log(this.size / PLAYER_SIZE));
+    const mult = 1 + JUMP_LOG_K * Math.log(this.size / PLAYER_SIZE);
+    return JUMP_SPEED * Math.max(JUMP_MULT_MIN, Math.min(JUMP_MULT_MAX, mult));
   },
 
   // いまの大きさに応じた移動速度（小さいほど速く、大きいほど遅くなる）。ジャンプ力と同じ対数カーブで、
-  //   最初は変化が大きく、育つほど変わりにくくなっていく
+  //   最初は変化が大きく、育つほど変わりにくくなっていく（同様に、最終的な倍率に上下限あり）
   playerSpeed() {
-    return BASE_SPEED / Math.max(0.3, 1 + SPEED_LOG_K * Math.log(this.size / PLAYER_SIZE));
+    const div = 1 + SPEED_LOG_K * Math.log(this.size / PLAYER_SIZE);
+    const mult = 1 / Math.max(0.1, div);
+    return BASE_SPEED * Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, mult));
   },
 
   // いまの大きさに応じた重力（ジャンプが高いほど重力を弱くして、滞空時間を長く伸ばす）
