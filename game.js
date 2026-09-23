@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 45）
+   game.js ── maccha2D（ver 46）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 45）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 46）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -495,6 +495,11 @@ const game = {
     return JUMP_SPEED * Math.pow(this.size / PLAYER_SIZE, 0.6);
   },
 
+  // 敵を踏んだときの跳ね返りの強さ（大きくなるほど少しだけ弾みは強くなるが、画面外まで飛んでいかないよう上限あり）
+  stompBouncePower() {
+    return Math.min(this.jumpPower() * 0.65, JUMP_SPEED * 0.9);
+  },
+
   // 主人公を大きくする（端数を貯めておいて、1を超えたら実際に大きさへ反映＝小さい敵を倒しても無駄にならず、でも一気に大きくはならない）
   growPlayer(amount) {
     this.growPool += amount;
@@ -693,7 +698,7 @@ const game = {
             this.splitEnemy(en);                              // 同じ大きさか大きい敵：吸収できず、敵が分裂する
             en.fightCd = FIGHT_COOLDOWN;                       // 直後にもう一度踏んでも、連続で分裂はしない
           }
-          p.vz = this.jumpPower() * 0.65;
+          p.vz = this.stompBouncePower();
           p.grounded = false;
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
