@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 69）
+   game.js ── maccha2D（ver 70）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 69）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 70）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -257,6 +257,7 @@ const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
 const PATROL_RATIO = 0.55;  // 気づいていないときの歩く速さ（追いかける速さに対する割合）
 const ENEMY_JUMP_WAIT = 2.5;// 敵が続けてジャンプできるまでの秒数
+const ENEMY_JUMP_CHANCE = 0.25; // ジャンプの条件が揃ったとき、実際に跳ぶ確率（低いほど「たまに」跳ぶ感じになる）
 
 // ステージのデータから、遊んでいる間に変わる敵の状態を作る
 function stage_enemies(stage, stageIndex) {
@@ -334,9 +335,9 @@ const game = {
       move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     }
     const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
-    // 「頭上にいる」「かわす」ジャンプは、坂を歩けば登れる地形でほぼ常に成立したり、プレイヤーが跳ぶたびに反応したりして
-    //   結局ずっと跳んでいるように見えてしまうのでやめた。今のステージには穴も無いので、通常の敵は基本的にジャンプしない
-    return { move, jump: en.grounded && en.jumpWait <= 0 && pitAhead === 1 };
+    const above = p.z > en.z + 40 && Math.abs(dx) < 150;         // 頭上にいる（少しの坂の高低差では反応しないよう、しきい値を上げた）
+    const dodge = !p.grounded && Math.abs(dx) < 110;             // 空中の相手をかわす
+    return { move, jump: en.grounded && en.jumpWait <= 0 && (pitAhead === 1 || above || dodge) };
   },
 
   // 逃げているとき用の、最低限のジャンプ判断（進む先に穴があるときだけ跳ぶ。攻めるためのジャンプはしない）
@@ -913,11 +914,16 @@ const game = {
     if (en.grounded && en.z === 0 && this.inPit(nx)) nx = en.x;
     en.x = nx;
 
-    // ジャンプ：大きい敵ほど高く跳ぶ
+    // ジャンプ：大きい敵ほど高く跳ぶ。条件が揃うたびに毎回跳ぶと結局ずっと跳んでいるように見えるので、
+    //   条件が揃った瞬間に一度だけ抽選し（たまに跳ぶ、くらいの頻度）、外れたらしばらく（0.5秒）再抽選しない
     en.jumpWait -= dt;
     if (wantJump && en.grounded) {
-      en.vz = en.jump * Math.pow(en.size / PLAYER_SIZE, JUMP_SIZE_EXP); en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
-      this.kick(en.spr, -7);
+      if (Math.random() < ENEMY_JUMP_CHANCE) {
+        en.vz = en.jump * Math.pow(en.size / PLAYER_SIZE, JUMP_SIZE_EXP); en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
+        this.kick(en.spr, -7);
+      } else {
+        en.jumpWait = 0.5;
+      }
     }
 
     // 重力と着地（足場の上か、地面の上。穴の上なら落ちる）：大きい敵ほど重力を弱くして、滞空時間を伸ばす
