@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 66）
+   game.js ── maccha2D（ver 67）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 66）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 67）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -256,7 +256,7 @@ const ENEMY_SIZE_BIAS = 0.65; // ステージが進むほど、大きい敵が�
 const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
 const PATROL_RATIO = 0.55;  // 気づいていないときの歩く速さ（追いかける速さに対する割合）
-const ENEMY_JUMP_WAIT = 1;  // 敵が続けてジャンプできるまでの秒数
+const ENEMY_JUMP_WAIT = 2.5;// 敵が続けてジャンプできるまでの秒数
 
 // ステージのデータから、遊んでいる間に変わる敵の状態を作る
 function stage_enemies(stage, stageIndex) {
