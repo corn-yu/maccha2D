@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 43）
+   game.js ── maccha2D（ver 44）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 43）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 44）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -836,11 +836,17 @@ const game = {
     en.fightCd -= dt;
     if (hunt) {
       speed = en.speed;
+      const hasEdgeFoe = en.z > foe.z + 30;                   // 相手の敵より高い場所にいる＝上から狙えるチャンス
+      if (hasEdgeFoe) speed *= 1.5;
       lo = Math.max(0, en.min - BRAWL_LEASH);
       hi = Math.min(stage.width, en.max + BRAWL_LEASH);
       // 相手の敵に向かって、AI（なければルール）が動きとジャンプを決める（避けジャンプはしない）
       const d = this.decideEnemy(en, { z: foe.z, vz: foe.vz, grounded: true }, foe.x, 0);
-      move = d.move;
+      if (foe.size > en.size + 0.5 && !hasEdgeFoe) {
+        move = foe.x > en.x ? -1 : 1;                         // 相手のほうが大きいときは、ふだんは逃げる
+      } else {
+        move = d.move;                                        // チャンス（高い場所）があるときは、逃げずに攻めにいく
+      }
       wantJump = d.jump;
       if (move !== 0) en.dir = move;
     } else if (seesPlayer) {
