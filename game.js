@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 37）
+   game.js ── maccha2D（ver 38）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 37）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 38）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -808,7 +808,7 @@ const game = {
     const cx = e.x, cz = e.z + e.h / 2;
     e.size = keep;
     for (const dir of [-1, 1]) {
-      this.frags.push({ x: cx, z: cz, vx: dir * (130 + Math.random() * 70), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0, color });
+      this.frags.push({ x: cx, z: cz, vx: dir * (220 + Math.random() * 120), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0, color });
     }
   },
 
@@ -973,7 +973,7 @@ const game = {
     const mass = (oldSize - this.size) / 2;                    // かけら1つぶんの大きさ
     const cx = p.x + p.w / 2, cz = p.z + p.h / 2;
     for (const dir of [-1, 1]) {
-      this.frags.push({ x: cx, z: cz, vx: dir * (130 + Math.random() * 70), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0 });
+      this.frags.push({ x: cx, z: cz, vx: dir * (220 + Math.random() * 120), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0 });
     }
     p.vz = 320; p.grounded = false;                            // 少し跳ね上がる
     this.spawnDrops(cx, cz, PLAYER_COLOR, 16, 300);            // 分裂のしぶき
@@ -990,7 +990,7 @@ const game = {
       if (f.t > FRAG_LIFE) return false;
       const prevZ = f.z;
       f.x = Math.max(0, Math.min(stage.width, f.x + f.vx * dt));
-      f.vx *= Math.pow(0.5, dt);                               // 横の勢いはだんだん弱まる
+      f.vx *= Math.pow(0.62, dt);                               // 横の勢いはだんだん弱まる
       f.vz -= GRAVITY * dt;
       f.z += f.vz * dt;
       if (f.vz <= 0) {
@@ -1003,7 +1003,7 @@ const game = {
           f.z = landTop;
           if (f.vz < -200) this.spawnDrops(f.x, f.z, PLAYER_COLOR, 3, 110);
           f.vz = f.vz < -200 ? -f.vz * 0.35 : 0;              // 弾む
-          f.vx *= 0.6;
+          f.vx *= 0.75;
         }
       }
       if (f.z < -20 && this.inPit(f.x)) return false;          // 穴に落ちたら、すぐ消える
@@ -1209,7 +1209,7 @@ const game = {
     }
     const cz = en.z + en.h / 2;
     const mass = (oldSize - en.size) / 2;                      // かけらの大きさ＝失った分の半分
-    this.frags.push({ x: en.x, z: cz, vx: -(130 + Math.random() * 70), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0, color: col });
+    this.frags.push({ x: en.x, z: cz, vx: -(220 + Math.random() * 120), vz: 380 + Math.random() * 80, mass, s: mass * 1.6 + 4, t: 0, color: col });
     const types = ["kocha", "hojicha", "oolong"];              // もう半分は、子分になって反対側へ
     const type = types[Math.floor(Math.random() * types.length)];
     const max = this.stage.width - 30;
