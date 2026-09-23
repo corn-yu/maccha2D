@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 47）
+   game.js ── maccha2D（ver 48）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 47）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 48）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -703,12 +703,14 @@ const game = {
           p.z = Math.max(p.z, en.z + en.h + 1);               // 敵の上に乗せて、すぐ横から当たらないようにする
           if (!en.boss) this.invuln = Math.max(this.invuln, 0.4);   // （ボスの上で跳ね続けても無敵にならないように、ボスのときはつけない）
         } else if (!en.boss && en.vz < 0 && prevEnZ >= p.z + p.h * 0.5 && this.invuln <= 0) {
-          // 敵の方が上から降ってきて当たった：大きさに関係なく、こちらの負け
+          // 敵の方が上から降ってきて当たった：自分が大きくても必ず何かしら負けるが、
+          //   相手が明らかに大きいときは（横から当たったときと同じく）完全に吸収されてミス
+          const enWasBigger = en.size > this.size + 0.5;
           en.size = Math.min(ENEMY_MAX, en.size + this.size * 0.15);
           this.spawnDrops(pcx, p.z + p.h / 2, PLAYER_COLOR, 16, 280);
           this.spawnDrops(en.x, en.z + en.h / 2, DRINKS[en.type].body, 8, 200);
           this.kick(en.spr, 8);
-          if (this.size > MIN_SIZE) { this.splitPlayer(); continue; }
+          if (!enWasBigger && this.size > MIN_SIZE) { this.splitPlayer(); continue; }
           this.loseLife();
           return;
         } else if (this.invuln <= 0 && !(en.boss && en.stun > 0)) {   // ボスが目を回している間は、横から当たってもだいじょうぶ
