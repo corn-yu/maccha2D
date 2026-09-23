@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 68）
+   game.js ── maccha2D（ver 69）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 68）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 69）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -334,9 +334,9 @@ const game = {
       move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     }
     const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
-    const above = p.z > en.z + 20 && Math.abs(dx) < 150;
-    const dodge = !p.grounded && Math.abs(dx) < 110;
-    return { move, jump: en.grounded && en.jumpWait <= 0 && (above || pitAhead === 1 || dodge) };
+    // 「頭上にいる」「かわす」ジャンプは、坂を歩けば登れる地形でほぼ常に成立したり、プレイヤーが跳ぶたびに反応したりして
+    //   結局ずっと跳んでいるように見えてしまうのでやめた。今のステージには穴も無いので、通常の敵は基本的にジャンプしない
+    return { move, jump: en.grounded && en.jumpWait <= 0 && pitAhead === 1 };
   },
 
   // 逃げているとき用の、最低限のジャンプ判断（進む先に穴があるときだけ跳ぶ。攻めるためのジャンプはしない）
