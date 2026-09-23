@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 62）
+   game.js ── maccha2D（ver 63）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 62）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 63）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -23,7 +23,7 @@ const JUMP_SPEED = 600;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
-const BASE_SPEED  = 240;   // 主人公のふつうの大きさのときの移動速度
+const BASE_SPEED  = 360;   // 主人公のふつうの大きさのときの移動速度
 const SPEED_EXP   = 0.5;   // 小さいほど速く・大きいほど遅くなる度合い（大きいほど差が激しくなる）
 const GRAVITY_EXP = 0.4;   // ジャンプが高いほど重力を弱くする度合い（大きいほど滞空時間の差が激しくなる）
 const JUMP_SIZE_EXP = 0.6; // 敵が大きいほど高く跳ぶようにする度合い（主人公のジャンプ力と同じ度合い）
@@ -244,10 +244,10 @@ const STAGES = [
 // 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
 //   size=大きさ（主人公と同じ40） / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
 const DRINKS = {
-  kocha:   { name: "紅茶",     size: 40, speed: 90,  jump: 560, body: "#c4501f", dark: "#8f2f0e" },
-  hojicha: { name: "ほうじ茶", size: 40, speed: 125, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
-  earlgrey:{ name: "巨大アールグレイ", size: BOSS_SIZE, speed: 95, jump: 0, body: "#5b4b9a", dark: "#3a2f66" },
-  oolong:  { name: "ウーロン茶", size: 40, speed: 65,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
+  kocha:   { name: "紅茶",     size: 40, speed: 135, jump: 560, body: "#c4501f", dark: "#8f2f0e" },
+  hojicha: { name: "ほうじ茶", size: 40, speed: 188, jump: 620, body: "#8b5a2b", dark: "#4d2c12" },
+  earlgrey:{ name: "巨大アールグレイ", size: BOSS_SIZE, speed: 143, jump: 0, body: "#5b4b9a", dark: "#3a2f66" },
+  oolong:  { name: "ウーロン茶", size: 40, speed: 98,  jump: 520, body: "#d19a2a", dark: "#8a5f14" },
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
 const ENEMY_SIZE_MIN = 14;  // 敵の大きさのばらつき：小さいほう
