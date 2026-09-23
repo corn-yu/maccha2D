@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 33）
+   game.js ── maccha2D（ver 34）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 33）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 34）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -247,7 +247,7 @@ const DRINKS = {
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
 const ENEMY_SIZE_MIN = 14;  // 敵の大きさのばらつき：小さいほう
-const ENEMY_SIZE_MAX = 100; // 敵の大きさのばらつき：大きいほう
+const ENEMY_SIZE_MAX = 80;  // 敵の大きさのばらつき：大きいほう
 const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
 const LEASH   = 220;        // 敵が「歩く範囲」の外まで追いかけていける距離
