@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 72）
+   game.js ── maccha2D（ver 73）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 72）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 73）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -24,8 +24,8 @@ const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const BASE_SPEED  = 360;   // 主人公のふつうの大きさのときの移動速度
-const JUMP_EXP    = 0.6;   // 大きいほどジャンプ力が上がる度合い
-const SPEED_EXP   = JUMP_EXP; // 移動速度はジャンプ力とちょうど反比例するように、同じ度合いを使う（大きさが変わっても「ジャンプ力×速度」が一定になる）
+const JUMP_LOG_K  = 0.6;   // 大きさが2倍になるごとに、ジャンプ力がどれだけ増えるか（対数なので、最初は変化が大きく、育つほど変わりにくくなる）
+const SPEED_LOG_K = 0.6;   // 同様に、大きさが2倍になるごとに、移動速度がどれだけ落ちるか
 const GRAVITY_EXP = 0.4;   // ジャンプが高いほど重力を弱くする度合い（大きいほど滞空時間の差が激しくなる）
 const JUMP_SIZE_EXP = 0.6; // 敵が大きいほど高く跳ぶようにする度合い（主人公のジャンプ力と同じ度合い）
 const GROW_RATIO  = 0.25; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
@@ -507,14 +507,16 @@ const game = {
     });
   },
 
-  // いまの大きさに応じたジャンプの強さ（ジャンプの高さが、ふつうの大きさのときの何倍かが「大きさ ×」で決まる）
+  // いまの大きさに応じたジャンプの強さ。対数で変わるので、ふつうの大きさに近いうちは変化が大きく、
+  //   どんどん育つと、同じだけ倍になっても増え方はゆるやかになっていく
   jumpPower() {
-    return JUMP_SPEED * Math.pow(this.size / PLAYER_SIZE, JUMP_EXP);
+    return JUMP_SPEED * Math.max(0.3, 1 + JUMP_LOG_K * Math.log(this.size / PLAYER_SIZE));
   },
 
-  // いまの大きさに応じた移動速度（小さいほど速く、大きいほど遅くなる）
+  // いまの大きさに応じた移動速度（小さいほど速く、大きいほど遅くなる）。ジャンプ力と同じ対数カーブで、
+  //   最初は変化が大きく、育つほど変わりにくくなっていく
   playerSpeed() {
-    return BASE_SPEED * Math.pow(PLAYER_SIZE / this.size, SPEED_EXP);
+    return BASE_SPEED / Math.max(0.3, 1 + SPEED_LOG_K * Math.log(this.size / PLAYER_SIZE));
   },
 
   // いまの大きさに応じた重力（ジャンプが高いほど重力を弱くして、滞空時間を長く伸ばす）
