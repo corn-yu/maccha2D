@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 56）
+   game.js ── maccha2D（ver 57）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 56）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 57）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -259,10 +259,10 @@ function stage_enemies(stage, stageIndex) {
   // x は中心の位置。vz は上向きの速さ。size は目指す大きさ（w・h は今の大きさ）。
   // dead は倒されてからの秒数（null なら生きている）。absorber は吸収した相手（主人公なら null）
   // 大きさは、ステージ側で指定（e.size）が無ければ、毎回ランダムにばらつかせる
-  //   （ステージが進むほど、大きい敵のほうが出やすくなるよう偏らせる。ボス戦ステージは対象外）
+  //   （最初のステージほど小さい敵、あとのステージほど大きい敵が出やすくなるよう偏らせる。ボス戦ステージは対象外）
   const regularStages = STAGES.length - 1;
   const progress = regularStages > 1 ? Math.max(0, Math.min(1, (stageIndex || 0) / (regularStages - 1))) : 0;
-  const biasExp = 1 - progress * ENEMY_SIZE_BIAS;
+  const biasExp = 1 + (1 - progress * 2) * ENEMY_SIZE_BIAS;
   return stage.enemies.map((e, i) => {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
