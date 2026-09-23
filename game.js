@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 61）
+   game.js ── maccha2D（ver 62）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 61）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 62）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -910,11 +910,11 @@ const game = {
       this.kick(en.spr, -7);
     }
 
-    // 重力と着地（足場の上か、地面の上。穴の上なら落ちる）
+    // 重力と着地（足場の上か、地面の上。穴の上なら落ちる）：大きい敵ほど重力を弱くして、滞空時間を伸ばす
     this.stepSpring(en.spr, dt);
     const wasG = en.grounded;
     const prevZ = en.z;
-    en.vz -= GRAVITY * dt;
+    en.vz -= GRAVITY * Math.pow(PLAYER_SIZE / en.size, GRAVITY_EXP) * dt;
     const vzBefore = en.vz;
     en.z += en.vz * dt;
     en.grounded = false;
