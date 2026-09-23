@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 39）
+   game.js ── maccha2D（ver 40）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 39）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 40）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -715,6 +715,14 @@ const game = {
             this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
             this.kick(this.spr, 8);
             this.growPlayer(en.size * GROW_RATIO);
+            this.invuln = Math.max(this.invuln, 0.4);
+            continue;
+          }
+          if (en.boss && this.size > en.size + 0.5) {
+            // ボス戦でも、横から当たって自分の方が大きければ、踏んだときと同じくダメージが入る
+            this.damageBoss(en);
+            this.spawnDrops(pcx, p.z, PLAYER_COLOR, 4, 160);
+            this.kick(this.spr, 8);
             this.invuln = Math.max(this.invuln, 0.4);
             continue;
           }
