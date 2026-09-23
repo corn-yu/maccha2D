@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 48）
+   game.js ── maccha2D（ver 49）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 48）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 49）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -265,7 +265,7 @@ function stage_enemies(stage) {
     const d = DRINKS[type];
     const size = e.size || Math.round(ENEMY_SIZE_MIN + Math.random() * (ENEMY_SIZE_MAX - ENEMY_SIZE_MIN));
     return { type, x: e.x, z: e.z, vz: 0, grounded: true, size, w: size, h: size, min: e.min, max: e.max,
-             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
+             dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, stuckT: 0, giveUpT: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   });
 }
 
@@ -831,10 +831,12 @@ const game = {
   // 敵1体の動き：プレイヤーが近ければ追いかける（上にいたらジャンプ）。遠ければ範囲内を歩く
   moveEnemy(en, dt, pcx, p) {
     const stage = this.stage;
+    en.giveUpT -= dt;                                          // なわばりの端まで追いついてもどうしても届かないときは、しばらくあきらめる（でないと壁際に張り付いたまま動かなくなる）
+    const giveUp = en.giveUpT > 0;
     const dx = pcx - en.x;
-    const seesPlayer = Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
+    const seesPlayer = !giveUp && Math.abs(dx) < SIGHT_X && Math.abs(p.z - en.z) < SIGHT_Z && !this.entering;
     // 積極的に戦う：ほかの敵が見えたら、プレイヤーがよほど近くにいない限り、そっちを襲いにいく
-    const foe = this.nearestFoe(en);
+    const foe = giveUp ? null : this.nearestFoe(en);
     const hunt = !!foe && (!seesPlayer || Math.abs(foe.x - en.x) < Math.abs(dx) + FOE_PRIORITY);
     en.chasing = seesPlayer || hunt;
     let speed = en.speed * PATROL_RATIO;
@@ -884,6 +886,16 @@ const game = {
     if (en.x <= hi) nx = Math.min(nx, hi);
     if (en.x >= lo) nx = Math.max(nx, lo);
     if (en.grounded && en.z === 0 && this.inPit(nx)) nx = en.x;
+
+    // 追う／逃げたい方向があるのに、なわばりの端に張り付いてこれ以上進めていないなら、しばらくあきらめてパトロールに戻す
+    //   （でないと、届かない相手をずっと追い続けて壁際に固まったまま動かなくなってしまう）
+    if (en.chasing && ((move > 0 && en.x >= hi - 0.5) || (move < 0 && en.x <= lo + 0.5))) {
+      en.stuckT += dt;
+      if (en.stuckT > 0.6) { en.giveUpT = 2.5; en.fightCd = FIGHT_COOLDOWN; en.stuckT = 0; }
+    } else {
+      en.stuckT = 0;
+    }
+
     en.x = nx;
 
     // ジャンプ
@@ -1063,7 +1075,7 @@ const game = {
   makeEnemy(type, x, z, size, min, max) {
     const d = DRINKS[type];
     return { type, x, z, vz: 0, grounded: true, size, w: size, h: size, min, max, dir: 1, speed: d.speed, jump: d.jump,
-             jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
+             jumpWait: 0, chasing: false, fightCd: 0, stuckT: 0, giveUpT: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   },
   makeBoss() {
     const b = this.makeEnemy("earlgrey", this.stage.width - 320, 0, BOSS_SIZE, 0, this.stage.width);
