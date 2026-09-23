@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 54）
+   game.js ── maccha2D（ver 55）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 54）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 55）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -1212,7 +1212,8 @@ const game = {
   // 踏まれた：体力が減って本体が小さくなり、失った分の半分は「かけら」に、半分は「子分」になって、左右に飛び出す
   //   （かけらはプレイヤーだけでなく、ほかの敵やボス自身も拾って大きくなれる。子分はこれまで通り歩いて襲ってくる）
   damageBoss(en) {
-    en.hp--;
+    const dmg = Math.max(1, Math.round(this.size / PLAYER_SIZE));   // 自分が大きいほど、一撃のダメージも大きくなる
+    en.hp -= dmg;
     if (en.form === 1 && en.hp <= BOSS_HP / 2) { this.transformBoss(en); return; }   // 体力が半分になったら第二形態
     en.stun = BOSS_STUN;
     en.flash = 0.35;
