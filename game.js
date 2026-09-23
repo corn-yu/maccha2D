@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 41）
+   game.js ── maccha2D（ver 42）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 41）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 42）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -849,8 +849,13 @@ const game = {
       lo = Math.max(0, en.min - LEASH);
       hi = Math.min(stage.width, en.max + LEASH);
       const d = this.decideEnemy(en, p, pcx, this.pvx);      // AI（なければルール）が動きとジャンプを決める
-      move = d.move;
-      wantJump = d.jump;
+      if (this.size > en.size + 0.5) {
+        move = dx > 0 ? -1 : 1;                               // 自分より大きいプレイヤーからは、追いかけずに逃げる
+        wantJump = d.jump;
+      } else {
+        move = d.move;
+        wantJump = d.jump;
+      }
       if (move !== 0) en.dir = move;
     } else {
       if (en.x <= en.min) en.dir = 1;
