@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 63）
+   game.js ── maccha2D（ver 64）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 63）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 64）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -320,21 +320,29 @@ const game = {
     ];
   },
 
-  // 追いかけ中の敵の判断：{ move: -1/0/1, jump: true/false }。AIがあればAI、なければルール
+  // 追いかけ中の敵の判断：{ move: -1/0/1, jump: true/false }。動きはAIがあればAI、なければルール
+  //   ジャンプは、AIまかせにすると跳びすぎるので、本当に必要なとき（穴・頭上・回避）だけに絞る
   decideEnemy(en, p, pcx, tvx) {
     const f = this.enemyFeatures(en, p, pcx, tvx);
+    const dx = pcx - en.x;
+    let move;
     if (this.ai) {
       const o = this.runAI(f);
-      const move = o[0] > o[1] && o[0] > o[2] ? -1 : (o[2] > o[1] ? 1 : 0);
-      return { move, jump: o[3] > 0 && en.grounded && en.jumpWait <= 0 };
+      move = o[0] > o[1] && o[0] > o[2] ? -1 : (o[2] > o[1] ? 1 : 0);
+    } else {
+      const target = dx + 0.45 * tvx;                          // 先読みを強化：プレイヤーの、もう少し先の位置を狙う
+      move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     }
-    const dx = pcx - en.x;
-    const target = dx + 0.45 * tvx;                            // 先読みを強化：プレイヤーの、もう少し先の位置を狙う
-    const move = Math.abs(target) < 8 ? 0 : (target > 0 ? 1 : -1);
     const pitAhead = move > 0 ? f[7] : move < 0 ? f[8] : 0;
     const above = p.z > en.z + 20 && Math.abs(dx) < 150;
     const dodge = !p.grounded && Math.abs(dx) < 110;
     return { move, jump: en.grounded && en.jumpWait <= 0 && (above || pitAhead === 1 || dodge) };
+  },
+
+  // 逃げているとき用の、最低限のジャンプ判断（進む先に穴があるときだけ跳ぶ。攻めるためのジャンプはしない）
+  pitJumpOnly(en, move) {
+    if (move === 0 || !en.grounded || en.jumpWait > 0) return false;
+    return this.inPit(en.x + move * 50);
   },
 
   // 最初に1回だけ呼ばれる
@@ -867,12 +875,13 @@ const game = {
       lo = 0; hi = stage.width;                               // 追いかけているあいだは、なわばりの外まで（ステージの端まで）ずっと追える
       // 相手の敵に向かって、AI（なければルール）が動きとジャンプを決める（避けジャンプはしない）
       const d = this.decideEnemy(en, { z: foe.z, vz: foe.vz, grounded: true }, foe.x, 0);
-      if (foe.size > en.size + 0.5 && !hasEdgeFoe) {
+      const fleeingFoe = foe.size > en.size + 0.5 && !hasEdgeFoe;
+      if (fleeingFoe) {
         move = foe.x > en.x ? -1 : 1;                         // 相手のほうが大きいときは、ふだんは逃げる
       } else {
         move = d.move;                                        // チャンス（高い場所）があるときは、逃げずに攻めにいく
       }
-      wantJump = d.jump;
+      wantJump = fleeingFoe ? this.pitJumpOnly(en, move) : d.jump;   // 逃げているときは、穴を避ける以外のジャンプはしない
       if (move !== 0) en.dir = move;
     } else if (seesPlayer) {
       speed = en.speed;
@@ -880,12 +889,13 @@ const game = {
       if (hasEdge) speed *= 1.5;                              // 高い場所にいるときは、勢いよく降りて上から仕掛ける
       lo = 0; hi = stage.width;                               // 追いかけているあいだは、なわばりの外まで（ステージの端まで）ずっと追える
       const d = this.decideEnemy(en, p, pcx, this.pvx);      // AI（なければルール）が動きとジャンプを決める
-      if (this.size > en.size + 0.5 && !hasEdge) {
+      const fleeingPlayer = this.size > en.size + 0.5 && !hasEdge;
+      if (fleeingPlayer) {
         move = dx > 0 ? -1 : 1;                               // 自分より大きいプレイヤーからは、ふだんは追いかけずに逃げる
       } else {
         move = d.move;                                        // チャンス（高い場所）があるときは、逃げずに攻めにいく
       }
-      wantJump = d.jump;
+      wantJump = fleeingPlayer ? this.pitJumpOnly(en, move) : d.jump;   // 逃げているときは、穴を避ける以外のジャンプはしない
       if (move !== 0) en.dir = move;
     } else {
       if (en.x <= en.min) en.dir = 1;
