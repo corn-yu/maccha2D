@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 55）
+   game.js ── maccha2D（ver 56）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 55）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 56）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -247,21 +247,26 @@ const DRINKS = {
 };
 const DRINK_ORDER = ["kocha", "hojicha", "oolong"];
 const ENEMY_SIZE_MIN = 14;  // 敵の大きさのばらつき：小さいほう
-const ENEMY_SIZE_MAX = 80;  // 敵の大きさのばらつき：大きいほう
+const ENEMY_SIZE_MAX = 150; // 敵の大きさのばらつき：大きいほう
+const ENEMY_SIZE_BIAS = 0.65; // ステージが進むほど、大きい敵が出やすくなる偏り具合（0なら偏りなし）
 const SIGHT_X = 340;        // 敵がプレイヤーに気づく横の距離
 const SIGHT_Z = 220;        // 敵がプレイヤーに気づく高さの差
 const PATROL_RATIO = 0.55;  // 気づいていないときの歩く速さ（追いかける速さに対する割合）
 const ENEMY_JUMP_WAIT = 1.1;// 敵が続けてジャンプできるまでの秒数
 
 // ステージのデータから、遊んでいる間に変わる敵の状態を作る
-function stage_enemies(stage) {
+function stage_enemies(stage, stageIndex) {
   // x は中心の位置。vz は上向きの速さ。size は目指す大きさ（w・h は今の大きさ）。
   // dead は倒されてからの秒数（null なら生きている）。absorber は吸収した相手（主人公なら null）
   // 大きさは、ステージ側で指定（e.size）が無ければ、毎回ランダムにばらつかせる
+  //   （ステージが進むほど、大きい敵のほうが出やすくなるよう偏らせる。ボス戦ステージは対象外）
+  const regularStages = STAGES.length - 1;
+  const progress = regularStages > 1 ? Math.max(0, Math.min(1, (stageIndex || 0) / (regularStages - 1))) : 0;
+  const biasExp = 1 - progress * ENEMY_SIZE_BIAS;
   return stage.enemies.map((e, i) => {
     const type = e.type || DRINK_ORDER[i % DRINK_ORDER.length];
     const d = DRINKS[type];
-    const size = e.size || Math.round(ENEMY_SIZE_MIN + Math.random() * (ENEMY_SIZE_MAX - ENEMY_SIZE_MIN));
+    const size = e.size || Math.round(ENEMY_SIZE_MIN + Math.pow(Math.random(), biasExp) * (ENEMY_SIZE_MAX - ENEMY_SIZE_MIN));
     return { type, x: e.x, z: e.z, vz: 0, grounded: true, size, w: size, h: size, min: e.min, max: e.max,
              dir: 1, speed: d.speed, jump: d.jump, jumpWait: 0, chasing: false, fightCd: 0, dead: null, absorber: null, spr: { x: 0, v: 0 } };
   });
@@ -540,7 +545,7 @@ const game = {
     this.drops = [];                           // 飛び散るしずく（見た目だけ）
     this.spr = { x: 0, v: 0 };                 // 主人公のぷるぷる（バネ）。正=つぶれる／負=のびる
     this.dropTimer = 0;
-    this.enemies = stage_enemies(this.stage);
+    this.enemies = stage_enemies(this.stage, this.stageIndex);
     this.waves = [];                           // ボスの衝撃波
     this.bossWin = 0;                          // ボスを倒したあと、クリアまでの残り秒数
     this.shake = 0;                            // 画面のゆれ
