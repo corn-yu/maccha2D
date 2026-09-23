@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 57）
+   game.js ── maccha2D（ver 58）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 57）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 58）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -23,6 +23,8 @@ const JUMP_SPEED = 600;    // ジャンプの強さ（大きいほど高く跳�
 const ENTER_TIME = 0.5;    // カップに入る動きにかかる秒数
 const INVULN_TIME = 1.5;   // ミスしたあとの無敵の秒数
 const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
+const BASE_SPEED  = 240;   // 主人公のふつうの大きさのときの移動速度
+const SPEED_EXP   = 0.5;   // 小さいほど速く・大きいほど遅くなる度合い（大きいほど差が激しくなる）
 const GROW_RATIO  = 0.15; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
 const KAKERA_GROW_RATIO = 0.01; // かけらを拾ったときは、敵を直接吸収するときよりずっと大きくなりにくい（かけらの大きさの何割が実際の成長になるか）
 const MAX_SIZE    = Infinity; // 大きくなれる上限はなし（ミスするとふつうの大きさに戻る）
@@ -498,6 +500,11 @@ const game = {
     return JUMP_SPEED * Math.pow(this.size / PLAYER_SIZE, 0.6);
   },
 
+  // いまの大きさに応じた移動速度（小さいほど速く、大きいほど遅くなる）
+  playerSpeed() {
+    return BASE_SPEED * Math.pow(PLAYER_SIZE / this.size, SPEED_EXP);
+  },
+
   // 敵を踏んだときの跳ね返りの強さ（大きくなるほど少しだけ弾みは強くなるが、画面外まで飛んでいかないよう上限あり）
   stompBouncePower() {
     return Math.min(this.jumpPower() * 0.65, JUMP_SPEED * 0.9);
@@ -538,7 +545,7 @@ const game = {
     this.stageIndex = index;
     this.stage = STAGES[index];
     // 主人公：x は左端の位置、z は地面からの高さ、vz は上向きの速さ
-    this.player = { x: 120, z: this.groundAt(120), vz: 0, w: this.size, h: this.size, speed: 240, facing: 1, grounded: true };
+    this.player = { x: 120, z: this.groundAt(120), vz: 0, w: this.size, h: this.size, facing: 1, grounded: true };
     this.jumpBuffer = 0;
     this.invuln = 0;                           // 無敵の残り秒数
     this.frags = [];                           // 分裂で飛び出した、拾えるかけら
@@ -610,8 +617,9 @@ const game = {
       let dir = 0;
       if (this.keys.left || this.touch.left) dir -= 1;
       if (this.keys.right || this.touch.right) dir += 1;
-      p.x += dir * p.speed * dt;
-      this.pvx = dir * p.speed;
+      const speed = this.playerSpeed();
+      p.x += dir * speed * dt;
+      this.pvx = dir * speed;
       if (dir !== 0 && p.grounded) {                           // 歩くと足元にしずくが散る
         this.dropTimer -= dt;
         if (this.dropTimer <= 0) {
