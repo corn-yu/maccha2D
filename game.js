@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 60）
+   game.js ── maccha2D（ver 61）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 60）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 61）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -26,6 +26,7 @@ const PLAYER_SIZE = 40;    // 主人公のふつうの大きさ
 const BASE_SPEED  = 240;   // 主人公のふつうの大きさのときの移動速度
 const SPEED_EXP   = 0.5;   // 小さいほど速く・大きいほど遅くなる度合い（大きいほど差が激しくなる）
 const GRAVITY_EXP = 0.4;   // ジャンプが高いほど重力を弱くする度合い（大きいほど滞空時間の差が激しくなる）
+const JUMP_SIZE_EXP = 0.6; // 敵が大きいほど高く跳ぶようにする度合い（主人公のジャンプ力と同じ度合い）
 const GROW_RATIO  = 0.25; // 敵を踏んで吸収したとき、その敵の大きさの何割だけ大きくなるか（端数は貯まっていくので、無駄にはならない）
 const KAKERA_GROW_RATIO = 0.02; // かけらを拾ったときは、敵を直接吸収するときよりずっと大きくなりにくい（かけらの大きさの何割が実際の成長になるか）
 const MAX_SIZE    = Infinity; // 大きくなれる上限はなし（ミスするとふつうの大きさに戻る）
@@ -902,10 +903,10 @@ const game = {
     if (en.grounded && en.z === 0 && this.inPit(nx)) nx = en.x;
     en.x = nx;
 
-    // ジャンプ
+    // ジャンプ：大きい敵ほど高く跳ぶ
     en.jumpWait -= dt;
     if (wantJump && en.grounded) {
-      en.vz = en.jump; en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
+      en.vz = en.jump * Math.pow(en.size / PLAYER_SIZE, JUMP_SIZE_EXP); en.grounded = false; en.jumpWait = ENEMY_JUMP_WAIT;
       this.kick(en.spr, -7);
     }
 
