@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 75）
+   game.js ── maccha2D（ver 76）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 75）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 76）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -55,6 +55,8 @@ const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボス�
 const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
 const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
+const START_INVULN = 1.0;  // ステージが始まってから無敵の秒数
+const START_SAFE   = 200;  // スタート地点の主人公から、これだけの間は敵を置かない
 const ZOOM_EXP  = 0.5;   // 大きくなるほど画面を引く度合い（0.5なら、画面の上の見た目の大きさは「本当の大きさの平方根」くらいで大きくなっていく）
 const ZOOM_MIN  = 0.25;  // これ以上は引かない（とても大きくなったら、画面の上でもそのまま大きくなる）
 const SLAM_UP_SPEED = 1000; // 滞空技：真上に跳ぶ強さ（ふつうのジャンプより高い）
@@ -576,12 +578,21 @@ const game = {
     // 主人公：x は左端の位置、z は地面からの高さ、vz は上向きの速さ
     this.player = { x: 120, z: this.groundAt(120), vz: 0, w: this.size, h: this.size, facing: 1, grounded: true };
     this.jumpBuffer = 0;
-    this.invuln = 0;                           // 無敵の残り秒数
+    this.invuln = START_INVULN;                // 無敵の残り秒数（ステージの始まりは、いきなりやられないように少し無敵）
     this.frags = [];                           // 分裂で飛び出した、拾えるかけら
     this.drops = [];                           // 飛び散るしずく（見た目だけ）
     this.spr = { x: 0, v: 0 };                 // 主人公のぷるぷる（バネ）。正=つぶれる／負=のびる
     this.dropTimer = 0;
     this.enemies = stage_enemies(this.stage, this.stageIndex);
+    // スタート地点のすぐ近くにいる敵は、少し右へずらす（始まった瞬間にぶつからないように）
+    const p0 = this.player;
+    for (const en of this.enemies) {
+      const safeX = p0.x + p0.w + START_SAFE + en.w / 2;
+      if (en.x < safeX) {
+        const shift = Math.min(safeX, this.stage.width - en.w / 2) - en.x;
+        en.x += shift; en.min += shift; en.max += shift;
+      }
+    }
     this.waves = [];                           // ボスの衝撃波
     this.bossWin = 0;                          // ボスを倒したあと、クリアまでの残り秒数
     this.shake = 0;                            // 画面のゆれ
@@ -810,7 +821,8 @@ const game = {
       const cx = p.x + p.w / 2;
       if (cup) {
         const cupZ = this.groundAt(cup.x) + cup.base;
-        if (Math.abs(cx - cup.x) <= 26 && p.z >= cupZ - 2 && p.z <= cupZ + 30) {
+        // 大きくなると、ステージの端の壁のせいで体の真ん中がカップまで届かないことがあるので、体がカップに重なっていればOKにする（大きいと丘の上に乗ったままになるので、高さの判定も大きさに合わせてゆるめる）
+        if (cup.x >= p.x - 26 && cup.x <= p.x + p.w + 26 && p.z >= cupZ - 2 && p.z <= cupZ + Math.max(30, p.h * 0.25)) {
           this.entering = { t: 0, fromX: p.x, fromZ: p.z };
         }
       }
