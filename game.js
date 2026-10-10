@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 77）
+   game.js ── maccha2D（ver 78）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 77）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 78）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -249,6 +249,37 @@ const STAGES = [
     cup: null,
   },
 ];
+
+// ステージを長くする：ゴール手前の平らな所より前（丘と敵がある部分）を STAGE_REPEAT 回くり返す
+//   くり返すたびに、左右反転（奇数回目）と、丘を少しずつ高くして、同じ景色が続かないようにする
+const STAGE_REPEAT = 4;          // 何回くり返すか（1ならもとの長さのまま）
+const STAGE_REPEAT_HILL_UP = 0.15; // くり返すたびに、丘が何割ずつ高くなるか
+function lengthenStage(st) {
+  if (st.boss || !st.hills || STAGE_REPEAT <= 1) return;
+  const L = st.hills[st.hills.length - 2].x;                 // くり返す部分の長さ（最後の平らな所が始まる位置）
+  const body = st.hills.filter((h) => h.x > 0 && h.x <= L);
+  const bodyEnemies = st.enemies.filter((e) => e.x < L);
+  const tailEnemies = st.enemies.filter((e) => e.x >= L);
+  const hills = [st.hills[0]], enemies = [];
+  for (let k = 0; k < STAGE_REPEAT; k++) {
+    const flip = k % 2 === 1, off = k * L, up = 1 + k * STAGE_REPEAT_HILL_UP;
+    const seg = body.map((h) => ({ x: flip ? L - h.x : h.x, h: Math.round(h.h * up) }));
+    if (flip) { seg.push({ x: L, h: 0 }); seg.splice(seg.findIndex((h) => h.x === 0), 1); seg.sort((a, b) => a.x - b.x); }
+    for (const h of seg) hills.push({ x: h.x + off, h: h.h });
+    for (const e of bodyEnemies) {
+      const x = flip ? L - e.x : e.x, min = flip ? L - e.max : e.min, max = flip ? L - e.min : e.max;
+      enemies.push({ ...e, x: x + off, min: min + off, max: max + off });
+    }
+  }
+  const extra = (STAGE_REPEAT - 1) * L;
+  hills.push({ x: st.width + extra, h: 0 });
+  for (const e of tailEnemies) enemies.push({ ...e, x: e.x + extra, min: e.min + extra, max: e.max + extra });
+  st.hills = hills;
+  st.enemies = enemies;
+  st.width += extra;
+  if (st.cup) st.cup = { ...st.cup, x: st.cup.x + extra };
+}
+STAGES.forEach(lengthenStage);
 
 // 敵の種類：抹茶のライバルの、抹茶以外のお茶たち（四角い体）
 //   size=大きさ（主人公と同じ40） / speed=追いかける速さ / jump=ジャンプの強さ / body=体の色 / dark=ふちの色
