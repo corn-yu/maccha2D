@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 76）
+   game.js ── maccha2D（ver 77）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 76）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 77）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -297,7 +297,7 @@ const game = {
   // 敵のAI（学習済みのニューラルネット）を enemy-ai.json から読み込む
   //   tools/train-enemy-ai.js で作り直せる。読み込めなかったら（ファイルを直接開いたときなど）ルールで動く
   loadEnemyAI() {
-    fetch("enemy-ai.json")
+    fetch("enemy-ai.json" + (window.BUST || ""))
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((net) => { this.ai = net; })
       .catch(() => { this.ai = null; });
