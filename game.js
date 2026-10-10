@@ -1,5 +1,5 @@
 /* =====================================================================
-   game.js ── maccha2D（ver 74）
+   game.js ── maccha2D（ver 75）
    ・左右に動く（PC：← → / A D キー）
    ・ジャンプ（PC：スペース / ↑ / W キー）
    ・スマホ：画面の下の左右をタッチで移動、画面の上をタッチでジャンプ
@@ -11,7 +11,7 @@
 // 設定
 const CONFIG = {
   title:      "maccha2D",
-  tagline:    "2Dアクションゲーム（ver 74）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
+  tagline:    "2Dアクションゲーム（ver 75）",   // ← ページが新しくなったか確認する目印。不要なら消してOK
   howTo:      "",                    // タイトル画面の説明文（空なら出さない）
   timeLimit:  null,               // 時間制限なし
   noScore:    true,                // スコアなし（枠のHUDと、結果画面の点数・ベストを出さない）
@@ -55,6 +55,8 @@ const SHAKE_HEAD   = 1.3;   // 頭の上にこの秒数いすわると、ボス�
 const SHAKE_TELE   = 0.55;  // ふりはらいの予告（赤い柱が出る）の秒数
 const BLAST_TIME   = 0.4;   // ふりはらいの衝撃が出ている秒数
 const BOSS_STOMP   = 0.4;   // ボスは、体の高さのこれより上から踏めば踏んだことになる
+const ZOOM_EXP  = 0.5;   // 大きくなるほど画面を引く度合い（0.5なら、画面の上の見た目の大きさは「本当の大きさの平方根」くらいで大きくなっていく）
+const ZOOM_MIN  = 0.25;  // これ以上は引かない（とても大きくなったら、画面の上でもそのまま大きくなる）
 const SLAM_UP_SPEED = 1000; // 滞空技：真上に跳ぶ強さ（ふつうのジャンプより高い）
 const SLAM_HOVER    = 1.0;  // 滞空技：頂上で静止している秒数（第二形態はもう少し短い）
 const SLAM_FALL_MULT = 2.4; // 滞空技：落ちるときの重力の倍率（ふつうより速く落ちる）
@@ -586,22 +588,30 @@ const game = {
     if (this.stage.boss) this.enemies.push(this.makeBoss());
     this.entering = null;                      // カップに入っている最中の情報
     this.banner = { t: 0 };                    // 「ステージ ○」の表示（text があればそれを出す）
+    this.zoom = this.zoomTarget();             // 画面の拡大率（1がふつう。大きくなるほど小さくして、画面を引く）
     this.cameraX = this.cameraTargetX();       // 最初からカメラを主人公に合わせる
     this.cameraY = 0;
+  },
+
+  // 主人公の大きさに合わせた、画面の拡大率（大きくなるほど引きになる。でも見た目は少しずつ大きくなる）
+  zoomTarget() {
+    const fit = this.shell.width / this.stage.width;   // ステージの外まで映るほどは引かない
+    return Math.max(ZOOM_MIN, fit, Math.min(1, Math.pow(PLAYER_SIZE / this.player.w, ZOOM_EXP)));
   },
 
   // カメラが映したい横位置（主人公が画面の真ん中に来る。ステージの外は映さない）
   cameraTargetX() {
     const p = this.player;
-    const target = p.x + p.w / 2 - this.shell.width / 2;
-    const max = Math.max(0, this.stage.width - this.shell.width);
+    const viewW = this.shell.width / this.zoom;   // 画面を引いた分、広い範囲が映る
+    const target = p.x + p.w / 2 - viewW / 2;
+    const max = Math.max(0, this.stage.width - viewW);
     return Math.max(0, Math.min(max, target));
   },
 
   // カメラの縦のずれ（高い所に登ったとき、主人公が画面の上に隠れないように下へずらす）
   cameraTargetY() {
     const p = this.player;
-    const groundY = this.shell.height * 0.8;
+    const groundY = this.shell.height / this.zoom * 0.8;
     return Math.max(0, 90 + p.z + p.h - groundY);
   },
 
@@ -700,7 +710,7 @@ const game = {
 
       // 落とし穴に落ちたらミス
       // （キャラが画面の下に完全に見えなくなってから、やられる）
-      if (p.z < -(this.shell.height * 0.2) - p.h - 12 + this.cameraY) { this.loseLife(); return; }
+      if (p.z < -(this.shell.height / this.zoom * 0.2) - p.h - 12 + this.cameraY) { this.loseLife(); return; }
 
       const pcx = p.x + p.w / 2;
 
@@ -808,6 +818,7 @@ const game = {
 
     // カメラをなめらかに主人公へ近づける
     const f = Math.min(1, dt * 8);
+    this.zoom += (this.zoomTarget() - this.zoom) * Math.min(1, dt * 3);   // 引き・寄りは、ゆっくりめに
     this.cameraX += (this.cameraTargetX() - this.cameraX) * f;
     this.cameraY += (this.cameraTargetY() - this.cameraY) * f;
   },
@@ -1371,7 +1382,7 @@ const game = {
   onDraw(ctx, w, h) {
     if (this.mode !== "play") { this.drawSelect(ctx, w, h); return; }   // ステージセレクト画面
     const stage = this.stage;
-    const groundY = h * 0.8;   // 地面の高さ（画面の上から8割のところ）
+    let groundY = h * 0.8;   // 地面の高さ（画面の上から8割のところ）
     const p = this.player;
     const cam = this.cameraX;
 
@@ -1381,6 +1392,10 @@ const game = {
     if (stage.deco === "meadow") this.drawMeadowSky(ctx, w, h, groundY, cam);
 
     ctx.save();
+    // 画面を引く：ここから先は、引いた分だけ広い「ステージの座標」の画面として描く（地面は画面の8割の高さのまま）
+    const screenW = w, screenH = h;
+    ctx.scale(this.zoom, this.zoom);
+    w = screenW / this.zoom; h = screenH / this.zoom; groundY = h * 0.8;
     const sh = this.shake > 0 ? this.shake * 24 : 0;     // ボスの着地・被弾で画面がゆれる
     ctx.translate(-cam + (Math.random() - 0.5) * sh, this.cameraY + (Math.random() - 0.5) * sh);    // ここから先は「ステージの座標」で描く
 
@@ -1422,8 +1437,8 @@ const game = {
 
     // ステージの左端と右端の壁
     ctx.fillStyle = stage.pillar;
-    ctx.fillRect(-20, groundY - 600, 20, 600);
-    ctx.fillRect(stage.width, groundY - 600, 20, 600);
+    ctx.fillRect(-20, groundY - 6000, 20, 6000);          // 画面を引いても上が切れないように高めにする
+    ctx.fillRect(stage.width, groundY - 6000, 20, 6000);
 
     // 足場
     for (const pl of stage.platforms) {
@@ -1524,6 +1539,7 @@ const game = {
     ctx.globalAlpha = 1;
 
     ctx.restore();
+    w = screenW; h = screenH; groundY = h * 0.8;           // 画面に固定する物は、ふつうの画面の座標に戻す
 
     // 画面に固定して出す文字
     ctx.fillStyle = stage.text;
