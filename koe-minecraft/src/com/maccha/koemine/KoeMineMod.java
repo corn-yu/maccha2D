@@ -116,7 +116,7 @@ public class KoeMineMod implements ClientModInitializer {
 
         // 状態のお知らせ（ダウンロード中・聞いています・エラー）
         if (action.equals("status") || action.equals("ready") || action.startsWith("error:")) {
-            String message = action.equals("ready") ? "§aこえマイクラ：聞いています！「まえ」「ほって」「ジャンプ」などと言ってね"
+            String message = action.equals("ready") ? "§aこえマイクラ：聞いています！「まえ」「壊して」「ジャンプ」などと言ってね"
                     : action.startsWith("error:") ? "§cこえマイクラ：" + action.substring(6)
                     : "§eこえマイクラ：" + listener.status;
             player.sendSystemMessage(Component.literal(message));
@@ -235,7 +235,7 @@ public class KoeMineMod implements ClientModInitializer {
         }
     }
 
-    /** 名前つきのアクション（つくって・持って・見て・掘って・たおして）をする */
+    /** 名前つきのアクション（つくって・持って・見て・壊して・たおして）をする */
     void runNamed(Minecraft minecraft, LocalPlayer player, String kind, String name) {
         switch (kind) {
             case "craft" -> {

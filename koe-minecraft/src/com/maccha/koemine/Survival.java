@@ -191,7 +191,7 @@ public class Survival {
         selectSlot(minecraft, player, slot, kind);
     }
 
-    /** 「〇〇を見て」「〇〇を掘って」：近くのブロックをさがして、そちらを向く（掘るなら掘りつづける） */
+    /** 「〇〇を見て」「〇〇を壊して」：近くのブロックをさがして、そちらを向く（掘るなら掘りつづける） */
     void startLook(Minecraft minecraft, LocalPlayer player, String heard, boolean mine) {
         String nick = nickname(heard);
         // モブの名前なら、モブを見る

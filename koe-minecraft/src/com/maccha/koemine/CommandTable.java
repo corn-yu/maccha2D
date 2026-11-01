@@ -25,15 +25,15 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v2";
+    static final String VERSION_MARK = "ことば表 v3";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v2
+            # こえマイクラ ことば表 v3
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
-            # アクションは + でつなぐと、いっしょにします（例: 下を掘って = look_bottom+dig）
-            # 「〇〇つくって」「〇〇を持って」「〇〇を見て」「〇〇を掘って」「〇〇をたおして」の〇〇は、アイテム・ブロック・モブの名前ならなんでもOK。
+            # アクションは + でつなぐと、いっしょにします（例: 下を壊して = look_bottom+dig）
+            # 「〇〇つくって」「〇〇を持って」「〇〇を見て」「〇〇を壊して」「〇〇をたおして」の〇〇は、アイテム・ブロック・モブの名前ならなんでもOK。
             # * ではじまる行は あだ名です（*木 = log なら、「木を見て」で名前に log がつくブロックをさがす）。
             # 変えたら、ゲームの中で「ことばよみこみ」と言うか、マイクラを起動しなおしてください。
 
@@ -161,14 +161,10 @@ public class CommandTable {
             カメラ = perspective
 
             # こわす・こうげき
-            ほって = dig
-            掘って = dig
-            ほれ = dig
-            掘れ = dig
             こわして = dig
             壊して = dig
-            下を掘って = look_bottom+dig
-            したをほって = look_bottom+dig
+            下を壊して = look_bottom+dig
+            したをこわして = look_bottom+dig
             トンネル = look_front+dig+forward
             こうげき = attack
             攻撃 = attack
@@ -271,14 +267,8 @@ public class CommandTable {
             を探して = name:look
             さがして = name:look
             探して = name:look
-            をほって = name:mine
-            を掘って = name:mine
             をこわして = name:mine
             を壊して = name:mine
-            をきって = name:mine
-            を切って = name:mine
-            をとって = name:mine
-            を取って = name:mine
             をたおして = name:kill
             を倒して = name:kill
             をやっつけて = name:kill
