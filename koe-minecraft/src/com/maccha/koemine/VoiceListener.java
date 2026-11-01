@@ -62,6 +62,12 @@ public class VoiceListener implements Runnable {
             Path modelPath = prepareModel();
             status = "モデルを読みこみ中…";
             LibVosk.setLogLevel(LogLevel.WARNINGS);
+            // 日本語を UTF-8 で読むじゅんび（だめなら ふつうの読み方にもどる）
+            try {
+                VoskText.prepare();
+            } catch (Throwable error) {
+                KoeMineMod.LOG.warn("こえマイクラ: UTF-8 で読めないので、ふつうに読みます: {}", error.toString());
+            }
             try (Model model = new Model(modelPath.toString());
                  Recognizer recognizer = new Recognizer(model, SAMPLE_RATE)) {
                 listen(recognizer);
@@ -90,9 +96,9 @@ public class VoiceListener implements Runnable {
             int count = microphone.read(buffer, 0, buffer.length);
             if (count <= 0) continue;
             if (recognizer.acceptWaveForm(buffer, count)) {
-                onText(readField(recognizer.getResult(), "text"), true);
+                onText(readField(VoskText.result(recognizer), "text"), true);
             } else {
-                onText(readField(recognizer.getPartialResult(), "partial"), false);
+                onText(readField(VoskText.partial(recognizer), "partial"), false);
             }
         }
         microphone.stop();
