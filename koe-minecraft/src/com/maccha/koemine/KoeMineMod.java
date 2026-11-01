@@ -210,7 +210,11 @@ public class KoeMineMod implements ClientModInitializer {
             case "hold_use" -> holdUse = true;
             case "release_use" -> { holdUse = false; useTicks = 0; }
             // もちもの
-            case "inventory" -> { if (minecraft.gui.screen() == null) click(options.keyInventory); }
+            // 開いているときにもう一度言ったら閉じる
+            case "inventory" -> {
+                if (minecraft.gui.screen() == null) click(options.keyInventory);
+                else closeScreen(minecraft, player);
+            }
             case "close" -> closeScreen(minecraft, player);
             case "drop" -> click(options.keyDrop);
             case "slot_next" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 1) % 9);

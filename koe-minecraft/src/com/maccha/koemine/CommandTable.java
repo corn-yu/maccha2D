@@ -227,6 +227,9 @@ public class CommandTable {
             持ち物 = inventory
             とじて = close
             閉じて = close
+            とじる = close
+            閉じる = close
+            クローズ = close
             すてて = drop
             捨てて = drop
             いちばん = slot1
