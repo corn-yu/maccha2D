@@ -25,15 +25,15 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v4";
+    static final String VERSION_MARK = "ことば表 v5";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v4
+            # こえマイクラ ことば表 v5
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
             # アクションは + でつなぐと、いっしょにします（例: 下を壊して = look_bottom+dig）
-            # 「〇〇つくって」「〇〇を持って」「〇〇を見て」「〇〇を壊して」の〇〇は、アイテム・ブロック・モブの名前ならなんでもOK。
+            # 「〇〇つくって」「〇〇を持って」の〇〇はアイテム、「〇〇を見て」「〇〇を壊して」の〇〇はブロックの名前ならなんでもOK。
             # * ではじまる行は あだ名です（*木 = log なら、「木を見て」で名前に log がつくブロックをさがす）。
             # 変えたら、ゲームの中で「ことばよみこみ」と言うか、マイクラを起動しなおしてください。
 
@@ -151,12 +151,6 @@ public class CommandTable {
             正面 = look_front
             真下 = look_bottom
             真上 = look_top
-            てきをみて = aim_enemy
-            敵を見て = aim_enemy
-            ねらって = aim_enemy
-            狙って = aim_enemy
-            どうぶつをみて = aim_animal
-            動物を見て = aim_animal
             視点 = perspective
             カメラ = perspective
 
@@ -286,13 +280,6 @@ public class CommandTable {
             *水 = water
             *マグマ = lava
             *溶岩 = lava
-            *敵 = @enemy
-            *モンスター = @enemy
-            *動物 = @animal
-            *ひつじ = sheep
-            *うし = cow
-            *ぶた = pig
-            *にわとり = chicken
 
             # 作業台・チェスト・かまど
             ぜんぶいれて = put_all

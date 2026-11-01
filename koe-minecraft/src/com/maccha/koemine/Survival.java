@@ -8,11 +8,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.StackedItemContents;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -42,39 +37,35 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * サバイバルの「名前で言う」動き（クラフト・持つ・さがす・掘る・たおす・チェスト）をする
+ * サバイバルの「名前で言う」動き（クラフト・持つ・ブロックを見る・壊す・チェスト）をする
  */
 public class Survival {
 
-    /** 名前と、そのもの（アイテム・ブロック・モブ） */
+    /** 名前と、そのもの（アイテム・ブロック） */
     record Named<T>(String key, String raw, T thing) {}
 
     final KoeMineMod mod;
     final List<Named<Item>> items = new ArrayList<>();
     final List<Named<Block>> blocks = new ArrayList<>();
-    final List<Named<EntityType<?>>> mobs = new ArrayList<>();
     boolean namesReady = false;
 
     // 今しているしごと（null ならなし）
     String job = null;
     int jobTicks = 0;
     BlockPos targetBlock = null;
-    Entity targetMob = null;
     RecipeDisplayEntry craftRecipe = null;
     boolean craftSmelt = false;
     String craftName = "";
-    int attackCooldown = 0;
 
     /** 作る */
     public Survival(KoeMineMod mod) {
         this.mod = mod;
     }
 
-    /** ゲームの言葉（日本語）で、アイテム・ブロック・モブの名前の一覧を作る */
+    /** ゲームの言葉（日本語）で、アイテム・ブロックの名前の一覧を作る */
     List<String> buildNames() {
         items.clear();
         blocks.clear();
-        mobs.clear();
         Set<String> raws = new LinkedHashSet<>();
         // アイテム
         for (Item item : BuiltInRegistries.ITEM) {
@@ -86,12 +77,6 @@ public class Survival {
         for (Block block : BuiltInRegistries.BLOCK) {
             String raw = block.getName().getString();
             blocks.add(new Named<>(CommandTable.normalize(raw), raw, block));
-            raws.add(raw);
-        }
-        // モブ
-        for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
-            String raw = type.getDescription().getString();
-            mobs.add(new Named<>(CommandTable.normalize(raw), raw, type));
             raws.add(raw);
         }
         namesReady = true;
@@ -194,16 +179,7 @@ public class Survival {
     /** 「〇〇を見て」「〇〇を壊して」：近くのブロックをさがして、そちらを向く（掘るなら掘りつづける） */
     void startLook(Minecraft minecraft, LocalPlayer player, String heard, boolean mine) {
         String nick = nickname(heard);
-        // モブの名前なら、モブを見る
-        if (!mine && (nick != null && nick.startsWith("@") || (nick == null && findByName(mobs, heard) != null && findBlock(heard, nick) == null))) {
-            Entity mob = findMob(minecraft, player, heard, nick, 32);
-            if (mob == null) {
-                say(player, "近くに「" + heard + "」がいないよ");
-                return;
-            }
-            aimAt(player, mob.getEyePosition());
-            return;
-        }
+        // モブの方を自動で向くのは ずるいので、しない（ブロックだけ）
         Block block = nick == null ? findBlock(heard, null) : null;
         if (block == null && nick == null) {
             say(player, "「" + heard + "」というブロックが見つからないよ");
@@ -220,20 +196,6 @@ public class Survival {
             targetBlock = pos;
             jobTicks = 0;
         }
-    }
-
-    /** 「〇〇をたおして」：近くのモブをさがして、近づいて攻撃しつづける */
-    void startKill(Minecraft minecraft, LocalPlayer player, String heard) {
-        String nick = nickname(heard);
-        if (heard.isEmpty()) nick = "@enemy";
-        Entity mob = findMob(minecraft, player, heard, nick, 32);
-        if (mob == null) {
-            say(player, "近くに「" + (heard.isEmpty() ? "敵" : heard) + "」がいないよ");
-            return;
-        }
-        job = "kill";
-        targetMob = mob;
-        jobTicks = 0;
     }
 
     /** 「足元に置いて」：真下を見て、ジャンプして、足もとにブロックを置く */
@@ -278,13 +240,9 @@ public class Survival {
 
     /** しごとをやめる */
     void cancel() {
-        if (job != null && (job.equals("mine") || job.equals("kill"))) {
-            mod.holdAttack = false;
-            mod.holdForward = false;
-        }
+        if (job != null && job.equals("mine")) mod.holdAttack = false;
         job = null;
         targetBlock = null;
-        targetMob = null;
     }
 
     // ---------------- 毎tick ----------------
@@ -295,7 +253,6 @@ public class Survival {
         jobTicks++;
         switch (job) {
             case "mine" -> tickMine(minecraft, player);
-            case "kill" -> tickKill(player, minecraft);
             case "pillar" -> {
                 // ジャンプのいちばん上で、足もとに置く
                 if (jobTicks == 6) {
@@ -320,26 +277,6 @@ public class Survival {
         }
         aimAt(player, Vec3.atCenterOf(targetBlock));
         mod.holdAttack = true;
-    }
-
-    /** たおすしごと：近づいて、攻撃の力がたまったら たたく */
-    void tickKill(LocalPlayer player, Minecraft minecraft) {
-        if (targetMob == null || !targetMob.isAlive() || jobTicks > 600) {
-            mod.holdForward = false;
-            job = null;
-            if (targetMob != null && !targetMob.isAlive()) say(player, "たおしたよ！");
-            return;
-        }
-        aimAt(player, targetMob.getEyePosition().subtract(0, 0.3, 0));
-        double distance = player.distanceTo(targetMob);
-        // 遠ければ近づく（かべにぶつかったらジャンプ）
-        mod.holdForward = distance > 2.5;
-        if (mod.holdForward && player.horizontalCollision) mod.jumpTicks = 3;
-        // 近ければ、力がたまってから たたく
-        if (distance <= 3.2 && player.getAttackStrengthScale(0f) >= 0.95f) {
-            // ねらっている方向を ふつうの左クリックで たたく（手をふるのも ふつうどおり）
-            mod.click(minecraft.options.keyAttack);
-        }
     }
 
     /** 作業台やかまどを近くでさがして開く（開いたら、レシピを置く） */
@@ -448,28 +385,6 @@ public class Survival {
         String id = BuiltInRegistries.BLOCK.getKey(here).getPath();
         for (String part : nick.split("\\|")) if (id.contains(part)) return true;
         return false;
-    }
-
-    /** 近くの目当てのモブをさがす（@enemy なら敵、@animal なら動物） */
-    Entity findMob(Minecraft minecraft, LocalPlayer player, String heard, String nick, double range) {
-        EntityType<?> type = nick == null ? findByName(mobs, heard) : null;
-        Entity best = null;
-        double bestDistance = range;
-        for (Entity entity : minecraft.level.entitiesForRendering()) {
-            if (entity == player || !entity.isAlive() || !(entity instanceof LivingEntity)) continue;
-            boolean match;
-            if (nick == null) match = entity.getType() == type;
-            else if (nick.equals("@enemy")) match = entity instanceof Enemy;
-            else if (nick.equals("@animal")) match = entity instanceof Animal;
-            else match = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getPath().contains(nick);
-            if (!match) continue;
-            double distance = player.distanceTo(entity);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = entity;
-            }
-        }
-        return best;
     }
 
     /** 持ち物の中で、条件に合うものの場所（ホットバーを先に見る。なければ -1） */

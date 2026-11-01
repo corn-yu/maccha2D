@@ -82,7 +82,7 @@ public class KoeMineMod implements ClientModInitializer {
         LocalPlayer player = minecraft.player;
         if (player == null) return;
 
-        // はじめにワールドに入ったら、アイテム・ブロック・モブの名前を聞く言葉に足す
+        // はじめにワールドに入ったら、アイテム・ブロックの名前を聞く言葉に足す
         if (!namesSent) {
             namesSent = true;
             try {
@@ -178,8 +178,6 @@ public class KoeMineMod implements ClientModInitializer {
             case "look_down_small" -> pendingPitch += LOOK_STEP / 2;
             case "look_bottom" -> { pendingPitch = 0f; player.setXRot(90f); }
             case "look_top" -> { pendingPitch = 0f; player.setXRot(-90f); }
-            case "aim_enemy" -> survival.startLook(minecraft, player, "敵", false);
-            case "aim_animal" -> survival.startLook(minecraft, player, "動物", false);
             case "put_all" -> survival.moveAll(minecraft, player, true);
             case "take_all" -> survival.moveAll(minecraft, player, false);
             case "take_result" -> survival.takeResult(minecraft, player);
@@ -235,7 +233,7 @@ public class KoeMineMod implements ClientModInitializer {
         }
     }
 
-    /** 名前つきのアクション（つくって・持って・見て・壊して・たおして）をする */
+    /** 名前つきのアクション（つくって・持って・見て・壊して）をする */
     void runNamed(Minecraft minecraft, LocalPlayer player, String kind, String name) {
         switch (kind) {
             case "craft" -> {
@@ -253,7 +251,6 @@ public class KoeMineMod implements ClientModInitializer {
                 if (name.isEmpty()) holdAttack = true;
                 else survival.startLook(minecraft, player, name, true);
             }
-            case "kill" -> survival.startKill(minecraft, player, name);
             default -> LOG.warn("こえマイクラ: 知らない名前アクション {}", kind);
         }
     }
@@ -388,7 +385,6 @@ public class KoeMineMod implements ClientModInitializer {
                 case "hold" -> "もつ";
                 case "look" -> "みる";
                 case "mine" -> "ほる";
-                case "kill" -> "たおす";
                 default -> kind;
             };
             return name.isEmpty() ? verb : name + "を" + verb;
@@ -406,8 +402,6 @@ public class KoeMineMod implements ClientModInitializer {
             case "look_down_small" -> "ちょっとした";
             case "look_bottom" -> "真下";
             case "look_top" -> "真上";
-            case "aim_enemy" -> "敵をみる";
-            case "aim_animal" -> "動物をみる";
             case "put_all" -> "ぜんぶいれる";
             case "take_all" -> "ぜんぶとる";
             case "take_result" -> "できたのをとる";
