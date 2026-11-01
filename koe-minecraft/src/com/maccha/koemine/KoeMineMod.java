@@ -13,7 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -42,6 +44,11 @@ public class KoeMineMod implements ClientModInitializer {
     boolean repeatAttack, repeatJump;
     boolean muted = false;
     int jumpTicks = 0;
+    int forwardTicks = 0;
+    int backTicks = 0;
+    int sneakTicks = 0;
+    final Survival survival = new Survival(this);
+    boolean namesSent = false;
     int useTicks = 0;
     int attackTimer = 0;
     // これからまわる角度（なめらかにまわすため）
@@ -75,11 +82,24 @@ public class KoeMineMod implements ClientModInitializer {
         LocalPlayer player = minecraft.player;
         if (player == null) return;
 
+        // はじめにワールドに入ったら、アイテム・ブロック・モブの名前を聞く言葉に足す
+        if (!namesSent) {
+            namesSent = true;
+            try {
+                listener.setExtraPhrases(survival.buildNames());
+            } catch (Throwable error) {
+                LOG.warn("こえマイクラ: 名前の一覧が作れませんでした", error);
+            }
+        }
+
         // 聞こえたアクションを全部実行する
         VoiceListener.Heard heard;
         while ((heard = queue.poll()) != null) {
             runAction(minecraft, player, heard);
         }
+
+        // クラフトなどのしごとを進める
+        survival.tick(minecraft, player);
 
         // 画面（インベントリなど）が開いているときは、歩いたりしない
         if (minecraft.gui.screen() != null) {
@@ -93,7 +113,6 @@ public class KoeMineMod implements ClientModInitializer {
     /** 1つのアクションを実行する */
     void runAction(Minecraft minecraft, LocalPlayer player, VoiceListener.Heard heard) {
         String action = heard.action();
-        Options options = minecraft.options;
 
         // 状態のお知らせ（ダウンロード中・聞いています・エラー）
         if (action.equals("status") || action.equals("ready") || action.startsWith("error:")) {
@@ -113,6 +132,28 @@ public class KoeMineMod implements ClientModInitializer {
         player.sendOverlayMessage(Component.literal("§b♪ " + heard.text() + " §f→ §e" + label(action)));
         LOG.info("こえマイクラ: 「{}」→ {}", heard.text(), action);
 
+        // + でつながっていたら、順番に全部する
+        for (String part : action.split("\\+")) {
+            runOne(minecraft, player, part.trim());
+        }
+    }
+
+    /** アクションを1つ実行する */
+    void runOne(Minecraft minecraft, LocalPlayer player, String action) {
+        Options options = minecraft.options;
+        // 名前つきのアクション（name:craft|作業台 など）
+        if (action.startsWith("name:")) {
+            int bar = action.indexOf('|');
+            String kind = bar < 0 ? action.substring(5) : action.substring(5, bar);
+            String name = bar < 0 ? "" : action.substring(bar + 1);
+            runNamed(minecraft, player, kind, name);
+            return;
+        }
+        if (action.startsWith("item:")) {
+            survival.holdKind(minecraft, player, action.substring(5));
+            return;
+        }
+
         switch (action) {
             // 歩く
             case "forward", "walk" -> { holdForward = true; holdBack = false; if (action.equals("walk")) holdSprint = false; }
@@ -120,8 +161,31 @@ public class KoeMineMod implements ClientModInitializer {
             case "strafe_left" -> { holdLeft = true; holdRight = false; }
             case "strafe_right" -> { holdRight = true; holdLeft = false; }
             case "sprint" -> { holdSprint = true; holdForward = true; holdBack = false; holdSneak = false; }
-            case "stop" -> stopMoving();
-            case "stop_all" -> { stopMoving(); holdAttack = false; holdUse = false; repeatAttack = false; useTicks = 0; holdSneak = false; }
+            case "step_forward" -> { forwardTicks = 5; holdBack = false; }
+            case "short_forward" -> { forwardTicks = 12; holdBack = false; }
+            case "step_back" -> { backTicks = 5; holdForward = false; }
+            case "stop" -> { stopMoving(); survival.cancel(); }
+            case "stop_all" -> { stopMoving(); survival.cancel(); holdAttack = false; holdUse = false; repeatAttack = false; useTicks = 0; holdSneak = false; }
+            case "auto_jump" -> {
+                boolean now = !options.autoJump().get();
+                options.autoJump().set(now);
+                Survival.say(player, now ? "オートジャンプ オン" : "オートジャンプ オフ");
+            }
+            case "dismount" -> sneakTicks = 5;
+            case "perspective" -> click(options.keyTogglePerspective);
+            case "swap_hand" -> click(options.keySwapOffhand);
+            case "look_up_small" -> pendingPitch -= LOOK_STEP / 2;
+            case "look_down_small" -> pendingPitch += LOOK_STEP / 2;
+            case "look_bottom" -> { pendingPitch = 0f; player.setXRot(90f); }
+            case "look_top" -> { pendingPitch = 0f; player.setXRot(-90f); }
+            case "aim_enemy" -> survival.startLook(minecraft, player, "敵", false);
+            case "aim_animal" -> survival.startLook(minecraft, player, "動物", false);
+            case "put_all" -> survival.moveAll(minecraft, player, true);
+            case "take_all" -> survival.moveAll(minecraft, player, false);
+            case "take_result" -> survival.takeResult(minecraft, player);
+            case "pillar" -> survival.startPillar(player);
+            case "respawn" -> { if (player.isDeadOrDying()) { player.respawn(); minecraft.gui.setScreen(null); } }
+            case "pause" -> minecraft.pauseGame(false);
             // ジャンプ・しゃがむ
             case "jump" -> jumpTicks = 4;
             case "jump_repeat" -> repeatJump = true;
@@ -152,7 +216,7 @@ public class KoeMineMod implements ClientModInitializer {
             case "slot_next" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 1) % 9);
             case "slot_prev" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 8) % 9);
             // マイク
-            case "mute" -> { muted = true; stopMoving(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「きいて」でもどります")); }
+            case "mute" -> { muted = true; stopMoving(); survival.cancel(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「マイクオン」でもどります")); }
             case "unmute" -> { muted = false; player.sendSystemMessage(Component.literal("§aこえマイクラ：また聞いています")); }
             case "reload" -> reloadWords(player);
             default -> {
@@ -164,6 +228,29 @@ public class KoeMineMod implements ClientModInitializer {
                     LOG.warn("こえマイクラ: 知らないアクション {}", action);
                 }
             }
+        }
+    }
+
+    /** 名前つきのアクション（つくって・持って・見て・掘って・たおして）をする */
+    void runNamed(Minecraft minecraft, LocalPlayer player, String kind, String name) {
+        switch (kind) {
+            case "craft" -> {
+                if (name.isEmpty()) Survival.say(player, "「作業台つくって」のように、名前もいってね");
+                else survival.startCraft(minecraft, player, name, false);
+            }
+            case "smelt" -> {
+                if (name.isEmpty()) Survival.say(player, "「鉄インゴット焼いて」のように、名前もいってね");
+                else survival.startCraft(minecraft, player, name, true);
+            }
+            case "hold" -> { if (!name.isEmpty()) survival.hold(minecraft, player, name); }
+            case "look" -> { if (!name.isEmpty()) survival.startLook(minecraft, player, name, false); }
+            case "mine" -> {
+                // 名前がなければ、ふつうに掘る
+                if (name.isEmpty()) holdAttack = true;
+                else survival.startLook(minecraft, player, name, true);
+            }
+            case "kill" -> survival.startKill(minecraft, player, name);
+            default -> LOG.warn("こえマイクラ: 知らない名前アクション {}", kind);
         }
     }
 
@@ -194,14 +281,20 @@ public class KoeMineMod implements ClientModInitializer {
         if (jumpTicks > 0) jumpTicks--;
         boolean useNow = holdUse || useTicks > 0;
         if (useTicks > 0) useTicks--;
+        boolean forwardNow = holdForward || forwardTicks > 0;
+        if (forwardTicks > 0) forwardTicks--;
+        boolean backNow = holdBack || backTicks > 0;
+        if (backTicks > 0) backTicks--;
+        boolean sneakNow = holdSneak || sneakTicks > 0;
+        if (sneakTicks > 0) sneakTicks--;
 
         // 1つずつキーの状態を決める
-        setKey(options.keyUp, holdForward);
-        setKey(options.keyDown, holdBack);
+        setKey(options.keyUp, forwardNow);
+        setKey(options.keyDown, backNow);
         setKey(options.keyLeft, holdLeft);
         setKey(options.keyRight, holdRight);
         setKey(options.keySprint, holdSprint);
-        setKey(options.keyShift, holdSneak);
+        setKey(options.keyShift, sneakNow);
         setKey(options.keyJump, jumpNow);
         setKey(options.keyAttack, holdAttack);
         setKey(options.keyUse, useNow);
@@ -257,6 +350,7 @@ public class KoeMineMod implements ClientModInitializer {
     /** 言葉表を読みなおす */
     void reloadWords(LocalPlayer player) {
         table.load(wordsFile);
+        listener.setTable(table);
         player.sendSystemMessage(Component.literal("§aこえマイクラ：言葉を " + table.entries.size() + " こ読みこみました"));
     }
 
@@ -272,7 +366,50 @@ public class KoeMineMod implements ClientModInitializer {
 
     /** アクション名を、画面に出す日本語にする */
     static String label(String action) {
+        List<String> parts = new ArrayList<>();
+        for (String part : action.split("\\+")) parts.add(labelOne(part.trim()));
+        return String.join("＋", parts);
+    }
+
+    /** アクション1つの名前を日本語にする */
+    static String labelOne(String action) {
+        // 名前つき・道具えらび
+        if (action.startsWith("name:")) {
+            int bar = action.indexOf('|');
+            String kind = bar < 0 ? action.substring(5) : action.substring(5, bar);
+            String name = bar < 0 ? "" : action.substring(bar + 1);
+            String verb = switch (kind) {
+                case "craft" -> "つくる";
+                case "smelt" -> "やく";
+                case "hold" -> "もつ";
+                case "look" -> "みる";
+                case "mine" -> "ほる";
+                case "kill" -> "たおす";
+                default -> kind;
+            };
+            return name.isEmpty() ? verb : name + "を" + verb;
+        }
+        if (action.startsWith("item:")) return action.substring(5) + "をもつ";
         return switch (action) {
+            case "step_forward" -> "いっぽまえ";
+            case "short_forward" -> "ちょっとまえ";
+            case "step_back" -> "いっぽうしろ";
+            case "auto_jump" -> "オートジャンプ";
+            case "dismount" -> "おりる";
+            case "perspective" -> "視点";
+            case "swap_hand" -> "持ちかえ";
+            case "look_up_small" -> "ちょっとうえ";
+            case "look_down_small" -> "ちょっとした";
+            case "look_bottom" -> "真下";
+            case "look_top" -> "真上";
+            case "aim_enemy" -> "敵をみる";
+            case "aim_animal" -> "動物をみる";
+            case "put_all" -> "ぜんぶいれる";
+            case "take_all" -> "ぜんぶとる";
+            case "take_result" -> "できたのをとる";
+            case "pillar" -> "足元におく";
+            case "respawn" -> "リスポーン";
+            case "pause" -> "ポーズ";
             case "forward" -> "まえへ";
             case "walk" -> "あるく";
             case "back" -> "うしろへ";

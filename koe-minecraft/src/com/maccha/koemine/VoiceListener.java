@@ -19,6 +19,11 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -41,17 +46,40 @@ public class VoiceListener implements Runnable {
     volatile CommandTable table;
     volatile boolean running = true;
     volatile String status = "じゅんびちゅう…";
+    // アイテム・ブロック・モブの名前（ゲームから。文法に足す）
+    volatile List<String> extraPhrases = List.of();
+    // 文法を作りなおしてほしいとき true
+    volatile boolean grammarDirty = false;
+    // モデルが知っている単語
+    Set<String> vocabulary = new HashSet<>();
 
     // 今の話のなかで、どこまでアクションにしたか
     int firedUntil = 0;
+    // 「〇〇を持って」の〇〇は、ここから後ろ
+    int nameFrom = 0;
     // 今の話のなかで、アクションをしたか
     boolean firedAny = false;
+    // 最後に聞いた途中の文と、それが変わった時刻（待ちすぎないため）
+    String lastPartial = "";
+    long lastPartialTime = 0;
 
     /** 作る（folder は config/koemine） */
     public VoiceListener(Path folder, CommandTable table, ConcurrentLinkedQueue<Heard> queue) {
         this.folder = folder;
         this.table = table;
         this.queue = queue;
+    }
+
+    /** 言葉表が変わったので、文法を作りなおしてもらう */
+    public void setTable(CommandTable newTable) {
+        table = newTable;
+        grammarDirty = true;
+    }
+
+    /** ゲームの名前（アイテムなど）を文法に足してもらう */
+    public void setExtraPhrases(List<String> phrases) {
+        extraPhrases = phrases;
+        grammarDirty = true;
     }
 
     /** スレッドの本体：モデルを用意して、マイクを聞きつづける */
@@ -68,8 +96,9 @@ public class VoiceListener implements Runnable {
             } catch (Throwable error) {
                 KoeMineMod.LOG.warn("こえマイクラ: UTF-8 で読めないので、ふつうに読みます: {}", error.toString());
             }
+            loadVocabulary(modelPath.resolve("graph").resolve("words.txt"));
             try (Model model = new Model(modelPath.toString());
-                 Recognizer recognizer = new Recognizer(model, SAMPLE_RATE)) {
+                 Recognizer recognizer = makeRecognizer(model)) {
                 listen(recognizer);
             }
         } catch (Throwable error) {
@@ -79,30 +108,78 @@ public class VoiceListener implements Runnable {
         }
     }
 
+    /** モデルが知っている単語の一覧を読む */
+    void loadVocabulary(Path wordsFile) {
+        try (Stream<String> lines = Files.lines(wordsFile, StandardCharsets.UTF_8)) {
+            lines.forEach(line -> {
+                int space = line.indexOf(' ');
+                if (space > 0) vocabulary.add(line.substring(0, space));
+            });
+        } catch (IOException error) {
+            KoeMineMod.LOG.warn("こえマイクラ: 単語の一覧が読めません: {}", error.toString());
+        }
+    }
+
+    /** 文法（聞く言葉の一覧）つきの Recognizer を作る */
+    Recognizer makeRecognizer(Model model) throws IOException {
+        grammarDirty = false;
+        Recognizer recognizer = new Recognizer(model, SAMPLE_RATE);
+        if (table.isOn("ことばだけ聞く") && !vocabulary.isEmpty() && VoskText.grammarFunction != null) {
+            VoskText.setGrammar(recognizer, makeGrammar());
+        }
+        return recognizer;
+    }
+
+    /** ことば表とゲームの名前から、文法の JSON を作る */
+    String makeGrammar() {
+        List<String> skipped = new ArrayList<>();
+        String json = table.grammarJson(vocabulary, extraPhrases, skipped);
+        KoeMineMod.LOG.info("こえマイクラ: 聞く言葉 {} 文字ぶん、モデルにない言葉 {} こ {}", json.length(), skipped.size(),
+                skipped.size() > 20 ? skipped.subList(0, 20) + "…" : skipped);
+        return json;
+    }
+
     /** マイクを開いて、音を Vosk にわたしつづける */
     void listen(Recognizer recognizer) throws Exception {
         // 16kHz・16bit・モノラルでマイクを開く
         AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
         TargetDataLine microphone = AudioSystem.getTargetDataLine(format);
-        microphone.open(format, 8192);
+        microphone.open(format, 4096);
         microphone.start();
         status = "聞いています";
         queue.add(new Heard("", "ready", true));
         KoeMineMod.LOG.info("こえマイクラ: マイクを開きました ({})", microphone.getLineInfo());
 
-        // 0.1秒ぶんずつ読んで、文字にする
-        byte[] buffer = new byte[3200];
+        // 0.05秒ぶんずつ読んで、文字にする
+        byte[] buffer = new byte[1600];
         while (running) {
-            int count = microphone.read(buffer, 0, buffer.length);
-            if (count <= 0) continue;
-            if (recognizer.acceptWaveForm(buffer, count)) {
-                onText(readField(VoskText.result(recognizer), "text"), true);
-            } else {
-                onText(readField(VoskText.partial(recognizer), "partial"), false);
+            // 言葉表やゲームの名前が変わったら、文法を入れかえる
+            if (grammarDirty && table.isOn("ことばだけ聞く") && !vocabulary.isEmpty() && VoskText.grammarFunction != null) {
+                grammarDirty = false;
+                VoskText.setGrammar(recognizer, makeGrammar());
             }
+            int count = microphone.read(buffer, 0, buffer.length);
+            if (count > 0) process(recognizer, buffer, count, System.currentTimeMillis());
         }
         microphone.stop();
         microphone.close();
+    }
+
+    /** 音を少しわたして、文字になったところまで言葉をさがす（now は今の時刻ミリ秒） */
+    void process(Recognizer recognizer, byte[] buffer, int count, long now) {
+        if (recognizer.acceptWaveForm(buffer, count)) {
+            onText(readField(VoskText.result(recognizer), "text"), true, false);
+            return;
+        }
+        String partial = readField(VoskText.partial(recognizer), "partial");
+        if (!partial.equals(lastPartial)) {
+            lastPartial = partial;
+            lastPartialTime = now;
+            onText(partial, false, false);
+        } else if (!partial.isEmpty() && now - lastPartialTime >= table.number("まつ時間", 250)) {
+            // 少し待っても文がのびないなら、待っていた言葉も実行する
+            onText(partial, false, true);
+        }
     }
 
     /** Vosk の JSON から1つの文字列をとりだす */
@@ -111,19 +188,31 @@ public class VoiceListener implements Runnable {
         return object.has(key) ? object.get(key).getAsString() : "";
     }
 
-    /** 文字になった文から言葉をさがして、アクションを順番待ちに入れる */
-    void onText(String rawText, boolean isFinal) {
-        String text = CommandTable.normalize(rawText);
+    /** 文字になった文から言葉をさがして、アクションを順番待ちに入れる（force = 待たずに実行） */
+    void onText(String rawText, boolean isFinal, boolean force) {
+        String text = CommandTable.normalize(rawText.replace("[unk]", ""));
         // 途中の文が前より短くなったら（言いなおし中）、待つ
         if (text.length() < firedUntil && !isFinal) return;
         int from = Math.min(firedUntil, text.length());
+        nameFrom = Math.min(nameFrom, text.length());
 
         // 見つかった言葉を順番にアクションにする
         CommandTable.Match match = table.findFirst(text, from);
         while (match != null) {
             // 話している途中で、ここから後ろが もっと長い言葉の始まりかもしれないなら待つ（「みぎ」と「みぎによけて」など）
-            if (!isFinal && table.couldGrow(text.substring(match.start()))) break;
-            queue.add(new Heard(rawText, match.entry().action(), isFinal));
+            if (!isFinal && !force && table.couldGrow(text.substring(match.start()))) break;
+            String action = match.entry().action();
+            if (action.contains("name:")) {
+                // 「〇〇を持って」なら、〇〇の部分をアクションにつける
+                String name = text.substring(nameFrom, match.start());
+                if (name.endsWith("を")) name = name.substring(0, name.length() - 1);
+                action = action + "|" + name;
+                nameFrom = match.end();
+            } else if (!action.startsWith("item:")) {
+                // 道具えらび（「剣」など）は名前の一部かもしれないので、名前の始まりを動かさない
+                nameFrom = match.end();
+            }
+            queue.add(new Heard(rawText, action, isFinal));
             firedUntil = match.end();
             firedAny = true;
             match = table.findFirst(text, firedUntil);
@@ -133,7 +222,9 @@ public class VoiceListener implements Runnable {
         if (isFinal) {
             if (!text.isEmpty() && !firedAny) queue.add(new Heard(rawText, "heard", true));
             firedUntil = 0;
+            nameFrom = 0;
             firedAny = false;
+            lastPartial = "";
         }
     }
 

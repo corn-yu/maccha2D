@@ -16,6 +16,7 @@ import java.util.Map;
 public class VoskText {
     static Function resultFunction;
     static Function partialFunction;
+    static Function grammarFunction;
 
     /** libvosk の中の関数を見つけておく */
     static void prepare() {
@@ -27,6 +28,7 @@ public class VoskText {
         NativeLibrary library = NativeLibrary.getInstance(name, Map.of(Library.OPTION_CLASSLOADER, LibVosk.class.getClassLoader()));
         resultFunction = library.getFunction("vosk_recognizer_result");
         partialFunction = library.getFunction("vosk_recognizer_partial_result");
+        grammarFunction = library.getFunction("vosk_recognizer_set_grm");
     }
 
     /** 話し終わった文の JSON を UTF-8 で読む */
@@ -39,6 +41,13 @@ public class VoskText {
     static String partial(Recognizer recognizer) {
         if (partialFunction == null) return recognizer.getPartialResult();
         return call(partialFunction, recognizer);
+    }
+
+    /** 聞く言葉の一覧（JSON）を UTF-8 でわたす（そのままだと日本語がこわれるため） */
+    static void setGrammar(Recognizer recognizer, String json) {
+        byte[] text = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] withEnd = java.util.Arrays.copyOf(text, text.length + 1);
+        grammarFunction.invoke(Void.class, new Object[]{recognizer.getPointer(), withEnd});
     }
 
     /** 関数を呼んで、返ってきた文字を UTF-8 として読む */
