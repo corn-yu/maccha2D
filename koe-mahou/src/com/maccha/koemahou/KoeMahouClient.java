@@ -87,14 +87,16 @@ public class KoeMahouClient implements ClientModInitializer {
                 return;
             }
             case "problems" -> {
-                player.sendSystemMessage(Component.literal("§cこえまほう：この行はマイクの日本語モデルが知らない言葉があるので使えません → " + heard.text()));
+                for (String problem : heard.text().split("\n")) {
+                    player.sendSystemMessage(Component.literal("§cこえまほう：" + problem));
+                }
                 return;
             }
             default -> { }
         }
         SpellBook.Match line = heard.line();
         if (line == null) return;
-        KoeMahouMod.LOG.info("こえまほう: 「{}」→ {} の {} 行目", heard.text(), line.spell().id(), line.lineIndex() + 1);
+        KoeMahouMod.LOG.info("こえまほう: 「{}」→ {} の {} 行目", heard.text(), line.spell().effect(), line.lineIndex() + 1);
 
         // 1行目なら、その魔法の詠唱を始める（となえている途中でも、始めなおし）
         if (line.lineIndex() == 0 && !(chanting == line.spell() && nextLine == 1)) {
@@ -111,7 +113,7 @@ public class KoeMahouClient implements ClientModInitializer {
             nextLine++;
             lastLineTime = System.currentTimeMillis();
             int total = chanting.lines().size();
-            send(player, new CastPayload(chanting.id(), nextLine, total));
+            send(player, new CastPayload(chanting.effect(), nextLine, total));
             if (nextLine >= total) {
                 player.sendOverlayMessage(Component.literal("§d✦ " + chanting.name() + "！ ✦"));
                 chanting = null;
@@ -134,7 +136,7 @@ public class KoeMahouClient implements ClientModInitializer {
 
     /** 詠唱失敗にする */
     void fail(LocalPlayer player, String message) {
-        if (chanting != null) send(player, new CastPayload(chanting.id(), -1, chanting.lines().size()));
+        if (chanting != null) send(player, new CastPayload(chanting.effect(), -1, chanting.lines().size()));
         player.sendOverlayMessage(Component.literal(message));
         chanting = null;
         nextLine = 0;

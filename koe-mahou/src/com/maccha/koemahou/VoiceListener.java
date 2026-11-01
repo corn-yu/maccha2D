@@ -105,7 +105,7 @@ public class VoiceListener implements Runnable {
         String json = book.grammarJson(vocabulary);
         VoskText.setGrammar(recognizer, json);
         KoeMahouMod.LOG.info("こえまほう: 文法 {}", json);
-        if (!book.problems.isEmpty()) queue.add(new Heard(String.join("、", book.problems), null, "problems"));
+        if (!book.problems.isEmpty()) queue.add(new Heard(String.join("\n", book.problems), null, "problems"));
     }
 
     /** マイクを開いて、音を Vosk にわたしつづける */

@@ -9,7 +9,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -68,7 +68,7 @@ public class BigSpells {
                     double distance = toCenter.length();
                     double strength = Math.min(1.2, 0.25 + 3.0 / Math.max(distance, 1.0));
                     mob.setDeltaMovement(toCenter.normalize().scale(strength));
-                    mob.hurtMarked = true;
+                    mob.needsSync = true;
                     mob.resetFallDistance();
                     // まんなかの近くでは ちぎれるようにダメージ
                     if (distance < 2.5 && age % 5 == 0) hurt(level, player, mob, 3.0f);
@@ -86,7 +86,7 @@ public class BigSpells {
                 for (LivingEntity mob : swallowed) {
                     if (!mob.isAlive()) continue;
                     mob.setDeltaMovement(center.subtract(mob.position()).scale(0.5));
-                    mob.hurtMarked = true;
+                    mob.needsSync = true;
                 }
             });
         }
@@ -107,7 +107,7 @@ public class BigSpells {
                 hurt(level, player, mob, 40.0f);
                 Vec3 push = mob.position().subtract(center).normalize().scale(3.0);
                 mob.setDeltaMovement(push.x, 1.2, push.z);
-                mob.hurtMarked = true;
+                mob.needsSync = true;
             }
         });
     }
@@ -231,7 +231,7 @@ public class BigSpells {
                     Vec3 flat = new Vec3(mob.getX() - center.x, 0, mob.getZ() - center.z);
                     if (flat.length() > cage - 1) hover = center.add(flat.normalize().scale(cage - 1.5)).add(0, 4, 0);
                     mob.setDeltaMovement(hover.subtract(mob.position()).scale(0.3));
-                    mob.hurtMarked = true;
+                    mob.needsSync = true;
                     mob.resetFallDistance();
                 }
                 // 0.4秒ごとに、だれかに雷
@@ -253,7 +253,7 @@ public class BigSpells {
             for (double height = 0; height < 40; height += 0.5) {
                 level.sendParticles(ParticleTypes.END_ROD, center.x, center.y + height, center.z, 6, 1.2, 0.1, 1.2, 0.0);
             }
-            level.sendParticles(ParticleTypes.FLASH, center.x, center.y + 2, center.z, 3, 0, 0, 0, 0);
+            level.sendParticles(ParticleTypes.END_ROD, center.x, center.y + 2, center.z, 3, 0.3, 0.3, 0.3, 0.5);
             for (int index = 0; index < 5; index++) bolt(level, center.add(index - 2, 0, (index % 2) * 2 - 1));
             playSound(level, center, SoundEvents.LIGHTNING_BOLT_THUNDER, 5.0f, 0.5f);
             List<LivingEntity> targets = new ArrayList<>(mobsAround(level, player, center, cage));
@@ -261,7 +261,7 @@ public class BigSpells {
             for (LivingEntity mob : targets) {
                 hurt(level, player, mob, 35.0f);
                 mob.setDeltaMovement(0, -2.5, 0);
-                mob.hurtMarked = true;
+                mob.needsSync = true;
                 mob.igniteForSeconds(5);
             }
         });
@@ -269,7 +269,7 @@ public class BigSpells {
 
     /** 見た目だけの雷を1本落とす（ダメージは魔法のほうで出す） */
     static void bolt(ServerLevel level, Vec3 spot) {
-        LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
+        LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
         if (bolt == null) return;
         bolt.setPos(spot.x, spot.y, spot.z);
         bolt.setVisualOnly(true);
@@ -314,7 +314,7 @@ public class BigSpells {
                     for (LivingEntity mob : mobsAround(level, player, center, radius)) {
                         Vec3 push = mob.position().subtract(center).normalize().scale(1.6);
                         mob.setDeltaMovement(push.x, 0.5, push.z);
-                        mob.hurtMarked = true;
+                        mob.needsSync = true;
                         hurt(level, player, mob, 4.0f);
                         level.sendParticles(ParticleTypes.END_ROD, mob.getX(), mob.getY() + 1, mob.getZ(), 10, 0.3, 0.5, 0.3, 0.1);
                     }
@@ -365,7 +365,7 @@ public class BigSpells {
                     Vec3 at = frozenAt.get(mob);
                     mob.setDeltaMovement(Vec3.ZERO);
                     mob.teleportTo(at.x, at.y, at.z);
-                    mob.hurtMarked = true;
+                    mob.needsSync = true;
                     if (age % 4 == 0) {
                         level.sendParticles(ParticleTypes.ENCHANT, mob.getX(), mob.getY() + 1, mob.getZ(), 6, 0.4, 0.6, 0.4, 0.5);
                     }
@@ -385,7 +385,7 @@ public class BigSpells {
                 float taken = Math.max(0f, healthAtStart.get(mob) - mob.getHealth());
                 hurt(level, player, mob, taken * 2f + 10f);
                 level.sendParticles(ParticleTypes.CRIT, mob.getX(), mob.getY() + 1, mob.getZ(), 40, 0.4, 0.6, 0.4, 0.6);
-                level.sendParticles(ParticleTypes.FLASH, mob.getX(), mob.getY() + 1, mob.getZ(), 1, 0, 0, 0, 0);
+                level.sendParticles(ParticleTypes.END_ROD, mob.getX(), mob.getY() + 1, mob.getZ(), 1, 0.3, 0.3, 0.3, 0.5);
             }
         });
     }

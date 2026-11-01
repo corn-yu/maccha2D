@@ -17,73 +17,85 @@ import java.util.Set;
 public class SpellBook {
 
     // この版の じゅもん表の目じるし（変わったら作りなおす）
-    static final String VERSION_MARK = "# じゅもん表 v3";
+    static final String VERSION_MARK = "# じゅもん表 v4";
 
-    /** 1つの魔法（id と、見せる名前と、詠唱の行） */
-    public record Spell(String id, String name, List<String> lines) {}
+    // 書ける効果（日本語の名前 → サーバーに送る id）
+    static final Map<String, String> EFFECTS = new LinkedHashMap<>();
+    static {
+        EFFECTS.put("ファイアボール", "fireball");
+        EFFECTS.put("ヒール", "heal");
+        EFFECTS.put("ワープ", "warp");
+        EFFECTS.put("ブラックホール", "blackhole");
+        EFFECTS.put("メテオ", "meteor");
+        EFFECTS.put("ジャッジメント", "judgment");
+        EFFECTS.put("サンクチュアリ", "sanctuary");
+        EFFECTS.put("クロノスタシス", "chrono");
+    }
+
+    /** 1つの魔法（名前と、効果の id と、詠唱の行） */
+    public record Spell(String name, String effect, List<String> lines) {}
 
     /** 文の中で見つかった1行（どの魔法の何行目か） */
     public record Match(Spell spell, int lineIndex, int start, int end) {}
 
-    // はじめに作る じゅもん表
+    // はじめに作る じゅもん表（見本。ぜんぶ書きかえてOK）
     static final String DEFAULT_TEXT = VERSION_MARK + """
 
-            # 呪文は [魔法のid] の下に、1行ずつ順番に書きます
-            # 全部の行を順番に言いきると魔法が出ます。行の文は自由に変えてOK
-            # （マイクの日本語モデルが知らない言葉の行は使えません。ゲームのチャットで教えます）
-            # 魔法の id: fireball（ファイアボール） heal（ヒール） warp（ワープ）
-            #          blackhole（ブラックホール） meteor（メテオストーム） judgment（ジャッジメント） sanctuary（サンクチュアリ） chrono（クロノスタシス）
+            # ここは まっちゃの魔法の本です。呪文は自由に作ってね
+            #
+            # 書きかた:
+            #   [魔法の名前] 効果
+            #   1行目の詠唱
+            #   2行目の詠唱
+            #   （何行でもOK。全部の行を順番に言いきると魔法が出る）
+            #
+            # 効果は次の中から1つ選ぶ:
+            #   ファイアボール … 火の玉を3発
+            #   ヒール … ハート4つ回復
+            #   ワープ … 前へ10ブロック瞬間移動
+            #   ブラックホール … モブを5秒吸いこんで大爆散
+            #   メテオ … 隕石10こ＋巨大隕石
+            #   ジャッジメント … 雷の檻でうかせて雷、さいごに光の柱
+            #   サンクチュアリ … 10秒の回復の結界、モブははじく
+            #   クロノスタシス … モブの時間を6秒止めて、ダメージ2倍で返す
+            #
+            # ・同じ効果の魔法を、ちがう呪文でいくつ作ってもOK
+            # ・保存すると、ゲームの中ですぐ読みなおします
+            # ・マイクの日本語モデルが知らない言葉は使えません。そのときはチャットで「どこが知らない言葉か」を教えます
+            # ・# で始まる行はメモ（読まれない）
+            #
+            # ↓ 下は見本です。消して、自分の呪文を書いてね
 
-            # ===== 基本魔法（短い詠唱） =====
-
-            [fireball] ファイアボール
-            炎の弾よ
+            [ファイアボール] ファイアボール
+            炎よ
             ファイアボール
 
-            [heal] ヒール
-            癒しの光よ
+            [ヒール] ヒール
+            光よ
             ヒール
 
-            [warp] ワープ
-            風よ運べ
+            [ワープ] ワープ
+            風よ
             ワープ
 
-            # ===== 大魔法（長い詠唱・とても強い） =====
-
-            [blackhole] ブラックホール
-            深淵の彼方に眠る虚無よ
-            光も音も時さえも
-            その腕に抱き呑み込め
-            星をも砕く重き闇よ
-            今ここに姿を現せ
+            [ブラックホール] ブラックホール
+            闇よ
             ブラックホール
 
-            [meteor] メテオストーム
-            遥か宇宙を巡る星々よ
-            燃え盛る天の怒りよ
-            我が呼び声に応え
-            この大地へと降り注げ
-            メテオストーム
+            [メテオ] メテオ
+            星よ
+            メテオ
 
-            [judgment] ジャッジメント
-            天空を統べる雷の王よ
-            我が名のもとに裁きを下せ
-            千の雷鳴よ轟け
-            罪深き者に光の槍を
-            降りそそげジャッジメント
+            [ジャッジメント] ジャッジメント
+            雷よ
+            ジャッジメント
 
-            [sanctuary] サンクチュアリ
-            遥かなる天の光よ
-            傷つきし我らを包み
-            命の泉を満たしたまえ
-            聖なる守りをここに
+            [サンクチュアリ] サンクチュアリ
+            聖なる光よ
             サンクチュアリ
 
-            [chrono] クロノスタシス
-            時を刻む時計の針よ
-            流れゆく時の河よ
-            我が命に従い
-            その歩みを止めよ
+            [クロノスタシス] クロノスタシス
+            時よ止まれ
             クロノスタシス
             """;
 
@@ -109,27 +121,43 @@ public class SpellBook {
         }
     }
 
-    /** じゅもん表の文を、魔法の一覧にする */
+    /** じゅもん表の文を、魔法の一覧にする（書きまちがいは problems に入れる） */
     void parse(List<String> textLines) {
         spells.clear();
-        String id = null;
+        problems.clear();
         String name = null;
+        String effect = null;
         List<String> lines = new ArrayList<>();
         for (String raw : textLines) {
             String line = raw.strip();
             if (line.isEmpty() || line.startsWith("#")) continue;
-            // [fireball] ファイアボール のような見出し
+            // [魔法の名前] 効果 のような見出し
             if (line.startsWith("[") && line.contains("]")) {
-                if (id != null && !lines.isEmpty()) spells.put(id, new Spell(id, name, List.copyOf(lines)));
-                id = line.substring(1, line.indexOf(']')).strip();
-                name = line.substring(line.indexOf(']') + 1).strip();
-                if (name.isEmpty()) name = id;
+                addSpell(name, effect, lines);
+                name = line.substring(1, line.indexOf(']')).strip();
+                String effectName = line.substring(line.indexOf(']') + 1).strip();
+                effect = EFFECTS.get(effectName);
+                if (effect == null) {
+                    // id（fireball など）で書いてあってもOK
+                    effect = EFFECTS.containsValue(effectName) ? effectName : null;
+                }
+                if (effect == null) problems.add("[" + name + "] の効果「" + effectName + "」がわかりません（ファイアボール・ヒール などから選んでね）");
                 lines = new ArrayList<>();
                 continue;
             }
-            if (id != null) lines.add(line);
+            if (name != null) lines.add(line);
         }
-        if (id != null && !lines.isEmpty()) spells.put(id, new Spell(id, name, List.copyOf(lines)));
+        addSpell(name, effect, lines);
+    }
+
+    /** 1つの魔法を一覧に足す（効果がわからない・行がないときは足さない） */
+    void addSpell(String name, String effect, List<String> lines) {
+        if (name == null || effect == null) return;
+        if (lines.isEmpty()) {
+            problems.add("[" + name + "] に詠唱の行がありません");
+            return;
+        }
+        spells.put(name, new Spell(name, effect, List.copyOf(lines)));
     }
 
     /** 文の from より後ろで、いちばん前にある詠唱の行をさがす（同じ場所なら長い行） */
@@ -168,13 +196,13 @@ public class SpellBook {
 
     /** 詠唱の行を全部、モデルが知っている単語に区切って、Vosk の文法 JSON にする */
     public String grammarJson(Set<String> vocabulary) {
-        problems.clear();
         Set<String> phrases = new LinkedHashSet<>();
         for (Spell spell : spells.values()) {
             for (String line : spell.lines()) {
                 String phrase = splitWords(line.replace(" ", "").replace("　", ""), vocabulary);
                 if (phrase == null) {
-                    problems.add(line);
+                    problems.add("[" + spell.name() + "]「" + line + "」の「" + unknownPart(line.replace(" ", "").replace("　", ""), vocabulary)
+                            + "」のあたりをマイクが知りません（ひらがなや、ふつうの言葉に変えてみてね）");
                 } else {
                     phrases.add(phrase);
                 }
@@ -185,6 +213,21 @@ public class SpellBook {
         for (String phrase : phrases) json.append('"').append(phrase.replace("\"", "")).append("\",");
         json.append("\"[unk]\"]");
         return json.toString();
+    }
+
+    /** 区切れない言葉の、知らない部分（先頭から区切れるところの すぐ後ろ、4文字ぶん）を返す */
+    static String unknownPart(String word, Set<String> vocabulary) {
+        int length = word.length();
+        boolean[] reach = new boolean[length + 1];
+        reach[0] = true;
+        int farthest = 0;
+        for (int end = 1; end <= length; end++) {
+            for (int start = Math.max(0, end - 12); start < end && !reach[end]; start++) {
+                if (reach[start] && vocabulary.contains(word.substring(start, end))) reach[end] = true;
+            }
+            if (reach[end]) farthest = end;
+        }
+        return word.substring(farthest, Math.min(length, farthest + 4));
     }
 
     /** 言葉を、モデルが知っている単語に区切る（いちばん少ない数で。区切れなければ null） */

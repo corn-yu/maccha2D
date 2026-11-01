@@ -223,7 +223,7 @@ public class SpellEffects {
 
     /** 魔法のダメージをあたえる（連続で当たるように、無敵時間を消す） */
     static void hurt(ServerLevel level, ServerPlayer player, LivingEntity target, float amount) {
-        target.invulnerableTime = 0;
+        target.setInvulnerableTime(0);
         DamageSource source = level.damageSources().indirectMagic(player, player);
         target.hurtServer(level, source, amount);
     }
@@ -234,6 +234,11 @@ public class SpellEffects {
             @Override
             public boolean shouldDamageEntity(Explosion explosion, Entity entity) {
                 return !(entity instanceof Player);
+            }
+
+            @Override
+            public float getKnockbackMultiplier(Entity entity) {
+                return entity instanceof Player ? 0f : 1.5f;
             }
         };
         level.explode(player, null, notMe, at.x, at.y, at.z, power, false, Level.ExplosionInteraction.NONE);

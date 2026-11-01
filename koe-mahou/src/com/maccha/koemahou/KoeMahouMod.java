@@ -17,7 +17,7 @@ public class KoeMahouMod implements ModInitializer {
     @Override
     public void onInitialize() {
         // お知らせの形を登録する
-        PayloadTypeRegistry.playC2S().register(CastPayload.TYPE, CastPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(CastPayload.TYPE, CastPayload.CODEC);
 
         // お知らせが来たら、サーバーの中で魔法を出す
         ServerPlayNetworking.registerGlobalReceiver(CastPayload.TYPE, (payload, context) ->
