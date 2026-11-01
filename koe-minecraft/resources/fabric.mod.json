@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "koemine",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "こえマイクラ（声だけで操作）",
   "description": "マイクに話した言葉で、歩く・掘る・置く・ジャンプなどをします。音声認識はパソコンの中だけで動きます（Vosk）",
   "authors": ["まっちゃ"],
