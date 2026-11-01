@@ -1,6 +1,16 @@
 package com.maccha.koemahou;
 
 import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.ExplosionDamageCalculator;
+import net.minecraft.world.level.Level;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -17,7 +27,10 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,7 +43,19 @@ public class SpellEffects {
     static final Map<String, Integer> COOLDOWN_TICKS = Map.of(
             "fireball", 60,
             "heal", 400,
-            "warp", 100);
+            "warp", 100,
+            "blackhole", 900,
+            "meteor", 600,
+            "judgment", 500,
+            "sanctuary", 600,
+            "chrono", 600);
+
+    // 大魔法がとどく距離（ブロック）
+    static final double BIG_RANGE = 64.0;
+
+    /** あとで動かす しごと（何tick後に、何をするか） */
+    record Later(int[] ticksLeft, Runnable work) {}
+    static final List<Later> laterList = new ArrayList<>();
 
     // ワープで進める いちばん遠い距離（ブロック）
     static final double WARP_DISTANCE = 10.0;
@@ -72,6 +97,11 @@ public class SpellEffects {
             case "fireball" -> castFireball(level, player);
             case "heal" -> castHeal(level, player);
             case "warp" -> castWarp(level, player);
+            case "blackhole" -> BigSpells.blackHole(level, player);
+            case "meteor" -> BigSpells.meteorStorm(level, player);
+            case "judgment" -> BigSpells.judgment(level, player);
+            case "sanctuary" -> BigSpells.sanctuary(level, player);
+            case "chrono" -> BigSpells.chronostasis(level, player);
             default -> { }
         }
     }
@@ -80,7 +110,11 @@ public class SpellEffects {
     static void chantGlow(ServerLevel level, ServerPlayer player, CastPayload payload) {
         ParticleOptions particle = switch (payload.spell()) {
             case "fireball" -> ParticleTypes.FLAME;
-            case "heal" -> ParticleTypes.HAPPY_VILLAGER;
+            case "heal", "sanctuary" -> ParticleTypes.HAPPY_VILLAGER;
+            case "blackhole" -> ParticleTypes.SQUID_INK;
+            case "meteor" -> ParticleTypes.SOUL_FIRE_FLAME;
+            case "judgment" -> ParticleTypes.ELECTRIC_SPARK;
+            case "chrono" -> ParticleTypes.ENCHANT;
             default -> ParticleTypes.PORTAL;
         };
         int count = 6 + payload.step() * 8;
@@ -132,14 +166,15 @@ public class SpellEffects {
 
     /** ワープ：見ている方へ、最大10ブロック瞬間移動（壁の手前で止まる） */
     static void castWarp(ServerLevel level, ServerPlayer player) {
+        double maxDistance = WARP_DISTANCE;
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
         Vec3 start = player.position();
 
         // 壁にぶつかるところまでの距離をはかる
-        BlockHitResult hit = level.clip(new ClipContext(eye, eye.add(look.scale(WARP_DISTANCE)),
+        BlockHitResult hit = level.clip(new ClipContext(eye, eye.add(look.scale(maxDistance)),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
-        double distance = hit.getType() == HitResult.Type.MISS ? WARP_DISTANCE : hit.getLocation().distanceTo(eye) - 0.6;
+        double distance = hit.getType() == HitResult.Type.MISS ? maxDistance : hit.getLocation().distanceTo(eye) - 0.6;
 
         // 遠いところから少しずつ近づけて、体がうまらない場所をさがす
         Vec3 target = null;
@@ -164,6 +199,70 @@ public class SpellEffects {
         player.resetFallDistance();
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, target.x, target.y + 1.0, target.z, 40, 0.4, 0.8, 0.4, 0.1);
         playSound(level, target, SoundEvents.ENDERMAN_TELEPORT, 1.0f, 1.2f);
+    }
+
+    /** 見ている所（ブロックか、とどく距離のいちばん先） */
+    static Vec3 aimPoint(ServerLevel level, ServerPlayer player, double range) {
+        Vec3 eye = player.getEyePosition();
+        BlockHitResult hit = level.clip(new ClipContext(eye, eye.add(player.getLookAngle().scale(range)),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        return hit.getLocation();
+    }
+
+    /** 自分以外の、まわりの生きもの */
+    static List<LivingEntity> livingAround(ServerLevel level, ServerPlayer player, Vec3 center, double radius) {
+        return level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(radius),
+                entity -> entity != player && entity.isAlive() && entity.position().distanceTo(center) <= radius);
+    }
+
+    /** 自分と ほかのプレイヤー以外の、まわりの生きもの（モブ） */
+    static List<LivingEntity> mobsAround(ServerLevel level, ServerPlayer player, Vec3 center, double radius) {
+        return level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(radius),
+                entity -> !(entity instanceof Player) && entity.isAlive() && entity.position().distanceTo(center) <= radius);
+    }
+
+    /** 魔法のダメージをあたえる（連続で当たるように、無敵時間を消す） */
+    static void hurt(ServerLevel level, ServerPlayer player, LivingEntity target, float amount) {
+        target.invulnerableTime = 0;
+        DamageSource source = level.damageSources().indirectMagic(player, player);
+        target.hurtServer(level, source, amount);
+    }
+
+    /** ブロックをこわさず、プレイヤー（自分と仲間）にも当たらない爆発 */
+    static void explodeSafely(ServerLevel level, ServerPlayer player, Vec3 at, float power) {
+        ExplosionDamageCalculator notMe = new ExplosionDamageCalculator() {
+            @Override
+            public boolean shouldDamageEntity(Explosion explosion, Entity entity) {
+                return !(entity instanceof Player);
+            }
+        };
+        level.explode(player, null, notMe, at.x, at.y, at.z, power, false, Level.ExplosionInteraction.NONE);
+    }
+
+    /** ticks 後に work をする */
+    static void later(int ticks, Runnable work) {
+        laterList.add(new Later(new int[]{ticks}, work));
+    }
+
+    /** 毎tick（サーバー）：時間が来た しごとをする */
+    public static void tick() {
+        List<Runnable> due = new ArrayList<>();
+        Iterator<Later> iterator = laterList.iterator();
+        while (iterator.hasNext()) {
+            Later item = iterator.next();
+            item.ticksLeft()[0]--;
+            if (item.ticksLeft()[0] <= 0) {
+                due.add(item.work());
+                iterator.remove();
+            }
+        }
+        for (Runnable work : due) {
+            try {
+                work.run();
+            } catch (Throwable error) {
+                KoeMahouMod.LOG.warn("こえまほう: 魔法のとちゅうでエラー", error);
+            }
+        }
     }
 
     /** みんなに聞こえる音を鳴らす */

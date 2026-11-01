@@ -1,6 +1,7 @@
 package com.maccha.koemahou;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import org.slf4j.Logger;
@@ -21,5 +22,8 @@ public class KoeMahouMod implements ModInitializer {
         // お知らせが来たら、サーバーの中で魔法を出す
         ServerPlayNetworking.registerGlobalReceiver(CastPayload.TYPE, (payload, context) ->
                 SpellEffects.onCast(context.player(), payload));
+
+        // 大魔法の「あとで落ちる雷」などを、毎tick 進める
+        ServerTickEvents.END_SERVER_TICK.register(server -> SpellEffects.tick());
     }
 }
