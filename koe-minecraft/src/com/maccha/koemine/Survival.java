@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * サバイバルの「名前で言う」動き（クラフト・持つ・ブロックを見る・壊す・チェスト）をする
+ * サバイバルの「名前で言う」動き（クラフト・焼く・持つ・チェスト）をする
  */
 public class Survival {
 
@@ -46,13 +46,11 @@ public class Survival {
 
     final KoeMineMod mod;
     final List<Named<Item>> items = new ArrayList<>();
-    final List<Named<Block>> blocks = new ArrayList<>();
     boolean namesReady = false;
 
     // 今しているしごと（null ならなし）
     String job = null;
     int jobTicks = 0;
-    BlockPos targetBlock = null;
     RecipeDisplayEntry craftRecipe = null;
     boolean craftSmelt = false;
     String craftName = "";
@@ -62,21 +60,14 @@ public class Survival {
         this.mod = mod;
     }
 
-    /** ゲームの言葉（日本語）で、アイテム・ブロックの名前の一覧を作る */
+    /** ゲームの言葉（日本語）で、アイテムの名前の一覧を作る */
     List<String> buildNames() {
         items.clear();
-        blocks.clear();
         Set<String> raws = new LinkedHashSet<>();
         // アイテム
         for (Item item : BuiltInRegistries.ITEM) {
             String raw = new ItemStack(item).getHoverName().getString();
             items.add(new Named<>(CommandTable.normalize(raw), raw, item));
-            raws.add(raw);
-        }
-        // ブロック
-        for (Block block : BuiltInRegistries.BLOCK) {
-            String raw = block.getName().getString();
-            blocks.add(new Named<>(CommandTable.normalize(raw), raw, block));
             raws.add(raw);
         }
         namesReady = true;
@@ -142,12 +133,15 @@ public class Survival {
         craftName = name;
         jobTicks = 0;
         // 焼くならかまど、3x3なら作業台、それ以外は手もとの2x2で作る
-        if (craftSmelt) {
-            job = furnaceOpen ? "craft_place" : "craft_open_furnace";
-        } else if (player.containerMenu instanceof AbstractCraftingMenu menu && menu.getGridWidth() >= gridNeed(recipe.display())) {
+        // （作業台やかまどは、自分で前に立って「開けて」で開く。自動で向いたりはしない）
+        if (craftSmelt && !furnaceOpen) {
+            say(player, "かまどの前で「開けて」と言って、かまどを開いてから言ってね");
+            job = null;
+        } else if (craftSmelt || (player.containerMenu instanceof AbstractCraftingMenu menu && menu.getGridWidth() >= gridNeed(recipe.display()))) {
             job = "craft_place";
         } else if (gridNeed(recipe.display()) > 2) {
-            job = "craft_open_table";
+            say(player, name + "は作業台がいるよ。作業台の前で「開けて」と言って、開いてから言ってね");
+            job = null;
         } else {
             job = "craft_place";
         }
@@ -174,28 +168,6 @@ public class Survival {
             default -> idOf(stack.getItem()).contains(kind);
         });
         selectSlot(minecraft, player, slot, kind);
-    }
-
-    /** 「〇〇を見て」「〇〇を壊して」：近くのブロックをさがして、そちらを向く（掘るなら掘りつづける） */
-    void startLook(Minecraft minecraft, LocalPlayer player, String heard, boolean mine) {
-        String nick = nickname(heard);
-        // モブの方を自動で向くのは ずるいので、しない（ブロックだけ）
-        Block block = nick == null ? findBlock(heard, null) : null;
-        if (block == null && nick == null) {
-            say(player, "「" + heard + "」というブロックが見つからないよ");
-            return;
-        }
-        BlockPos pos = searchBlock(minecraft, player, block, nick, mine ? 6 : 16);
-        if (pos == null) {
-            say(player, "近くに「" + heard + "」がないよ");
-            return;
-        }
-        aimAt(player, Vec3.atCenterOf(pos));
-        if (mine) {
-            job = "mine";
-            targetBlock = pos;
-            jobTicks = 0;
-        }
     }
 
     /** 「足元に置いて」：真下を見て、ジャンプして、足もとにブロックを置く */
@@ -240,9 +212,7 @@ public class Survival {
 
     /** しごとをやめる */
     void cancel() {
-        if (job != null && job.equals("mine")) mod.holdAttack = false;
         job = null;
-        targetBlock = null;
     }
 
     // ---------------- 毎tick ----------------
@@ -252,7 +222,6 @@ public class Survival {
         if (job == null) return;
         jobTicks++;
         switch (job) {
-            case "mine" -> tickMine(minecraft, player);
             case "pillar" -> {
                 // ジャンプのいちばん上で、足もとに置く
                 if (jobTicks == 6) {
@@ -260,46 +229,9 @@ public class Survival {
                     job = null;
                 }
             }
-            case "craft_open_table" -> tickOpen(minecraft, player, "crafting_table", CraftingMenu.class);
-            case "craft_open_furnace" -> tickOpen(minecraft, player, "furnace", AbstractFurnaceMenu.class);
             case "craft_place" -> tickPlace(minecraft, player);
             case "craft_take" -> tickTake(minecraft, player);
             default -> job = null;
-        }
-    }
-
-    /** 掘るしごと：ブロックがなくなるまで、そちらを向いて掘りつづける */
-    void tickMine(Minecraft minecraft, LocalPlayer player) {
-        if (targetBlock == null || minecraft.level.getBlockState(targetBlock).isAir() || jobTicks > 400) {
-            mod.holdAttack = false;
-            job = null;
-            return;
-        }
-        aimAt(player, Vec3.atCenterOf(targetBlock));
-        mod.holdAttack = true;
-    }
-
-    /** 作業台やかまどを近くでさがして開く（開いたら、レシピを置く） */
-    void tickOpen(Minecraft minecraft, LocalPlayer player, String blockId, Class<?> menuClass) {
-        if (menuClass.isInstance(player.containerMenu)) {
-            job = "craft_place";
-            jobTicks = 0;
-            return;
-        }
-        if (jobTicks == 1) {
-            BlockPos pos = searchBlock(minecraft, player, null, blockId.equals("furnace") ? "furnace|smoker" : blockId, 4);
-            if (pos == null) {
-                say(player, blockId.equals("furnace") ? "近くにかまどがないよ" : "近くに作業台がないよ（2x2で作れないものは作業台がいるよ）");
-                job = null;
-                return;
-            }
-            aimAt(player, Vec3.atCenterOf(pos));
-            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false);
-            minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
-        }
-        if (jobTicks > 40) {
-            say(player, "開けなかったよ");
-            job = null;
         }
     }
 
@@ -348,43 +280,6 @@ public class Survival {
         if (nick == null) return null;
         for (Named<Item> named : items) if (idOf(named.thing()).contains(nick)) return named.thing();
         return null;
-    }
-
-    /** 名前からブロックをさがす */
-    Block findBlock(String heard, String nick) {
-        if (nick != null) return null;
-        return findByName(blocks, heard);
-    }
-
-    /** まわりのブロックから、いちばん近い目当てのブロックの場所をさがす（nick は英語の名前の一部、| で いくつか） */
-    BlockPos searchBlock(Minecraft minecraft, LocalPlayer player, Block block, String nick, int radius) {
-        BlockPos center = player.blockPosition();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        Vec3 eye = player.getEyePosition();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    BlockPos pos = new BlockPos(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
-                    Block here = minecraft.level.getBlockState(pos).getBlock();
-                    if (!blockMatches(here, block, nick)) continue;
-                    double distance = eye.distanceToSqr(Vec3.atCenterOf(pos));
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        best = pos;
-                    }
-                }
-            }
-        }
-        return best;
-    }
-
-    /** このブロックが目当てのブロックか */
-    static boolean blockMatches(Block here, Block block, String nick) {
-        if (block != null) return here == block;
-        String id = BuiltInRegistries.BLOCK.getKey(here).getPath();
-        for (String part : nick.split("\\|")) if (id.contains(part)) return true;
-        return false;
     }
 
     /** 持ち物の中で、条件に合うものの場所（ホットバーを先に見る。なければ -1） */

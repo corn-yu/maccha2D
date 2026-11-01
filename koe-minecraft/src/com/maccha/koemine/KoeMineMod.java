@@ -82,7 +82,7 @@ public class KoeMineMod implements ClientModInitializer {
         LocalPlayer player = minecraft.player;
         if (player == null) return;
 
-        // はじめにワールドに入ったら、アイテム・ブロックの名前を聞く言葉に足す
+        // はじめにワールドに入ったら、アイテムの名前を聞く言葉に足す
         if (!namesSent) {
             namesSent = true;
             try {
@@ -233,7 +233,7 @@ public class KoeMineMod implements ClientModInitializer {
         }
     }
 
-    /** 名前つきのアクション（つくって・持って・見て・壊して）をする */
+    /** 名前つきのアクション（つくって・焼いて・持って）をする */
     void runNamed(Minecraft minecraft, LocalPlayer player, String kind, String name) {
         switch (kind) {
             case "craft" -> {
@@ -245,12 +245,6 @@ public class KoeMineMod implements ClientModInitializer {
                 else survival.startCraft(minecraft, player, name, true);
             }
             case "hold" -> { if (!name.isEmpty()) survival.hold(minecraft, player, name); }
-            case "look" -> { if (!name.isEmpty()) survival.startLook(minecraft, player, name, false); }
-            case "mine" -> {
-                // 名前がなければ、ふつうに掘る
-                if (name.isEmpty()) holdAttack = true;
-                else survival.startLook(minecraft, player, name, true);
-            }
             default -> LOG.warn("こえマイクラ: 知らない名前アクション {}", kind);
         }
     }
@@ -383,8 +377,6 @@ public class KoeMineMod implements ClientModInitializer {
                 case "craft" -> "つくる";
                 case "smelt" -> "やく";
                 case "hold" -> "もつ";
-                case "look" -> "みる";
-                case "mine" -> "ほる";
                 default -> kind;
             };
             return name.isEmpty() ? verb : name + "を" + verb;

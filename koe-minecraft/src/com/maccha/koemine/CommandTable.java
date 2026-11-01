@@ -25,16 +25,16 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v5";
+    static final String VERSION_MARK = "ことば表 v6";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v5
+            # こえマイクラ ことば表 v6
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
             # アクションは + でつなぐと、いっしょにします（例: 下を壊して = look_bottom+dig）
-            # 「〇〇つくって」「〇〇を持って」の〇〇はアイテム、「〇〇を見て」「〇〇を壊して」の〇〇はブロックの名前ならなんでもOK。
-            # * ではじまる行は あだ名です（*木 = log なら、「木を見て」で名前に log がつくブロックをさがす）。
+            # 「〇〇つくって」「〇〇焼いて」「〇〇を持って」の〇〇は、アイテムの名前ならなんでもOK。
+            # * ではじまる行は あだ名です（*木 = _log なら、「木を持って」で 英語の名前に _log がつくアイテムを持つ）。
             # 変えたら、ゲームの中で「ことばよみこみ」と言うか、マイクラを起動しなおしてください。
 
             # 設定（! ではじまる行）
@@ -253,16 +253,10 @@ public class CommandTable {
             持って = name:hold
             をだして = name:hold
             を出して = name:hold
-            をみて = name:look
-            を見て = name:look
-            をさがして = name:look
-            を探して = name:look
-            さがして = name:look
-            探して = name:look
-            をこわして = name:mine
-            を壊して = name:mine
+            をこわして = dig
+            を壊して = dig
 
-            # あだ名（* ではじまる行。右はブロック・アイテム・モブの英語の名前の一部）
+            # あだ名（* ではじまる行。右はアイテムの英語の名前の一部。「木を持って」で原木を持つ）
             *木 = _log
             *丸太 = _log
             *原木 = _log
@@ -270,16 +264,6 @@ public class CommandTable {
             *石 = stone
             *土 = dirt
             *砂 = sand
-            *葉っぱ = leaves
-            *石炭 = coal_ore
-            *鉄 = iron_ore
-            *金 = gold_ore
-            *ダイヤ = diamond_ore
-            *ダイヤモンド = diamond_ore
-            *レッドストーン = redstone_ore
-            *水 = water
-            *マグマ = lava
-            *溶岩 = lava
 
             # 作業台・チェスト・かまど
             ぜんぶいれて = put_all
