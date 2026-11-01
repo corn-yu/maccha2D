@@ -25,14 +25,15 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v6";
+    static final String VERSION_MARK = "ことば表 v9";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v6
+            # こえマイクラ ことば表 v9
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
-            # アクションは + でつなぐと、いっしょにします（例: 下を壊して = look_bottom+dig）
+            # アクションは + でつなぐと、順番にします（例: 下を壊して = look_bottom+dig）
+            # （最初の表には、ひと言でいくつもする言葉は入れていません。長い動きは、ひとつずつ言葉をつなげて言います）
             # 「〇〇つくって」「〇〇焼いて」「〇〇を持って」の〇〇は、アイテムの名前ならなんでもOK。
             # * ではじまる行は あだ名です（*木 = _log なら、「木を持って」で 英語の名前に _log がつくアイテムを持つ）。
             # 変えたら、ゲームの中で「ことばよみこみ」と言うか、マイクラを起動しなおしてください。
@@ -97,6 +98,16 @@ public class CommandTable {
             とんで = jump
             跳んで = jump
             飛んで = jump
+            ジャンプしておいて = jump_use
+            ジャンプして置いて = jump_use
+            ジャンプしてつかって = jump_use
+            ジャンプして使って = jump_use
+            ジャンプしてこうげき = jump_attack
+            ジャンプして攻撃 = jump_attack
+            ジャンプしてなぐって = jump_attack
+            ジャンプして殴って = jump_attack
+            ジャンプこうげき = jump_attack
+            ジャンプ攻撃 = jump_attack
             れんぞくジャンプ = jump_repeat
             連続ジャンプ = jump_repeat
             およいで = jump_repeat
@@ -159,7 +170,6 @@ public class CommandTable {
             壊して = dig
             下を壊して = look_bottom+dig
             したをこわして = look_bottom+dig
-            トンネル = look_front+dig+forward
             こうげき = attack
             攻撃 = attack
             なぐって = attack
@@ -309,9 +319,13 @@ public class CommandTable {
     /** ことば.txt を読む（なければ、または古ければ 最初の中身で作る） */
     public void load(Path file) {
         try {
-            // 古い版なら ことば-old.txt にとっておいて、新しく作る
-            if (Files.exists(file) && !Files.readString(file, StandardCharsets.UTF_8).contains(VERSION_MARK)) {
-                Files.move(file, file.resolveSibling("ことば-old.txt"), StandardCopyOption.REPLACE_EXISTING);
+            // 古い版なら、自分で書いた行は残したまま、新しい言葉だけを下に足す（前のものは ことば-old.txt にコピー）
+            if (Files.exists(file)) {
+                String current = Files.readString(file, StandardCharsets.UTF_8);
+                if (!current.contains(VERSION_MARK)) {
+                    Files.copy(file, file.resolveSibling("ことば-old.txt"), StandardCopyOption.REPLACE_EXISTING);
+                    Files.writeString(file, mergeNewWords(current), StandardCharsets.UTF_8);
+                }
             }
             // ファイルがなければ作る
             if (!Files.exists(file)) {
@@ -323,6 +337,37 @@ public class CommandTable {
             KoeMineMod.LOG.warn("ことば.txt が読めなかったので、最初の言葉を使います: {}", error.toString());
             parse(DEFAULT_TEXT);
         }
+    }
+
+    /** 今のことば表に、まだない新しい言葉の行だけを下に足した文を返す */
+    static String mergeNewWords(String current) {
+        // 今のファイルにある左がわ（言葉・設定・あだ名）をあつめる
+        Set<String> known = new java.util.HashSet<>();
+        for (String line : current.split("\n")) {
+            String left = leftSide(line);
+            if (left != null) known.add(left);
+        }
+        // 新しい表にあって、今のファイルにない行をあつめる
+        StringBuilder added = new StringBuilder();
+        for (String line : DEFAULT_TEXT.split("\n")) {
+            String left = leftSide(line);
+            if (left != null && !known.contains(left)) added.append(line.trim()).append("\n");
+        }
+        // 版の名前を新しくする
+        String result = current.replaceAll("ことば表 v[0-9]+", VERSION_MARK);
+        if (!result.contains(VERSION_MARK)) result = "# " + VERSION_MARK + "\n" + result;
+        if (added.length() > 0) result = result.stripTrailing() + "\n\n# --- " + VERSION_MARK + " で増えた言葉 ---\n" + added;
+        return result;
+    }
+
+    /** 1行の「=」の左がわ（メモ行や空の行なら null） */
+    static String leftSide(String line) {
+        int sharp = line.indexOf('#');
+        if (sharp >= 0) line = line.substring(0, sharp);
+        int equal = line.indexOf('=');
+        if (equal < 0) return null;
+        String left = line.substring(0, equal).trim();
+        return left.isEmpty() ? null : left;
     }
 
     /** 文字列から「言葉 = アクション」と設定を全部とりだす */

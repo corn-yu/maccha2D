@@ -59,6 +59,8 @@ public class VoiceListener implements Runnable {
     int nameFrom = 0;
     // 今の話のなかで、アクションをしたか
     boolean firedAny = false;
+    // さっき「ジャンプ」をした場所（「ジャンプして攻撃」につづいたら、そちらもする）
+    int jumpFiredAt = -1;
     // 最後に聞いた途中の文と、それが変わった時刻（待ちすぎないため）
     String lastPartial = "";
     long lastPartialTime = 0;
@@ -196,6 +198,20 @@ public class VoiceListener implements Runnable {
         int from = Math.min(firedUntil, text.length());
         nameFrom = Math.min(nameFrom, text.length());
 
+        // 「ジャンプ」をしたあとに「ジャンプして攻撃」とつづいていたら、攻撃のほうもする
+        if (jumpFiredAt >= 0 && jumpFiredAt < text.length()) {
+            CommandTable.Match combo = table.findFirst(text, jumpFiredAt);
+            boolean isCombo = combo != null && combo.start() == jumpFiredAt && combo.entry().action().startsWith("jump_")
+                    && !combo.entry().action().equals("jump_repeat");
+            if (isCombo && combo.end() > firedUntil && (isFinal || force || !table.couldGrow(text.substring(combo.start())))) {
+                queue.add(new Heard(rawText, combo.entry().action(), isFinal));
+                firedUntil = combo.end();
+                nameFrom = combo.end();
+                jumpFiredAt = -1;
+                from = Math.min(firedUntil, text.length());
+            }
+        }
+
         // 見つかった言葉を順番にアクションにする
         CommandTable.Match match = table.findFirst(text, from);
         while (match != null) {
@@ -213,6 +229,7 @@ public class VoiceListener implements Runnable {
                 nameFrom = match.end();
             }
             queue.add(new Heard(rawText, action, isFinal));
+            jumpFiredAt = action.equals("jump") ? match.start() : -1;
             firedUntil = match.end();
             firedAny = true;
             match = table.findFirst(text, firedUntil);
@@ -224,6 +241,7 @@ public class VoiceListener implements Runnable {
             firedUntil = 0;
             nameFrom = 0;
             firedAny = false;
+            jumpFiredAt = -1;
             lastPartial = "";
         }
     }

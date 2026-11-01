@@ -179,6 +179,14 @@ public class Survival {
         jobTicks = 0;
     }
 
+    /** 「ジャンプして置いて」「ジャンプして攻撃」：ジャンプして、ちょうどいいときに置く・たたく（向きは変えない） */
+    void startJumpCombo(LocalPlayer player, String kind) {
+        // もうとんでいるとき（「ジャンプ」が先に聞こえたとき）は、もう一度はとばない
+        if (player.onGround()) mod.jumpTicks = 3;
+        job = kind;
+        jobTicks = 0;
+    }
+
     /** チェスト・かまどなどで、自分の持ち物を全部入れる（put=true）か、全部取る */
     void moveAll(Minecraft minecraft, LocalPlayer player, boolean put) {
         AbstractContainerMenu menu = player.containerMenu;
@@ -226,6 +234,20 @@ public class Survival {
                 // ジャンプのいちばん上で、足もとに置く
                 if (jobTicks == 6) {
                     mod.click(minecraft.options.keyUse);
+                    job = null;
+                }
+            }
+            case "jump_use" -> {
+                // いちばん高いところ（上がるのが止まったとき）で置く
+                if ((jobTicks >= 3 || !player.onGround()) && (player.getDeltaMovement().y <= 0.0 || jobTicks >= 8)) {
+                    mod.click(minecraft.options.keyUse);
+                    job = null;
+                }
+            }
+            case "jump_attack" -> {
+                // 落ちはじめたら たたく（クリティカルになる）
+                if ((player.getDeltaMovement().y < -0.08 && !player.onGround()) || jobTicks >= 12) {
+                    mod.click(minecraft.options.keyAttack);
                     job = null;
                 }
             }

@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +49,9 @@ public class KoeMineMod implements ClientModInitializer {
     int backTicks = 0;
     int sneakTicks = 0;
     final Survival survival = new Survival(this);
+    // つなげ技で、これからするアクションと、つぎまでの待ち時間（tick）
+    final ArrayDeque<String> steps = new ArrayDeque<>();
+    int stepWait = 0;
     boolean namesSent = false;
     int useTicks = 0;
     int attackTimer = 0;
@@ -98,6 +102,12 @@ public class KoeMineMod implements ClientModInitializer {
             runAction(minecraft, player, heard);
         }
 
+        // つなげ技の待ち時間をへらして、終わったらつづきをする
+        if (stepWait > 0) {
+            stepWait--;
+            if (stepWait == 0) runSteps(minecraft, player);
+        }
+
         // クラフトなどのしごとを進める
         survival.tick(minecraft, player);
 
@@ -132,9 +142,35 @@ public class KoeMineMod implements ClientModInitializer {
         player.sendOverlayMessage(Component.literal("§b♪ " + heard.text() + " §f→ §e" + label(action)));
         LOG.info("こえマイクラ: 「{}」→ {}", heard.text(), action);
 
-        // + でつながっていたら、順番に全部する
-        for (String part : action.split("\\+")) {
-            runOne(minecraft, player, part.trim());
+        // + でつながっていたら、順番にならべる（「とまれ」などは、ならんでいるものを消してすぐする）
+        String[] parts = action.split("\\+");
+        String first = parts[0].trim();
+        if (first.equals("stop") || first.equals("stop_all") || first.equals("mute")) {
+            steps.clear();
+            stepWait = 0;
+        }
+        for (String part : parts) steps.add(part.trim());
+        runSteps(minecraft, player);
+    }
+
+    /** ならんでいるアクションを、待ち時間（wait:tick数）をまもって順番にする */
+    void runSteps(Minecraft minecraft, LocalPlayer player) {
+        while (stepWait == 0 && !steps.isEmpty()) {
+            String step = steps.poll();
+            if (step.startsWith("wait:")) {
+                stepWait = Math.max(0, parseNumber(step.substring(5)));
+            } else {
+                runOne(minecraft, player, step);
+            }
+        }
+    }
+
+    /** 数を読む（読めなければ 0） */
+    static int parseNumber(String text) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException error) {
+            return 0;
         }
     }
 
@@ -182,6 +218,7 @@ public class KoeMineMod implements ClientModInitializer {
             case "take_all" -> survival.moveAll(minecraft, player, false);
             case "take_result" -> survival.takeResult(minecraft, player);
             case "pillar" -> survival.startPillar(player);
+            case "jump_use", "jump_attack" -> survival.startJumpCombo(player, action);
             case "respawn" -> { if (player.isDeadOrDying()) { player.respawn(); minecraft.gui.setScreen(null); } }
             case "pause" -> minecraft.pauseGame(false);
             // ジャンプ・しゃがむ
@@ -382,6 +419,7 @@ public class KoeMineMod implements ClientModInitializer {
             return name.isEmpty() ? verb : name + "を" + verb;
         }
         if (action.startsWith("item:")) return action.substring(5) + "をもつ";
+        if (action.startsWith("wait:")) return "まつ";
         return switch (action) {
             case "step_forward" -> "いっぽまえ";
             case "short_forward" -> "ちょっとまえ";
@@ -398,6 +436,8 @@ public class KoeMineMod implements ClientModInitializer {
             case "take_all" -> "ぜんぶとる";
             case "take_result" -> "できたのをとる";
             case "pillar" -> "足元におく";
+            case "jump_use" -> "ジャンプして置く";
+            case "jump_attack" -> "ジャンプして攻撃";
             case "respawn" -> "リスポーン";
             case "pause" -> "ポーズ";
             case "forward" -> "まえへ";
