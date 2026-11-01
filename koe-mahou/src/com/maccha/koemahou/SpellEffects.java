@@ -40,15 +40,15 @@ import java.util.UUID;
 public class SpellEffects {
 
     // 魔法ごとの待ち時間（tick。20tick = 1秒）
+    // （部品1つで出る大魔法の、ふつうの待ち時間。「待ち時間」を書けば そちらになる）
     static final Map<String, Integer> COOLDOWN_TICKS = Map.of(
-            "fireball", 60,
-            "heal", 400,
-            "warp", 100,
-            "blackhole", 900,
-            "meteor", 600,
-            "judgment", 500,
-            "sanctuary", 600,
-            "chrono", 600);
+            "ファイアボール", 60,
+            "ヒール", 400,
+            "ブラックホール", 900,
+            "メテオ", 600,
+            "ジャッジメント", 500,
+            "サンクチュアリ", 600,
+            "クロノスタシス", 600);
 
     // 大魔法がとどく距離（ブロック）
     static final double BIG_RANGE = 64.0;
@@ -66,7 +66,6 @@ public class SpellEffects {
     /** 詠唱のお知らせを受けとったときの入口 */
     public static void onCast(ServerPlayer player, CastPayload payload) {
         if (!player.isAlive() || player.isSpectator()) return;
-        if (!COOLDOWN_TICKS.containsKey(payload.spell())) return;
         ServerLevel level = (ServerLevel) player.level();
 
         // 詠唱失敗：けむりが出るだけ
@@ -80,7 +79,7 @@ public class SpellEffects {
             return;
         }
 
-        // 待ち時間がのこっていたら出さない
+        // 待ち時間がのこっていたら出さない（待ち時間は魔法の名前ごと）
         long now = level.getGameTime();
         Map<String, Long> times = readyTime.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
         long ready = times.getOrDefault(payload.spell(), 0L);
@@ -90,33 +89,32 @@ public class SpellEffects {
             fizzle(level, player);
             return;
         }
-        times.put(payload.spell(), now + COOLDOWN_TICKS.get(payload.spell()));
+        times.put(payload.spell(), now + cooldownTicks(payload.program()));
 
-        // 魔法を出す
-        switch (payload.spell()) {
-            case "fireball" -> castFireball(level, player);
-            case "heal" -> castHeal(level, player);
-            case "warp" -> castWarp(level, player);
-            case "blackhole" -> BigSpells.blackHole(level, player);
-            case "meteor" -> BigSpells.meteorStorm(level, player);
-            case "judgment" -> BigSpells.judgment(level, player);
-            case "sanctuary" -> BigSpells.sanctuary(level, player);
-            case "chrono" -> BigSpells.chronostasis(level, player);
-            default -> { }
+        // 部品を順番に動かして、魔法を出す
+        MagicRunner.cast(level, player, payload.program());
+    }
+
+    /** 待ち時間（tick）：「待ち時間」があればそれ、なければ使った大魔法のぶん、どちらもなければ 3秒 */
+    static int cooldownTicks(String program) {
+        int result = 0;
+        boolean written = false;
+        for (String line : program.split("\n")) {
+            Magic.Part part = Magic.readPart(line, 0);
+            if (part == null) continue;
+            if (part.name().equals("待ち時間")) {
+                result = (int) Math.round(Math.max(0, part.number(0, 3)) * 20);
+                written = true;
+            } else if (!written && COOLDOWN_TICKS.containsKey(part.name())) {
+                result = Math.max(result, COOLDOWN_TICKS.get(part.name()));
+            }
         }
+        return written || result > 0 ? result : 60;
     }
 
     /** 詠唱のとちゅう：魔法の色の光を、行が進むほど多く出す */
     static void chantGlow(ServerLevel level, ServerPlayer player, CastPayload payload) {
-        ParticleOptions particle = switch (payload.spell()) {
-            case "fireball" -> ParticleTypes.FLAME;
-            case "heal", "sanctuary" -> ParticleTypes.HAPPY_VILLAGER;
-            case "blackhole" -> ParticleTypes.SQUID_INK;
-            case "meteor" -> ParticleTypes.SOUL_FIRE_FLAME;
-            case "judgment" -> ParticleTypes.ELECTRIC_SPARK;
-            case "chrono" -> ParticleTypes.ENCHANT;
-            default -> ParticleTypes.PORTAL;
-        };
+        ParticleOptions particle = payload.step() % 2 == 0 ? ParticleTypes.ENCHANT : ParticleTypes.END_ROD;
         int count = 6 + payload.step() * 8;
         Vec3 center = player.position();
         // 足もとに輪を作る
@@ -165,8 +163,7 @@ public class SpellEffects {
     }
 
     /** ワープ：見ている方へ、最大10ブロック瞬間移動（壁の手前で止まる） */
-    static void castWarp(ServerLevel level, ServerPlayer player) {
-        double maxDistance = WARP_DISTANCE;
+    static void castWarp(ServerLevel level, ServerPlayer player, double maxDistance) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
         Vec3 start = player.position();

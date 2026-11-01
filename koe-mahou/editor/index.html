@@ -1,0 +1,468 @@
+<title>こえまほう 魔法ブロック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  /* レイアウト: 左にブロックを置く机、右に できた じゅもん.txt。せまい画面では上下 */
+  :root {
+    --bg: #f3f0fa;
+    --panel: #ffffff;
+    --ink: #221d33;
+    --muted: #6b6485;
+    --line: #d9d2ea;
+    --accent: #7b3fe4;
+    --accent-ink: #ffffff;
+    --code-bg: #faf8ff;
+    --ok: #1f8a4c;
+    --font-display: "DotGothic16", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    --font-code: ui-monospace, "BIZ UDGothic", "MS Gothic", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15121f; --panel: #1f1a2e; --ink: #ece8f7; --muted: #a59dbd; --line: #3a3252;
+      --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15121f; --panel: #1f1a2e; --ink: #ece8f7; --muted: #a59dbd; --line: #3a3252;
+    --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
+  }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; margin: 0; letter-spacing: 0.04em; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); font-size: 0.9rem; min-width: 0; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 12px; }
+  #desk { min-height: 420px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+  aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .box h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.05rem; margin: 0; }
+  .box.grow { flex: 1; min-height: 220px; }
+  textarea {
+    width: 100%; box-sizing: border-box; flex: 1; min-height: 140px; resize: vertical; font-family: var(--font-code); font-size: 13px;
+    background: var(--code-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; line-height: 1.5;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button {
+    font-family: var(--font-body); font-weight: 700; font-size: 0.95rem; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  }
+  button.quiet { background: transparent; color: var(--accent); }
+  button:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .note { color: var(--muted); font-size: 0.85rem; margin: 0; line-height: 1.6; }
+  .note code { font-family: var(--font-code); font-size: 0.8rem; word-break: break-all; }
+  #status { color: var(--ok); font-size: 0.85rem; min-height: 1.2em; }
+  details summary { cursor: pointer; font-weight: 700; }
+  @media (max-width: 760px) {
+    html, body { height: auto; }
+    main { grid-template-columns: minmax(0, 1fr); }
+    #desk { min-height: 70vh; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header>
+  <h1>こえまほう 魔法ブロック</h1>
+  <p>左のブロックを「魔法」ブロックの中にならべると、右に じゅもん.txt の文ができます</p>
+</header>
+
+<main>
+  <div id="desk" aria-label="ブロックを組み立てる場所"></div>
+  <aside>
+    <div class="box grow">
+      <h2>できた じゅもん.txt</h2>
+      <textarea id="output" readonly spellcheck="false" aria-label="できた文"></textarea>
+      <div class="row">
+        <button id="copy" type="button">ぜんぶコピー</button>
+        <span id="status" role="status"></span>
+      </div>
+      <p class="note">コピーして、<code>.minecraft\installations\iroiro\config\koemahou\じゅもん.txt</code> にはりつけて保存すると、ゲームの中ですぐ使えます。</p>
+    </div>
+    <div class="box">
+      <details>
+        <summary>じゅもん.txt をブロックにもどす</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <textarea id="importText" spellcheck="false" placeholder="ここに じゅもん.txt の中身をはりつけて…" aria-label="読みこむ文"></textarea>
+          <div class="row">
+            <button id="importBtn" type="button" class="quiet">ブロックにする</button>
+            <button id="clearBtn" type="button" class="quiet">机をからっぽにする</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<script src="https://unpkg.com/blockly@11.1.1/blockly_compressed.js"></script>
+<script src="https://unpkg.com/blockly@11.1.1/msg/ja.js"></script>
+<script>
+// ================= えらべる名前（MOD の MagicRunner.java と同じ） =================
+const PARTICLES = ["炎", "青い炎", "煙", "大きな煙", "闇", "ポータル", "逆ポータル", "光", "ハート", "緑", "電気", "魔法",
+  "溶岩", "爆発", "大爆発", "雪", "泡", "トーテム", "灰", "衝撃波", "水", "音符", "怒り", "クリティカル", "星", "雲", "ドラゴン", "魂", "毒"];
+const SOUNDS = ["爆発", "雷", "ベル", "レベルアップ", "トーテム", "ワープ", "ブレイズ", "ウォーデン", "ビーコン", "キラキラ",
+  "ドラゴン", "ウィザー", "ポータル", "火", "風", "ガラス"];
+const POTIONS = ["再生", "衝撃吸収", "耐性", "力", "スピード", "跳躍", "透明", "暗視", "発光", "鈍足", "弱体化", "毒", "盲目",
+  "浮遊", "低速落下", "火炎耐性", "水中呼吸", "採掘速度上昇", "ウィザー", "暗闇"];
+const SHOTS = ["火の玉", "大きな火の玉", "ウィザーの頭", "ドラゴンの火の玉", "矢", "雪玉", "風の弾", "シュルカーの弾", "TNT"];
+const MOBS = ["オオカミ", "アイアンゴーレム", "スノーゴーレム", "ネコ", "ミツバチ", "アレイ", "ヴェックス", "ゾンビ", "スケルトン",
+  "クリーパー", "ブタ", "ニワトリ", "ウシ", "ヒツジ", "キツネ", "コウモリ", "エヴォーカーの牙"];
+const BIG = ["ブラックホール", "メテオ", "ジャッジメント", "サンクチュアリ", "クロノスタシス", "ファイアボール", "ヒール"];
+
+/** 名前の一覧を、ドロップダウンの形にする */
+function options(list) {
+  return list.map(name => [name, name]);
+}
+
+// ================= ブロックの色（なかまごと） =================
+const COLOR = { spell: "#7b3fe4", chant: "#c04fd1", place: "#2f8fd8", attack: "#e0533d", move: "#e8962b",
+  friend: "#2fa86a", summon: "#a0702a", look: "#4c5bd4", control: "#d4a017" };
+
+// ================= ブロックの形 =================
+// 1行ぶん: [ブロックの名前, 色, 表示の文（%1 などが入れるところ）, 入れるところの中身, 文にする関数]
+// 入れるところ: ["数", 名前, はじめの数] / ["選ぶ", 名前, 一覧] / ["文字", 名前, はじめの文字]
+const EFFECT_BLOCKS = [
+  ["m_place", "place", "場所を %1 にする %2", [["選ぶ", "WHERE", ["見ている所", "自分", "上", "前", "まわり", "もどる"]], ["数", "N", 64]],
+    b => { const where = b.getFieldValue("WHERE"); return (where === "自分" || where === "もどる") ? `場所 ${where}` : `場所 ${where} ${num(b, "N")}`; }],
+  ["m_wait", "control", "%1 秒まつ", [["数", "S", 1]], b => `待つ ${num(b, "S")}`],
+  ["m_explode", "attack", "爆発 大きさ %1", [["数", "N", 4]], b => `爆発 ${num(b, "N")}`],
+  ["m_damage", "attack", "ダメージ %1 半径 %2", [["数", "N", 10], ["数", "R", 4]], b => `ダメージ ${num(b, "N")} ${num(b, "R")}`],
+  ["m_fire", "attack", "燃やす %1 秒 半径 %2", [["数", "S", 5], ["数", "R", 4]], b => `燃やす ${num(b, "S")} ${num(b, "R")}`],
+  ["m_bolt", "attack", "雷 %1 本 半径 %2", [["数", "N", 1], ["数", "R", 0]], b => `雷 ${num(b, "N")} ${num(b, "R")}`],
+  ["m_pull", "move", "吸いこむ 半径 %1 ・ %2 秒 ・ 強さ %3", [["数", "R", 15], ["数", "S", 3], ["数", "P", 1]], b => `吸いこむ ${num(b, "R")} ${num(b, "S")} ${num(b, "P")}`],
+  ["m_push", "move", "吹きとばす 半径 %1 ・ 強さ %2", [["数", "R", 8], ["数", "P", 2]], b => `吹きとばす ${num(b, "R")} ${num(b, "P")}`],
+  ["m_float", "move", "うかせる 半径 %1 ・ %2 秒 ・ 高さ %3", [["数", "R", 8], ["数", "S", 3], ["数", "H", 4]], b => `うかせる ${num(b, "R")} ${num(b, "S")} ${num(b, "H")}`],
+  ["m_freeze", "move", "時間を止める 半径 %1 ・ %2 秒", [["数", "R", 10], ["数", "S", 5]], b => `止める ${num(b, "R")} ${num(b, "S")}`],
+  ["m_heal", "friend", "回復 %1 ・ 半径 %2 （0 は自分だけ）", [["数", "N", 8], ["数", "R", 0]], b => `回復 ${num(b, "N")} ${num(b, "R")}`],
+  ["m_potion", "friend", "効果 %1 %2 秒 レベル %3 ・ %4 に ・ 半径 %5", [["選ぶ", "WHAT", POTIONS], ["数", "S", 10], ["数", "L", 1], ["選ぶ", "WHO", ["自分", "仲間", "モブ"]], ["数", "R", 8]],
+    b => `効果 ${b.getFieldValue("WHAT")} ${num(b, "S")} ${num(b, "L")} ${b.getFieldValue("WHO")} ${num(b, "R")}`],
+  ["m_warp", "friend", "前へ %1 ブロック ワープ", [["数", "N", 10]], b => `ワープ ${num(b, "N")}`],
+  ["m_warp_to", "friend", "場所へワープ", [], b => `ワープ`],
+  ["m_shoot", "summon", "撃つ %1 %2 こ ・ 速さ %3 ・ ひろがり %4", [["選ぶ", "WHAT", SHOTS], ["数", "N", 3], ["数", "V", 1.5], ["数", "A", 5]],
+    b => `撃つ ${b.getFieldValue("WHAT")} ${num(b, "N")} ${num(b, "V")} ${num(b, "A")}`],
+  ["m_summon", "summon", "よぶ %1 %2 ひき", [["選ぶ", "WHAT", MOBS], ["数", "N", 1]], b => `よぶ ${b.getFieldValue("WHAT")} ${num(b, "N")}`],
+  ["m_particle", "look", "粒 %1 %2 こ ・ 広がり %3", [["選ぶ", "WHAT", PARTICLES], ["数", "N", 20], ["数", "R", 1]], b => `粒 ${b.getFieldValue("WHAT")} ${num(b, "N")} ${num(b, "R")}`],
+  ["m_ring", "look", "輪 %1 半径 %2", [["選ぶ", "WHAT", PARTICLES], ["数", "R", 3]], b => `輪 ${b.getFieldValue("WHAT")} ${num(b, "R")}`],
+  ["m_circle", "look", "魔法陣 %1 半径 %2", [["選ぶ", "WHAT", PARTICLES], ["数", "R", 6]], b => `魔法陣 ${b.getFieldValue("WHAT")} ${num(b, "R")}`],
+  ["m_pillar", "look", "柱 %1 高さ %2", [["選ぶ", "WHAT", PARTICLES], ["数", "H", 10]], b => `柱 ${b.getFieldValue("WHAT")} ${num(b, "H")}`],
+  ["m_sphere", "look", "球 %1 大きさ %2", [["選ぶ", "WHAT", PARTICLES], ["数", "N", 1.5]], b => `球 ${b.getFieldValue("WHAT")} ${num(b, "N")}`],
+  ["m_line", "look", "線 %1 （自分から場所へ）", [["選ぶ", "WHAT", PARTICLES]], b => `線 ${b.getFieldValue("WHAT")}`],
+  ["m_sound", "look", "音 %1 大きさ %2 高さ %3", [["選ぶ", "WHAT", SOUNDS], ["数", "V", 1], ["数", "P", 1]], b => `音 ${b.getFieldValue("WHAT")} ${num(b, "V")} ${num(b, "P")}`],
+  ["m_cooldown", "control", "待ち時間 %1 秒（次に使えるまで）", [["数", "S", 10]], b => `待ち時間 ${num(b, "S")}`],
+  ["m_big", "spell", "大魔法 %1 をそのまま出す", [["選ぶ", "WHAT", BIG]], b => b.getFieldValue("WHAT")],
+];
+
+/** 数のところを、文にする（1.0 は 1 に） */
+function num(block, name) {
+  const value = Number(block.getFieldValue(name));
+  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "0";
+}
+
+/** ブロックの形を Blockly に教える */
+function defineBlocks() {
+  // 魔法（いちばん上のブロック）
+  Blockly.Blocks["m_spell"] = {
+    init() {
+      this.appendDummyInput().appendField("✦ 魔法").appendField(new Blockly.FieldTextInput("ブラックホール"), "NAME");
+      this.appendStatementInput("CHANT").setCheck("chant").appendField("詠唱");
+      this.appendStatementInput("EFFECT").setCheck("effect").appendField("効果");
+      this.setColour(COLOR.spell);
+      this.setTooltip("詠唱を全部言いきると、効果が上から順番に動きます");
+    }
+  };
+  // 詠唱の1行
+  Blockly.Blocks["m_chant"] = {
+    init() {
+      this.appendDummyInput().appendField("言う「").appendField(new Blockly.FieldTextInput("ここに詠唱"), "TEXT").appendField("」");
+      this.setPreviousStatement(true, "chant");
+      this.setNextStatement(true, "chant");
+      this.setColour(COLOR.chant);
+      this.setTooltip("声で言う1行。上から順番に言います");
+    }
+  };
+  // くりかえす
+  Blockly.Blocks["m_repeat"] = {
+    init() {
+      this.appendDummyInput().appendField("くりかえす").appendField(new Blockly.FieldNumber(10, 1, 1000, 1), "N")
+        .appendField("回 ・ 1回ごとに").appendField(new Blockly.FieldNumber(0.1, 0, 60), "S").appendField("秒あける");
+      this.appendStatementInput("DO").setCheck("effect");
+      this.setPreviousStatement(true, "effect");
+      this.setNextStatement(true, "effect");
+      this.setColour(COLOR.control);
+    }
+  };
+  // 効果のブロック
+  for (const [type, colorName, text, inputs] of EFFECT_BLOCKS) {
+    Blockly.Blocks[type] = {
+      init() {
+        const parts = text.split(/(%\d)/);
+        let input = this.appendDummyInput();
+        for (const part of parts) {
+          const match = part.match(/^%(\d)$/);
+          if (!match) {
+            if (part.trim()) input.appendField(part.trim());
+            continue;
+          }
+          const [kind, name, value] = inputs[Number(match[1]) - 1];
+          if (kind === "数") input.appendField(new Blockly.FieldNumber(value, -1000, 1000), name);
+          if (kind === "選ぶ") input.appendField(new Blockly.FieldDropdown(options(value)), name);
+          if (kind === "文字") input.appendField(new Blockly.FieldTextInput(value), name);
+        }
+        this.setPreviousStatement(true, "effect");
+        this.setNextStatement(true, "effect");
+        this.setColour(COLOR[colorName]);
+      }
+    };
+  }
+}
+
+/** 道具箱（左のブロックの一覧） */
+function makeToolbox() {
+  const kinds = (...types) => types.map(type => ({ kind: "block", type }));
+  return {
+    kind: "categoryToolbox",
+    contents: [
+      { kind: "category", name: "魔法", colour: COLOR.spell, contents: kinds("m_spell", "m_chant", "m_big") },
+      { kind: "category", name: "場所・時間", colour: COLOR.place, contents: kinds("m_place", "m_wait", "m_repeat", "m_cooldown") },
+      { kind: "category", name: "こうげき", colour: COLOR.attack, contents: kinds("m_explode", "m_damage", "m_fire", "m_bolt") },
+      { kind: "category", name: "うごかす", colour: COLOR.move, contents: kinds("m_pull", "m_push", "m_float", "m_freeze") },
+      { kind: "category", name: "自分・仲間", colour: COLOR.friend, contents: kinds("m_heal", "m_potion", "m_warp", "m_warp_to") },
+      { kind: "category", name: "撃つ・よぶ", colour: COLOR.summon, contents: kinds("m_shoot", "m_summon") },
+      { kind: "category", name: "見た目・音", colour: COLOR.look, contents: kinds("m_particle", "m_ring", "m_circle", "m_pillar", "m_sphere", "m_line", "m_sound") },
+    ]
+  };
+}
+
+// ================= ブロック → じゅもん.txt =================
+const MAKERS = Object.fromEntries(EFFECT_BLOCKS.map(row => [row[0], row[4]]));
+
+/** 机の上の全部の魔法を、じゅもん.txt の文にする */
+function makeText(workspace) {
+  const out = ["# じゅもん表 v5", "# 魔法ブロックで作りました", ""];
+  const spells = workspace.getTopBlocks(true).filter(block => block.type === "m_spell");
+  for (const spell of spells) {
+    out.push(`[${spell.getFieldValue("NAME").trim() || "名前のない魔法"}]`);
+    for (let chant = spell.getInputTargetBlock("CHANT"); chant; chant = chant.getNextBlock()) {
+      if (chant.type === "m_chant") out.push(chant.getFieldValue("TEXT").trim());
+    }
+    writeEffects(spell.getInputTargetBlock("EFFECT"), 0, out);
+    out.push("");
+  }
+  if (spells.length === 0) out.push("# 「魔法」ブロックを置くと、ここに文ができます");
+  return out.join("\n");
+}
+
+/** 効果のブロックを上から順番に文にする（くりかえすの中は字下げ） */
+function writeEffects(block, depth, out) {
+  const indent = "  ".repeat(depth);
+  for (; block; block = block.getNextBlock()) {
+    if (block.type === "m_repeat") {
+      out.push(`＞${indent}くりかえす ${num(block, "N")} ${num(block, "S")}`);
+      writeEffects(block.getInputTargetBlock("DO"), depth + 1, out);
+      out.push(`＞${indent}ここまで`);
+    } else if (MAKERS[block.type]) {
+      out.push(`＞${indent}${MAKERS[block.type](block)}`);
+    }
+  }
+}
+
+// ================= じゅもん.txt → ブロック =================
+/** 1行の効果を、ブロックの形（JSON）にする。わからない行は null */
+function lineToBlock(words) {
+  const [name, ...args] = words;
+  const n = (index, fallback) => (args[index] !== undefined && Number.isFinite(Number(args[index]))) ? Number(args[index]) : fallback;
+  const w = (index, list, fallback) => list.includes(args[index]) ? args[index] : fallback;
+  switch (name) {
+    case "場所": return { type: "m_place", fields: { WHERE: w(0, ["見ている所", "自分", "上", "前", "まわり", "もどる"], "見ている所"), N: n(1, 64) } };
+    case "待つ": return { type: "m_wait", fields: { S: n(0, 1) } };
+    case "爆発": return { type: "m_explode", fields: { N: n(0, 3) } };
+    case "ダメージ": return { type: "m_damage", fields: { N: n(0, 5), R: n(1, 4) } };
+    case "燃やす": return { type: "m_fire", fields: { S: n(0, 5), R: n(1, 4) } };
+    case "雷": return { type: "m_bolt", fields: { N: n(0, 1), R: n(1, 0) } };
+    case "吸いこむ": return { type: "m_pull", fields: { R: n(0, 10), S: n(1, 3), P: n(2, 1) } };
+    case "吹きとばす": return { type: "m_push", fields: { R: n(0, 8), P: n(1, 2) } };
+    case "うかせる": return { type: "m_float", fields: { R: n(0, 8), S: n(1, 3), H: n(2, 4) } };
+    case "止める": return { type: "m_freeze", fields: { R: n(0, 8), S: n(1, 3) } };
+    case "回復": return { type: "m_heal", fields: { N: n(0, 4), R: n(1, 0) } };
+    case "効果": return { type: "m_potion", fields: { WHAT: w(0, POTIONS, "再生"), S: n(1, 5), L: n(2, 1), WHO: w(3, ["自分", "仲間", "モブ"], "自分"), R: n(4, 8) } };
+    case "ワープ": return args.length ? { type: "m_warp", fields: { N: n(0, 10) } } : { type: "m_warp_to" };
+    case "撃つ": return { type: "m_shoot", fields: { WHAT: w(0, SHOTS, "火の玉"), N: n(1, 1), V: n(2, 1.5), A: n(3, 5) } };
+    case "よぶ": return { type: "m_summon", fields: { WHAT: w(0, MOBS, "オオカミ"), N: n(1, 1) } };
+    case "粒": return { type: "m_particle", fields: { WHAT: w(0, PARTICLES, "炎"), N: n(1, 20), R: n(2, 1) } };
+    case "輪": return { type: "m_ring", fields: { WHAT: w(0, PARTICLES, "炎"), R: n(1, 3) } };
+    case "魔法陣": return { type: "m_circle", fields: { WHAT: w(0, PARTICLES, "炎"), R: n(1, 5) } };
+    case "柱": return { type: "m_pillar", fields: { WHAT: w(0, PARTICLES, "炎"), H: n(1, 10) } };
+    case "球": return { type: "m_sphere", fields: { WHAT: w(0, PARTICLES, "闇"), N: n(1, 1.5) } };
+    case "線": return { type: "m_line", fields: { WHAT: w(0, PARTICLES, "炎") } };
+    case "音": return { type: "m_sound", fields: { WHAT: w(0, SOUNDS, "爆発"), V: n(1, 1), P: n(2, 1) } };
+    case "待ち時間": return { type: "m_cooldown", fields: { S: n(0, 3) } };
+    default: return BIG.includes(name) ? { type: "m_big", fields: { WHAT: name } } : null;
+  }
+}
+
+/** ブロックの並び（配列）を、つながった JSON にする */
+function chain(blocks) {
+  for (let index = blocks.length - 2; index >= 0; index--) blocks[index].next = { block: blocks[index + 1] };
+  return blocks[0];
+}
+
+/** じゅもん.txt の文を読んで、魔法ブロックを机に置く */
+function importText(workspace, text) {
+  const spells = [];
+  let current = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const head = line.match(/^\[(.*?)\]\s*(.*)$/);
+    if (head) {
+      current = { name: head[1].trim(), chants: [], root: [], stack: [] };
+      current.list = current.root;
+      if (head[2]) { const block = lineToBlock(head[2].split(/\s+/)); if (block) current.list.push(block); }
+      spells.push(current);
+      continue;
+    }
+    if (!current) continue;
+    if (line.startsWith("＞") || line.startsWith(">")) {
+      const words = line.slice(1).replace(/　/g, " ").trim().split(/\s+/);
+      if (words[0] === "くりかえす") {
+        const repeat = { type: "m_repeat", fields: { N: Number(words[1]) || 1, S: Number(words[2]) || 0 }, children: [] };
+        current.list.push(repeat);
+        current.stack.push(current.list);
+        current.list = repeat.children;
+      } else if (words[0] === "ここまで") {
+        if (current.stack.length) current.list = current.stack.pop();
+      } else {
+        const block = lineToBlock(words);
+        if (block) current.list.push(block);
+      }
+    } else {
+      current.chants.push({ type: "m_chant", fields: { TEXT: line } });
+    }
+  }
+  // くりかえす の中身を、Blockly の形にする
+  const finish = list => list.map(block => {
+    if (block.type !== "m_repeat") return block;
+    const inner = finish(block.children);
+    const result = { type: "m_repeat", fields: block.fields };
+    if (inner.length) result.inputs = { DO: { block: chain(inner) } };
+    return result;
+  });
+  let y = 20;
+  for (const spell of spells) {
+    const state = { type: "m_spell", x: 20, y, fields: { NAME: spell.name }, inputs: {} };
+    if (spell.chants.length) state.inputs.CHANT = { block: chain(spell.chants) };
+    const effects = finish(spell.root);
+    if (effects.length) state.inputs.EFFECT = { block: chain(effects) };
+    Blockly.serialization.blocks.append(state, workspace);
+    y += 80 + 34 * (spell.chants.length + countBlocks(spell.root));
+  }
+  return spells.length;
+}
+
+/** くりかえす の中もふくめた、ブロックの数 */
+function countBlocks(list) {
+  return list.reduce((total, block) => total + 1 + (block.children ? countBlocks(block.children) + 1 : 0), 0);
+}
+
+// ================= 見本（まっちゃの「目の前＋吸いこみ＋爆発」） =================
+const SAMPLE = `[ブラックホール]
+闇よ
+ブラックホール
+＞場所 見ている所 20
+＞場所 上 3
+＞音 ウォーデン 2 0.6
+＞くりかえす 50 0.1
+＞  球 闇 1.5
+＞  輪 ポータル 6
+＞  吸いこむ 18 0.1 1
+＞ここまで
+＞爆発 7
+＞ダメージ 40 12
+＞吹きとばす 12 3
+＞粒 大爆発 3 2
+＞待ち時間 45`;
+
+// ================= 画面のテーマ（明るい・暗い） =================
+/** 今の画面が暗いテーマか */
+function isDark() {
+  const chosen = document.documentElement.getAttribute("data-theme");
+  if (chosen) return chosen === "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+/** 机の色をテーマに合わせる */
+function makeTheme() {
+  const dark = isDark();
+  return Blockly.Theme.defineTheme(dark ? "mahouDark" : "mahouLight", {
+    base: Blockly.Themes.Classic,
+    componentStyles: dark
+      ? { workspaceBackgroundColour: "#1a1627", toolboxBackgroundColour: "#241e36", toolboxForegroundColour: "#ece8f7",
+          flyoutBackgroundColour: "#2b2440", flyoutForegroundColour: "#ece8f7", flyoutOpacity: 0.95, scrollbarColour: "#5a4f78", insertionMarkerColour: "#ffffff" }
+      : { workspaceBackgroundColour: "#ffffff", toolboxBackgroundColour: "#f3f0fa", toolboxForegroundColour: "#221d33",
+          flyoutBackgroundColour: "#ebe6f7", flyoutForegroundColour: "#221d33", flyoutOpacity: 0.95, scrollbarColour: "#c9c0de", insertionMarkerColour: "#000000" },
+    fontStyle: { family: "'Zen Maru Gothic', 'Yu Gothic', sans-serif", weight: "700", size: 11 }
+  });
+}
+
+// ================= はじめる =================
+/** 机を作って、見本か前回の続きを置く */
+function start() {
+  defineBlocks();
+  const workspace = Blockly.inject("desk", {
+    toolbox: makeToolbox(), renderer: "zelos", theme: makeTheme(), trashcan: false, move: { scrollbars: true, drag: true, wheel: true },
+    zoom: { controls: false, wheel: false, pinch: true, startScale: 0.8, maxScale: 2, minScale: 0.4 }
+  });
+
+  // 前回の続き（このブラウザだけ）か、見本を置く
+  let loaded = false;
+  try {
+    const saved = localStorage.getItem("koemahou-desk");
+    if (saved) { Blockly.serialization.workspaces.load(JSON.parse(saved), workspace); loaded = true; }
+  } catch (error) { loaded = false; }
+  if (!loaded) importText(workspace, SAMPLE);
+
+  // ブロックが変わるたびに、文を作りなおして、とっておく
+  const output = document.getElementById("output");
+  const refresh = () => {
+    output.value = makeText(workspace);
+    try { localStorage.setItem("koemahou-desk", JSON.stringify(Blockly.serialization.workspaces.save(workspace))); } catch (error) { /* とっておけなくても動く */ }
+  };
+  workspace.addChangeListener(event => { if (!event.isUiEvent) refresh(); });
+  refresh();
+
+  // ぜんぶコピー
+  const status = document.getElementById("status");
+  document.getElementById("copy").addEventListener("click", () => {
+    navigator.clipboard.writeText(output.value).then(
+      () => { status.textContent = "コピーしました！"; },
+      () => { output.select(); status.textContent = "選んだので Ctrl+C でコピーしてね"; });
+  });
+
+  // じゅもん.txt をブロックにもどす
+  document.getElementById("importBtn").addEventListener("click", () => {
+    const text = document.getElementById("importText").value;
+    workspace.clear();
+    const count = importText(workspace, text);
+    status.textContent = `魔法を ${count} こ ブロックにしました`;
+  });
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    workspace.clear();
+    status.textContent = "からっぽにしました（「魔法」の中から 魔法ブロックを出してね）";
+  });
+
+  // テーマが変わったら、机の色も変える
+  const retheme = () => workspace.setTheme(makeTheme());
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  window.addEventListener("resize", () => Blockly.svgResize(workspace));
+}
+
+if (window.Blockly) {
+  start();
+} else {
+  document.getElementById("desk").textContent = "ブロックの部品が読みこめませんでした。ページを開きなおしてね";
+}
+</script>

@@ -8,14 +8,16 @@ import net.minecraft.resources.Identifier;
 
 /**
  * クライアントからサーバーへ送る「詠唱がここまで進んだ」のお知らせ
+ * spell は魔法の名前、program は効果の部品の文（じゅもん.txt の ＞ の行）
  * step が total と同じなら魔法を出す。step が -1 なら詠唱失敗
  */
-public record CastPayload(String spell, int step, int total) implements CustomPacketPayload {
+public record CastPayload(String spell, String program, int step, int total) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<CastPayload> TYPE =
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("koemahou", "cast"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, CastPayload> CODEC = StreamCodec.composite(
             ByteBufCodecs.STRING_UTF8, CastPayload::spell,
+            ByteBufCodecs.stringUtf8(16000), CastPayload::program,
             ByteBufCodecs.VAR_INT, CastPayload::step,
             ByteBufCodecs.VAR_INT, CastPayload::total,
             CastPayload::new);

@@ -17,23 +17,10 @@ import java.util.Set;
 public class SpellBook {
 
     // この版の じゅもん表の目じるし（変わったら作りなおす）
-    static final String VERSION_MARK = "# じゅもん表 v4";
+    static final String VERSION_MARK = "# じゅもん表 v5";
 
-    // 書ける効果（日本語の名前 → サーバーに送る id）
-    static final Map<String, String> EFFECTS = new LinkedHashMap<>();
-    static {
-        EFFECTS.put("ファイアボール", "fireball");
-        EFFECTS.put("ヒール", "heal");
-        EFFECTS.put("ワープ", "warp");
-        EFFECTS.put("ブラックホール", "blackhole");
-        EFFECTS.put("メテオ", "meteor");
-        EFFECTS.put("ジャッジメント", "judgment");
-        EFFECTS.put("サンクチュアリ", "sanctuary");
-        EFFECTS.put("クロノスタシス", "chrono");
-    }
-
-    /** 1つの魔法（名前と、効果の id と、詠唱の行） */
-    public record Spell(String name, String effect, List<String> lines) {}
+    /** 1つの魔法（名前と、効果の部品の文と、詠唱の行） */
+    public record Spell(String name, String program, List<String> lines) {}
 
     /** 文の中で見つかった1行（どの魔法の何行目か） */
     public record Match(Spell spell, int lineIndex, int start, int end) {}
@@ -41,62 +28,69 @@ public class SpellBook {
     // はじめに作る じゅもん表（見本。ぜんぶ書きかえてOK）
     static final String DEFAULT_TEXT = VERSION_MARK + """
 
-            # ここは まっちゃの魔法の本です。呪文は自由に作ってね
+            # ここは まっちゃの魔法の本です。呪文も効果も自由に作ってね
+            # くわしい書きかたは「魔法の作りかた.txt」を見てね
             #
-            # 書きかた:
-            #   [魔法の名前] 効果
-            #   1行目の詠唱
-            #   2行目の詠唱
-            #   （何行でもOK。全部の行を順番に言いきると魔法が出る）
+            #   [魔法の名前]
+            #   詠唱の1行目        ← ふつうの行は、声で言う詠唱
+            #   詠唱の2行目
+            #   ＞部品 数字 …      ← ＞ で始まる行は、魔法の効果（上から順番に動く）
             #
-            # 効果は次の中から1つ選ぶ:
-            #   ファイアボール … 火の玉を3発
-            #   ヒール … ハート4つ回復
-            #   ワープ … 前へ10ブロック瞬間移動
-            #   ブラックホール … モブを5秒吸いこんで大爆散
-            #   メテオ … 隕石10こ＋巨大隕石
-            #   ジャッジメント … 雷の檻でうかせて雷、さいごに光の柱
-            #   サンクチュアリ … 10秒の回復の結界、モブははじく
-            #   クロノスタシス … モブの時間を6秒止めて、ダメージ2倍で返す
-            #
-            # ・同じ効果の魔法を、ちがう呪文でいくつ作ってもOK
-            # ・保存すると、ゲームの中ですぐ読みなおします
-            # ・マイクの日本語モデルが知らない言葉は使えません。そのときはチャットで「どこが知らない言葉か」を教えます
             # ・# で始まる行はメモ（読まれない）
+            # ・保存すると、ゲームの中ですぐ読みなおします
+            # ・書きまちがいや、マイクが知らない言葉は、チャットで教えます
             #
-            # ↓ 下は見本です。消して、自分の呪文を書いてね
+            # ↓ 下は見本です。消して、自分の魔法を書いてね
 
-            [ファイアボール] ファイアボール
+            [ファイアボール]
             炎よ
             ファイアボール
+            ＞撃つ 火の玉 3 2
+            ＞音 ブレイズ
+            ＞待ち時間 2
 
-            [ヒール] ヒール
+            [ヒール]
             光よ
             ヒール
+            ＞回復 8
+            ＞粒 ハート 10 1
+            ＞待ち時間 15
 
-            [ワープ] ワープ
-            風よ
-            ワープ
-
-            [ブラックホール] ブラックホール
+            [ブラックホール]
             闇よ
             ブラックホール
+            ＞場所 見ている所
+            ＞場所 上 3
+            ＞音 ウォーデン
+            ＞くりかえす 100 0.05
+            ＞  球 闇 1.5
+            ＞  吸いこむ 18 0.05 1
+            ＞ここまで
+            ＞爆発 7
+            ＞ダメージ 40 12
+            ＞吹きとばす 12 3
+            ＞粒 大爆発 3 2
+            ＞待ち時間 45
 
-            [メテオ] メテオ
+            [雷の雨]
+            雷よ
+            降りそそげ
+            ＞場所 見ている所
+            ＞魔法陣 電気 8
+            ＞待つ 1
+            ＞くりかえす 15 0.2
+            ＞  場所 もどる
+            ＞  場所 まわり 8
+            ＞  雷
+            ＞  ダメージ 10 3
+            ＞ここまで
+            ＞待ち時間 25
+
+            # 前の版の大魔法も、部品1つで使えます（くわしくは 魔法の作りかた.txt）
+            [メテオ]
             星よ
             メテオ
-
-            [ジャッジメント] ジャッジメント
-            雷よ
-            ジャッジメント
-
-            [サンクチュアリ] サンクチュアリ
-            聖なる光よ
-            サンクチュアリ
-
-            [クロノスタシス] クロノスタシス
-            時よ止まれ
-            クロノスタシス
+            ＞メテオ
             """;
 
     final Map<String, Spell> spells = new LinkedHashMap<>();
@@ -126,38 +120,51 @@ public class SpellBook {
         spells.clear();
         problems.clear();
         String name = null;
-        String effect = null;
         List<String> lines = new ArrayList<>();
-        for (String raw : textLines) {
-            String line = raw.strip();
+        List<String> program = new ArrayList<>();
+        List<Integer> programLineNumbers = new ArrayList<>();
+        for (int index = 0; index < textLines.size(); index++) {
+            String line = textLines.get(index).strip();
             if (line.isEmpty() || line.startsWith("#")) continue;
-            // [魔法の名前] 効果 のような見出し
+            // [魔法の名前] のような見出し（うしろに効果を1つ書いてもよい: [闇] ブラックホール）
             if (line.startsWith("[") && line.contains("]")) {
-                addSpell(name, effect, lines);
+                addSpell(name, lines, program, programLineNumbers);
                 name = line.substring(1, line.indexOf(']')).strip();
-                String effectName = line.substring(line.indexOf(']') + 1).strip();
-                effect = EFFECTS.get(effectName);
-                if (effect == null) {
-                    // id（fireball など）で書いてあってもOK
-                    effect = EFFECTS.containsValue(effectName) ? effectName : null;
-                }
-                if (effect == null) problems.add("[" + name + "] の効果「" + effectName + "」がわかりません（ファイアボール・ヒール などから選んでね）");
                 lines = new ArrayList<>();
+                program = new ArrayList<>();
+                programLineNumbers = new ArrayList<>();
+                String shortEffect = line.substring(line.indexOf(']') + 1).strip();
+                if (!shortEffect.isEmpty()) {
+                    program.add(shortEffect);
+                    programLineNumbers.add(index + 1);
+                }
                 continue;
             }
-            if (name != null) lines.add(line);
+            if (name == null) continue;
+            // ＞ で始まる行は効果、ほかは詠唱
+            if (line.startsWith("＞") || line.startsWith(">")) {
+                program.add(line);
+                programLineNumbers.add(index + 1);
+            } else {
+                lines.add(line);
+            }
         }
-        addSpell(name, effect, lines);
+        addSpell(name, lines, program, programLineNumbers);
     }
 
-    /** 1つの魔法を一覧に足す（効果がわからない・行がないときは足さない） */
-    void addSpell(String name, String effect, List<String> lines) {
-        if (name == null || effect == null) return;
+    /** 1つの魔法を一覧に足す（行がない・効果がない ときは足さない） */
+    void addSpell(String name, List<String> lines, List<String> program, List<Integer> programLineNumbers) {
+        if (name == null) return;
         if (lines.isEmpty()) {
             problems.add("[" + name + "] に詠唱の行がありません");
             return;
         }
-        spells.put(name, new Spell(name, effect, List.copyOf(lines)));
+        List<Magic.Node> nodes = Magic.parse(program, programLineNumbers, name, problems);
+        if (nodes.isEmpty()) {
+            problems.add("[" + name + "] に効果（＞ で始まる行）がありません");
+            return;
+        }
+        spells.put(name, new Spell(name, String.join("\n", program), List.copyOf(lines)));
     }
 
     /** 文の from より後ろで、いちばん前にある詠唱の行をさがす（同じ場所なら長い行） */
