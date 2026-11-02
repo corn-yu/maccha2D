@@ -2,8 +2,8 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
-  /* レイアウト: 画面1枚に全部。左の大きな作業台に 魔法をぜんぶ ならべ、右に えらんだピース・ピース箱・じゅもん.txt。
-     はみ出すときは 自動で縮めて、スクロールしなくても全部見えるようにする */
+  /* レイアウト: 画面1枚に全部。左の大きな作業台に 魔法をぜんぶ ならべ、右に ピース箱・じゅもん.txt。
+     ピースの大きさは 固定（縮めない）。魔法は 横に入るだけ ならべる */
   :root {
     --bg: #f1eef8;
     --panel: #ffffff;
@@ -41,9 +41,9 @@
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
   h1 { font-family: var(--font-display); font-weight: 400; font-size: 1.7rem; margin: 0; letter-spacing: 0.04em; }
   header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
-  .bench { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 10px; }
-  .fit-box { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
-  .fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .bench { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 240px; grid-template-rows: minmax(0, 1fr); gap: 10px; }
+  .fit-box { position: relative; overflow: auto; min-width: 0; min-height: 0; }
+  .fit { position: relative; }
   .side .fit { display: flex; flex-direction: column; gap: 8px; }
   .side .card { padding: 10px; gap: 6px; }
   .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -64,9 +64,9 @@
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
   /* 作業台の上の 魔法1つぶん */
-  .board { display: grid; gap: 28px 36px; align-items: center; justify-items: center; grid-auto-flow: row; }
+  .board { display: grid; gap: 14px 8px; align-items: center; justify-items: center; grid-auto-flow: row; }
   .board-card { height: 100%; box-sizing: border-box; }
-  .spell-block { border-radius: 16px; padding: 6px 10px; min-width: 0; }
+  .spell-block { border-radius: 14px; padding: 4px 2px; min-width: 0; }
   .spell-block.current { background: color-mix(in srgb, var(--accent) 7%, transparent); }
   .jig.ghost { opacity: 0.45; }
   .jig.ghost:hover, .jig.ghost:focus-visible { opacity: 0.8; }
@@ -77,18 +77,27 @@
   .jig { position: absolute; cursor: pointer; }
   .jig svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
   .jig svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.25); stroke-width: 1.5; }
-  .jig .body { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 4px; color: #fff; padding: 0 14px 0 22px; box-sizing: border-box; }
-  .jig .title { font-weight: 900; font-size: 0.95rem; line-height: 1.2; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+  .jig .body { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 2px; color: #fff; padding: 0 12px 0 16px; box-sizing: border-box; }
+  .jig .title { font-weight: 900; font-size: 0.8rem; line-height: 1.2; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
   .jig .vals { font-size: 0.72rem; line-height: 1.35; opacity: 0.95; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .jig input { width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35; border: none; border-radius: 6px; padding: 5px 8px; font-size: 0.9rem; }
-  .jig .x { position: absolute; top: 6px; right: 18px; z-index: 1; background: rgba(0, 0, 0, 0.25); color: #fff; border: none; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; line-height: 1.5; }
+  .jig input { width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35; border: none; border-radius: 5px; padding: 2px 6px; font-size: 0.78rem; }
+  .jig .args-on { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 5px; }
+  .jig .arg-on { display: flex; align-items: center; gap: 3px; font-size: 0.64rem; font-weight: 700; min-width: 0; }
+  .jig .arg-on span { white-space: nowrap; }
+  .jig .arg-on select, .jig .arg-on input { flex: 1; min-width: 0; width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35;
+    border: none; border-radius: 4px; padding: 1px 3px; font-size: 0.72rem; font-family: var(--font-body); height: 19px; }
+  .jig .x.copy { right: 34px; }
+  .jig select.kind { align-self: flex-start; max-width: calc(100% - 48px); font-family: var(--font-body); font-weight: 900; font-size: 0.78rem; color: #fff;
+    background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 5px; padding: 0 2px; height: 20px; }
+  .jig select.kind option, .jig select.kind optgroup { color: #231d35; background: #fff; }
+  .jig .x { position: absolute; top: 4px; right: 12px; z-index: 1; background: rgba(0, 0, 0, 0.25); color: #fff; border: none; border-radius: 999px; padding: 0 5px; font-size: 0.62rem; line-height: 1.4; }
   .jig.selected svg path { stroke: var(--ink); stroke-width: 3.5; }
   .jig.dragging { opacity: 0.4; }
   .jig.drop-here svg path { stroke: var(--accent); stroke-width: 4; stroke-dasharray: 6 4; }
-  .jig .loop { position: absolute; left: 6px; top: 10px; bottom: 10px; width: 5px; border-radius: 3px; background: #ffd23c; }
+  .jig .loop { position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 3px; background: #ffd23c; }
   .column-label { position: absolute; font-family: var(--font-display); color: var(--muted); font-size: 0.85rem; }
-  .shelf-piece { position: relative; display: inline-flex; align-items: center; height: 28px; padding: 0 10px 0 16px; margin: 0 16px 5px 0; color: #fff;
-    border: none; background: transparent; font-family: var(--font-body); font-weight: 900; font-size: 0.78rem; cursor: pointer; }
+  .shelf-piece { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 16px 0 20px; margin: 10px 18px 10px 0; color: #fff;
+    border: none; background: transparent; font-family: var(--font-body); font-weight: 900; font-size: 0.9rem; cursor: pointer; }
   .shelf-piece svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
   .shelf-piece svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.2); }
   .shelf-piece span { position: relative; }
@@ -133,15 +142,12 @@
 <div class="page">
   <header>
     <h1>こえまほう 魔法パズル</h1>
-    <p>名前 ▶ 詠唱（上から言う） ▶ 効果（上から動く）。効果ピースを押すと右で数字を変えられる。ピース箱を押すと えらんだ魔法につながる。ドラッグで ならべかえ・ほかの魔法へ移動もOK</p>
+    <p>名前 ▶ 詠唱（上から言う） ▶ 効果（上から動く）。効果の種類や数字は ピースの上で変える。ドラッグで ならべかえ・ほかの魔法へ移動もOK</p>
   </header>
 
   <div class="bench">
     <section class="card board-card" aria-label="魔法の作業台">
-      <div class="row" style="justify-content: space-between">
-        <h2>魔法の作業台</h2>
-        <button id="addSpell" type="button" class="small">＋ 新しい魔法</button>
-      </div>
+      <h2>魔法の作業台</h2>
       <div class="fit-box" id="boardBox" style="flex: 1">
         <div class="fit board" id="board"></div>
       </div>
@@ -149,7 +155,6 @@
 
     <div class="fit-box side" id="sideBox">
       <div class="fit" id="side">
-        <section class="card detail" id="detail" aria-label="えらんだピース"></section>
         <section class="card" aria-label="ピース箱">
           <h2>ピース箱</h2>
           <div class="shelf" id="shelf"></div>
@@ -366,8 +371,8 @@ function readText(text) {
 const $ = id => document.getElementById(id);
 
 // ================= パズルの形 =================
-const KNOB = 11;       // 出っぱりの丸の半径
-const NECK = 7;        // 出っぱりの首の半分の幅
+const KNOB = 8;        // 出っぱりの丸の半径
+const NECK = 5;        // 出っぱりの首の半分の幅
 
 /** 1つの辺を描く（from から to へ。kind: "flat" 平ら / "tab" 外へ出っぱり / "hole" 内へへこみ） */
 function edge(fromX, fromY, toX, toY, kind) {
@@ -407,7 +412,7 @@ function valueText(piece) {
 }
 
 // ピースの大きさと、列の場所
-const SIZE = { nameW: 170, chantW: 230, effectW: 250, h: 78, gap: 0, top: 14, left: 4 };
+const SIZE = { nameW: 100, chantW: 140, effectW: 220, h: 46, gap: 0, top: 10, left: 4 };
 
 /** 作業台（魔法ぜんぶ）を描く */
 function drawBoard() {
@@ -417,42 +422,26 @@ function drawBoard() {
   fitBoard();
 }
 
-/** 縮めるのを使うか（せまい画面では使わない） */
+/** 列をならべるのを使うか（せまい画面では1列） */
 function fitting() {
   return window.matchMedia("(min-width: 861px)").matches;
 }
 
-/** 作業台を 画面に収まる大きさに縮める（列の数も、いちばん大きく見える数をえらぶ） */
+/** 作業台の 列の数を決める（大きさは変えない。横に入るだけ ならべる） */
 function fitBoard() {
   const box = $("boardBox"), board = $("board");
-  board.style.transform = "";
   if (!fitting()) { board.style.gridTemplateColumns = ""; return; }
-  const width = box.clientWidth, height = box.clientHeight;
-  let best = { scale: 0, columns: 1 };
-  for (let columns = 1; columns <= Math.min(spells.length, 6); columns++) {
-    board.style.gridTemplateColumns = `repeat(${columns}, max-content)`;
-    const scale = Math.min(1, width / board.scrollWidth, height / board.scrollHeight);
-    if (scale > best.scale + 0.001) best = { scale, columns };
+  let columns = 1;
+  for (let next = 2; next <= spells.length; next++) {
+    board.style.gridTemplateColumns = `repeat(${next}, max-content)`;
+    if (board.scrollWidth > box.clientWidth) break;
+    columns = next;
   }
-  board.style.gridTemplateColumns = `repeat(${best.columns}, max-content)`;
-  board.style.transform = `scale(${best.scale})`;
+  board.style.gridTemplateColumns = `repeat(${columns}, max-content)`;
 }
 
-/** 右がわ（えらんだピース・ピース箱・文）を 収まるよう縮める（中の幅も、いちばん大きく見える幅をえらぶ） */
-function fitSide() {
-  const box = $("sideBox"), side = $("side");
-  side.style.transform = "";
-  if (!fitting()) { side.style.width = ""; return; }
-  let best = { scale: 0, width: box.clientWidth };
-  for (const width of [box.clientWidth, 420, 500, 600, 720]) {
-    if (width < box.clientWidth) continue;
-    side.style.width = `${width}px`;
-    const scale = Math.min(1, box.clientWidth / width, box.clientHeight / side.scrollHeight);
-    if (scale > best.scale + 0.001) best = { scale, width };
-  }
-  side.style.width = `${best.width}px`;
-  side.style.transform = `scale(${best.scale})`;
-}
+/** 右がわは 大きさを変えない（前は縮めていた） */
+function fitSide() {}
 
 /** いま えらんでいる魔法を かえる（描きなおさず、わくの色だけ） */
 function setCurrent(s) {
@@ -478,7 +467,7 @@ function drawSpell(spell, s) {
   // 名前 ▶ 詠唱 はくっつけて、効果の列は すこしはなす
   const nameX = SIZE.left;
   const chantX = nameX + SIZE.nameW;
-  const effectX = chantX + SIZE.chantW + 40;
+  const effectX = chantX + SIZE.chantW + 18;
   const chantRows = Math.max(spell.chants.length, 1);
 
   // 名前のピース（右に出っぱり）。詠唱の列の まんなかの高さに置く
@@ -529,23 +518,32 @@ function drawSpell(spell, s) {
     puzzle.append(jig.root);
   });
 
-  // 効果のピース（同じ形。くりかえすの中は 黄色い線と字下げ）
+  // 効果のピース（同じ形。くりかえすの中は 黄色い線と字下げ）。種類や数字は ピースの上で そのまま変える
   let depth = 0;
+  let effectY = SIZE.top;
+  let maxDepth = 0;
   spell.pieces.forEach((piece, index) => {
     if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
     const spec = SPEC[piece.part];
-    const jig = makeJig(effectX + depth * 18, SIZE.top + index * SIZE.h, SIZE.effectW, SIZE.h, ["tab", "tab", "hole", "hole"], spec.cat);
+    const height = pieceHeight(piece);
+    const jig = makeJig(effectX + depth * 18, effectY, SIZE.effectW, height, ["tab", "tab", "hole", "hole"], spec.cat);
+    effectY += height;
     if (depth > 0) { const loop = document.createElement("span"); loop.className = "loop"; jig.root.append(loop); }
     if (piece.part === "くりかえす") depth++;
-    jig.body.append(titleSpan(piece.part));
-    if (spec.args.length) { const vals = document.createElement("span"); vals.className = "vals"; vals.textContent = valueText(piece); jig.body.append(vals); }
+    maxDepth = Math.max(maxDepth, depth);
+    jig.body.append(kindSelect(spell, piece, s, index));
+    if (spec.args.length) jig.body.append(argControls(piece));
     if (s === current && index === selected) jig.root.classList.add("selected");
     jig.root.tabIndex = 0;
-    jig.root.setAttribute("role", "button");
     jig.root.setAttribute("aria-label", `魔法 ${s + 1} の ${index + 1}番目の効果 ${piece.part}`);
-    const choose = () => { current = s; selected = s === current && index === selected ? -1 : index; drawBoard(); drawDetail(); };
-    jig.root.addEventListener("click", choose);
-    jig.root.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); } });
+    // 押すと えらぶ（ピース箱のピースが このすぐ下につながる）。描きなおさないので 入力のじゃまをしない
+    jig.root.addEventListener("click", () => choosePiece(s, index, jig.root));
+    // ✕ で消す・⧉ でふやす
+    jig.root.append(closeButton(`${index + 1}番目の効果を消す`, () => { spell.pieces.splice(index, 1); current = s; selected = Math.min(index, spell.pieces.length - 1); drawBoard(); save(); }));
+    const copy = closeButton(`${index + 1}番目の効果をふやす`, () => { spell.pieces.splice(index + 1, 0, structuredClone(piece)); current = s; selected = index + 1; drawBoard(); save(); });
+    copy.textContent = "⧉";
+    copy.classList.add("copy");
+    jig.root.append(copy);
     dragSetup(jig.root, `move:${s}:${index}`, data => dropAtData(data, s, index));
     puzzle.append(jig.root);
   });
@@ -554,22 +552,71 @@ function drawSpell(spell, s) {
     hint.className = "column-label";
     hint.style.left = `${effectX + 8}px`;
     hint.style.top = `${SIZE.top + 20}px`;
-    hint.textContent = "右のピース箱から ピースを押してね";
+    hint.textContent = "右のピース箱の「効果」を押してね";
     puzzle.append(hint);
   }
 
   // いちばん下の空き（ここに落とすと さいごに入る）
-  const rows = Math.max(spell.chants.length + 0.6, spell.pieces.length, 1);
-  puzzle.style.height = `${SIZE.top + rows * SIZE.h + 30}px`;
-  puzzle.style.width = `${effectX + SIZE.effectW + 3 * 18 + 30}px`;
+  const rows = Math.max(spell.chants.length + 0.6, 1);
+  puzzle.style.height = `${Math.max(SIZE.top + rows * SIZE.h, effectY) + 30}px`;
+  puzzle.style.width = `${effectX + SIZE.effectW + maxDepth * 18 + 12}px`;
   puzzle.ondragover = event => event.preventDefault();
   puzzle.ondrop = event => {
     event.preventDefault();
     const data = event.dataTransfer.getData("text/plain");
-    if (data.startsWith("chant:")) dropChant(data, s, spell.chants.length);
+    if (data.startsWith("chant:") || data === "new:詠唱") dropChant(data, s, spell.chants.length);
     else dropAtData(data, s, spell.pieces.length);
   };
   return block;
+}
+
+/** 効果ピースの高さ（設定の数で のびる。2つずつ ならぶ） */
+function pieceHeight(piece) {
+  const count = SPEC[piece.part].args.length;
+  return Math.max(SIZE.h, 24 + Math.ceil(count / 2) * 21 + 4);
+}
+
+/** 効果ピースの上に置く 設定（種類はえらぶ、数字は書く） */
+function argControls(piece) {
+  const box = document.createElement("div");
+  box.className = "args-on";
+  SPEC[piece.part].args.forEach(arg => {
+    const field = document.createElement("label");
+    field.className = "arg-on";
+    if (arg.help) field.title = arg.help;
+    const name = document.createElement("span");
+    name.textContent = arg.name;
+    field.append(name);
+    let control;
+    if (arg.kind === "word") {
+      control = document.createElement("select");
+      for (const option of arg.list) control.append(new Option(option, option));
+      control.value = piece.args[arg.name];
+      control.addEventListener("change", () => { piece.args[arg.name] = control.value; save(); });
+    } else if (arg.kind === "text") {
+      control = document.createElement("input");
+      control.type = "text";
+      control.value = piece.args[arg.name];
+      control.addEventListener("input", () => { piece.args[arg.name] = control.value; save(); });
+    } else {
+      control = document.createElement("input");
+      control.type = "number";
+      control.min = arg.min; control.max = arg.max; control.step = arg.step;
+      control.value = piece.args[arg.name];
+      control.addEventListener("input", () => { if (control.value !== "" && Number.isFinite(Number(control.value))) { piece.args[arg.name] = Number(control.value); save(); } });
+    }
+    field.append(control);
+    box.append(field);
+  });
+  return box;
+}
+
+/** 効果ピースを えらぶ（描きなおさず、しるしだけ つけかえる） */
+function choosePiece(s, index, element) {
+  if (s !== current) setCurrent(s);
+  selected = index;
+  document.querySelectorAll(".jig.selected").forEach(jig => jig.classList.remove("selected"));
+  element.classList.add("selected");
 }
 
 /** ピースの入れものを作る（root の中に SVG の形と body） */
@@ -614,6 +661,8 @@ function closeButton(label, action) {
 /** ドラッグできるようにする（data は運ぶもの、onDrop は ここに落とされたとき） */
 function dragSetup(element, data, onDrop) {
   element.draggable = true;
+  // 入力やボタンをさわるときは ドラッグしない（文字をえらべるように）
+  element.addEventListener("pointerdown", event => { element.draggable = !event.target.closest("input, select, button"); });
   element.addEventListener("dragstart", event => { event.dataTransfer.setData("text/plain", data); element.classList.add("dragging"); });
   element.addEventListener("dragend", () => element.classList.remove("dragging"));
   element.addEventListener("dragover", event => { event.preventDefault(); element.classList.add("drop-here"); });
@@ -623,10 +672,16 @@ function dragSetup(element, data, onDrop) {
 
 /** 詠唱ピースを 魔法 s の index の前へ動かす（ほかの魔法からでも） */
 function dropChant(data, s, index) {
-  if (!data.startsWith("chant:")) return;
-  const [fromSpell, from] = data.slice(6).split(":").map(Number);
-  const [line] = spells[fromSpell].chants.splice(from, 1);
-  const to = fromSpell === s && from < index ? index - 1 : index;
+  let line = "", to = index;
+  if (data === "new:詠唱") {
+    // ピース箱からの 新しい詠唱
+  } else if (data.startsWith("chant:")) {
+    const [fromSpell, from] = data.slice(6).split(":").map(Number);
+    [line] = spells[fromSpell].chants.splice(from, 1);
+    to = fromSpell === s && from < index ? index - 1 : index;
+  } else {
+    return;
+  }
   spells[s].chants.splice(to, 0, line);
   current = s;
   drawBoard(); save();
@@ -641,9 +696,12 @@ function dropAtData(data, s, index) {
     const to = fromSpell === s && from < index ? index - 1 : index;
     pieces.splice(to, 0, piece);
     selected = to;
-  } else if (data.startsWith("new:")) {
-    pieces.splice(index, 0, newPiece(data.slice(4)));
+  } else if (data === "new:効果") {
+    pieces.splice(index, 0, newPiece(FIRST_EFFECT));
     selected = index;
+  } else if (data === "new:名前") {
+    addSpell();
+    return;
   } else {
     return;
   }
@@ -651,162 +709,89 @@ function dropAtData(data, s, index) {
   drawBoard(); drawDetail(); save();
 }
 
-/** えらんだピースの 数字を変えるところ を描く（描いたら 右がわを縮めなおす） */
+/** 右がわを縮めなおす（前は「えらんだピース」の欄を描いていた。今は設定がピースの上にある） */
 function drawDetail() {
-  drawDetailInside();
   fitSide();
 }
 
-/** えらんだピースの 数字を変えるところ の中身 */
-function drawDetailInside() {
-  const detail = $("detail");
-  detail.replaceChildren();
-  const spell = spells[current];
-  const piece = spell.pieces[selected];
-  if (!piece) {
-    detail.style.removeProperty("--c");
-    const title = document.createElement("h2");
-    title.textContent = "ピースをえらんでね";
-    const hint = document.createElement("p");
-    hint.className = "hint";
-    hint.textContent = "作業台の効果ピースを押すと、ここで数字や種類を変えられます。";
-    detail.append(title, hint);
-    return;
-  }
-  const spec = SPEC[piece.part];
-  detail.style.setProperty("--c", `var(--c-${spec.cat})`);
-  const head = document.createElement("div");
-  head.className = "row";
-  head.style.justifyContent = "space-between";
-  const title = document.createElement("h2");
-  title.textContent = `${spell.name || "名前なし"} の ${selected + 1}こ目：${piece.part}`;
-  const tools = document.createElement("div");
-  tools.className = "row";
-  const tool = (label, action) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "small quiet";
-    button.textContent = label;
-    button.addEventListener("click", action);
-    tools.append(button);
-  };
-  tool("▲ 上へ", () => move(-1));
-  tool("下へ ▼", () => move(1));
-  tool("ふやす", () => { spell.pieces.splice(selected + 1, 0, structuredClone(piece)); selected++; drawBoard(); drawDetail(); save(); });
-  tool("消す", () => { spell.pieces.splice(selected, 1); selected = Math.min(selected, spell.pieces.length - 1); drawBoard(); drawDetail(); save(); });
-  head.append(title, tools);
-  detail.append(head);
+// 新しい効果ピースの はじめの種類
+const FIRST_EFFECT = "爆発";
 
-  if (!spec.args.length) {
-    const hint = document.createElement("p");
-    hint.className = "hint";
-    hint.textContent = piece.part === "ここまで" ? "「くりかえす」から ここまでのピースを くりかえします。" : "このピースは数字がありません。";
-    detail.append(hint);
-    return;
-  }
-  const grid = document.createElement("div");
-  grid.className = "args";
-  spec.args.forEach((arg, index) => {
-    const box = document.createElement("div");
-    box.className = "arg";
-    const label = document.createElement("label");
-    const id = `arg-${index}`;
-    label.htmlFor = id;
-    label.textContent = arg.name;
-    box.append(label);
-    if (arg.kind === "text") {
-      const input = document.createElement("input");
-      input.type = "text";
-      input.id = id;
-      input.value = piece.args[arg.name];
-      input.addEventListener("input", () => { piece.args[arg.name] = input.value; const vals = $("board").querySelector(".jig.selected .vals"); if (vals) vals.textContent = valueText(piece); save(); });
-      box.append(input);
-    } else if (arg.kind === "word") {
-      const select = document.createElement("select");
-      select.id = id;
-      for (const option of arg.list) select.append(new Option(option, option));
-      select.value = piece.args[arg.name];
-      select.addEventListener("change", () => { piece.args[arg.name] = select.value; drawBoard(); save(); });
-      box.append(select);
-    } else {
-      const pair = document.createElement("div");
-      pair.className = "pair";
-      const range = document.createElement("input");
-      range.type = "range";
-      range.min = arg.min; range.max = arg.max; range.step = arg.step;
-      range.value = piece.args[arg.name];
-      range.setAttribute("aria-label", `${arg.name}（スライダー）`);
-      const number = document.createElement("input");
-      number.type = "number";
-      number.id = id;
-      number.step = arg.step;
-      number.value = piece.args[arg.name];
-      const set = value => {
-        piece.args[arg.name] = Number(value);
-        range.value = value; number.value = value;
-        const vals = $("board").querySelector(".jig.selected .vals");
-        if (vals) vals.textContent = valueText(piece);
-        save();
-      };
-      range.addEventListener("input", () => set(range.value));
-      number.addEventListener("input", () => { if (number.value !== "" && Number.isFinite(Number(number.value))) set(number.value); });
-      pair.append(range, number);
-      box.append(pair);
-    }
-    if (arg.help) {
-      const help = document.createElement("span");
-      help.className = "help";
-      help.textContent = arg.help;
-      box.append(help);
-    }
-    grid.append(box);
-  });
-  detail.append(grid);
-}
-
-/** えらんだピースを 左右に動かす */
-function move(step) {
-  const pieces = spells[current].pieces;
-  const to = selected + step;
-  if (to < 0 || to >= pieces.length) return;
-  [pieces[selected], pieces[to]] = [pieces[to], pieces[selected]];
-  selected = to;
-  drawBoard(); drawDetail(); save();
-}
-
-/** ピース箱を描く */
+/** ピース箱を描く（名前・詠唱・効果の3つだけ） */
 function drawShelf() {
   const shelf = $("shelf");
-  const groups = [...new Set(PIECES.map(piece => piece.group))];
-  for (const group of groups) {
-    const title = document.createElement("h3");
-    title.textContent = group;
-    const row = document.createElement("div");
-    row.className = "row";
-    for (const spec of PIECES.filter(piece => piece.group === group)) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "shelf-piece";
-      button.style.setProperty("--c", `var(--c-${spec.cat})`);
-      const label = document.createElement("span");
-      label.textContent = spec.part;
-      button.append(label);
-      // 文字の大きさが決まってから、形を描く
-      const drawShape = () => { button.querySelector("svg")?.remove(); button.prepend(shapeSvg(button.offsetWidth, button.offsetHeight, ["flat", "tab", "flat", "hole"])); };
-      (document.fonts?.ready ?? Promise.resolve()).then(() => requestAnimationFrame(drawShape));
-      button.title = spec.args.length ? spec.args.map(arg => arg.name).join("・") : "";
-      button.draggable = true;
-      button.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", `new:${spec.part}`));
-      button.addEventListener("click", () => addPiece(spec.part));
-      row.append(button);
-    }
-    // 見出しも 同じ行に入れて、高さを へらす
-    row.prepend(title);
-    shelf.append(row);
+  const row = document.createElement("div");
+  row.className = "row";
+  const kinds = [
+    { label: "名前", cat: "name", help: "新しい魔法を つくる", sides: ["flat", "tab", "flat", "flat"], add: addSpell },
+    { label: "詠唱", cat: "chant", help: "えらんでいる魔法に 詠唱をふやす", sides: ["tab", "tab", "hole", "hole"], add: addChantToCurrent },
+    { label: "効果", cat: "attack", help: "えらんだ効果のすぐ下に つなぐ。種類はピースの上でえらぶ", sides: ["tab", "tab", "hole", "hole"], add: () => addPiece(FIRST_EFFECT) },
+  ];
+  for (const kind of kinds) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shelf-piece";
+    button.style.setProperty("--c", `var(--c-${kind.cat})`);
+    const label = document.createElement("span");
+    label.textContent = kind.label;
+    button.append(label);
+    // 文字の大きさが決まってから、形を描く
+    const drawShape = () => { button.querySelector("svg")?.remove(); button.prepend(shapeSvg(button.offsetWidth, button.offsetHeight, kind.sides)); };
+    (document.fonts?.ready ?? Promise.resolve()).then(() => requestAnimationFrame(drawShape));
+    button.title = kind.help;
+    button.draggable = true;
+    button.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", `new:${kind.label}`));
+    button.addEventListener("click", kind.add);
+    row.append(button);
   }
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = "押すと、えらんでいる魔法につながります。ドラッグで好きな所へ入れることもできます。";
+  shelf.append(row, hint);
 }
 
-/** ピースを、えらんだピースのすぐ右（なければさいご）に足す。くりかえすなら ここまで もいっしょに */
+/** 効果ピースの いちばん上：種類をえらぶ（えらびなおすと 数字は その種類の はじめの数字に） */
+function kindSelect(spell, piece, s, index) {
+  const select = document.createElement("select");
+  select.className = "kind";
+  select.setAttribute("aria-label", `${index + 1}番目の効果の種類`);
+  for (const group of [...new Set(PIECES.map(item => item.group))]) {
+    const box = document.createElement("optgroup");
+    box.label = group;
+    for (const item of PIECES.filter(entry => entry.group === group)) box.append(new Option(item.part, item.part));
+    select.append(box);
+  }
+  select.value = piece.part;
+  select.addEventListener("change", () => {
+    const fresh = newPiece(select.value);
+    // 同じ名前の設定は そのまま引きつぐ
+    for (const name of Object.keys(fresh.args)) if (name in piece.args) fresh.args[name] = piece.args[name];
+    spell.pieces[index] = fresh;
+    // くりかえす には ここまで を すぐ下につける
+    if (select.value === "くりかえす") spell.pieces.splice(index + 1, 0, newPiece("ここまで"));
+    current = s; selected = index;
+    drawBoard(); save();
+  });
+  return select;
+}
+
+/** 新しい魔法をつくる */
+function addSpell() {
+  spells.push({ name: `魔法${spells.length + 1}`, chants: ["", ""], pieces: [] });
+  current = spells.length - 1; selected = -1;
+  drawAll(); save();
+  $(`spellName-${current}`)?.focus({ preventScroll: true });
+}
+
+/** えらんでいる魔法に 詠唱をふやす */
+function addChantToCurrent() {
+  const chants = spells[current].chants;
+  chants.push("");
+  drawBoard(); save();
+  $(`chant-${current}-${chants.length - 1}`)?.focus({ preventScroll: true });
+}
+
+/** 効果ピースを、えらんだピースのすぐ下（なければさいご）に足す。くりかえすなら ここまで もいっしょに */
 function addPiece(part) {
   const pieces = spells[current].pieces;
   const at = selected >= 0 ? selected + 1 : pieces.length;
@@ -838,12 +823,6 @@ function save() {
 }
 
 // ================= ボタン =================
-$("addSpell").addEventListener("click", () => {
-  spells.push({ name: `魔法${spells.length + 1}`, chants: ["", ""], pieces: [] });
-  current = spells.length - 1; selected = -1;
-  drawAll(); save();
-  $(`spellName-${current}`)?.focus({ preventScroll: true });
-});
 $("copy").addEventListener("click", () => {
   navigator.clipboard.writeText($("output").value).then(
     () => { $("status").textContent = "コピーしました！"; },
