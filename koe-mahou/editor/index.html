@@ -2,8 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
-  /* レイアウト: 画面1枚に全部。左の大きな作業台に 魔法をぜんぶ ならべ、右に ピース箱・じゅもん.txt。
-     ピースの大きさは 固定（縮めない）。魔法は 横に入るだけ ならべる */
+  /* レイアウト: 画面1枚に全部。左の大きな作業台に ピースのかたまりを自由に置き、詠唱から効果へ線でつなぐ。右に ピース箱・じゅもん.txt */
   :root {
     --bg: #f1eef8;
     --panel: #ffffff;
@@ -68,17 +67,27 @@
   }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
-  /* 作業台の上の 魔法1つぶん */
-  .board { display: grid; gap: 14px 8px; align-items: center; justify-items: center; grid-auto-flow: row; }
+  /* 作業台の上の かたまりと線 */
   .board-card { height: 100%; box-sizing: border-box; }
-  .spell-block { border-radius: 14px; padding: 4px 2px; min-width: 0; }
-  .spell-block.current { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  #boardBox { background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 18px 18px; border-radius: 8px; }
+  #wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  #wires .wire { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+  #wires .wire.drawing { stroke-dasharray: 8 6; }
+  #wires .wire-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+  #wires .wire-hit:hover { stroke: color-mix(in srgb, #e0533d 35%, transparent); }
+  .group { position: absolute; }
+  .group.moving { opacity: 0.8; }
+  .grip { position: absolute; left: 0; top: 0; height: 18px; padding: 0 8px; border-radius: 6px; font-size: 0.8rem; line-height: 18px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--line); cursor: grab; user-select: none; touch-action: none; }
+  .grip:active { cursor: grabbing; }
+  .port { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--panel); border: 3px solid var(--accent); box-sizing: border-box; }
+  .port.out { cursor: crosshair; touch-action: none; }
+  .port.out:hover { background: var(--accent); }
   .jig.ghost { opacity: 0.45; }
   .jig.ghost:hover, .jig.ghost:focus-visible { opacity: 0.8; }
   .jig.ghost svg path { stroke-dasharray: 6 4; }
 
   /* パズル：ピースは SVG の形の上に 文字や入力をのせる */
-  .puzzle { position: relative; min-height: 200px; }
   .jig { position: absolute; cursor: pointer; }
   .jig svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
   .jig svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.25); stroke-width: 1.5; }
@@ -138,10 +147,9 @@
     .bench { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
     .board-card { height: auto; }
     .fit-box { overflow-x: auto; }
-    .fit { position: static; transform: none !important; }
+    .side .fit { position: static; }
     .side .fit { width: auto; }
-    #boardBox { overflow-x: auto; }
-    #board { position: static; }
+    #boardBox { height: 70vh; flex: none !important; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -149,7 +157,7 @@
 <div class="page">
   <header>
     <h1>こえまほう 魔法パズル</h1>
-    <p>名前 ▶ 詠唱（上から言う） ▶ 効果（上から動く）。効果の種類や数字は ピースの上で変える。ドラッグで ならべかえ・ほかの魔法へ移動もOK</p>
+    <p>詠唱（上から言う）の ● から 効果（上から動く）へ線をひくと魔法になる。1つの効果に詠唱いくつでも、1つの詠唱から効果いくつでも。線を押すと消える</p>
   </header>
 
   <div class="bench">
@@ -163,7 +171,7 @@
         </div>
       </div>
       <div class="fit-box" id="boardBox" style="flex: 1">
-        <div class="fit board" id="board"></div>
+        <div class="fit" id="board"></div>
       </div>
     </section>
 
@@ -280,7 +288,8 @@ function newPiece(part) {
   return { part, args };
 }
 
-// ================= 魔法の本（データ） =================
+
+// ================= 見本 =================
 const SAMPLE_TEXT = `[ブラックホール]
 闇よ
 ブラックホール
@@ -306,34 +315,12 @@ const SAMPLE_TEXT = `[ブラックホール]
 ＞ビーム 種類=光 長さ=30 ダメージ=15
 ＞待ち時間 秒=8`;
 
-let spells = [];
-let current = 0;
-let selected = -1;
 
-// ================= じゅもん.txt ⇄ データ =================
 /** 1行の数字を、きれいな文字にする */
 function numText(value) {
   return String(Math.round(Number(value) * 100) / 100);
 }
 
-/** データを じゅもん.txt の文にする */
-function makeText() {
-  const out = ["# じゅもん表 v5", "# 魔法パズルで作りました", ""];
-  for (const spell of spells) {
-    out.push(`[${spell.name.trim() || "名前のない魔法"}]`);
-    for (const line of spell.chants) if (line.trim()) out.push(line.trim());
-    let depth = 0;
-    for (const piece of spell.pieces) {
-      if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
-      const words = [piece.part, ...SPEC[piece.part].args.map(arg =>
-        `${arg.name}=${arg.kind === "num" ? numText(piece.args[arg.name]) : String(piece.args[arg.name]).replace(/\s+/g, "_")}`)];
-      out.push(`＞${"  ".repeat(depth)}${words.join(" ")}`);
-      if (piece.part === "くりかえす") depth++;
-    }
-    out.push("");
-  }
-  return out.join("\n");
-}
 
 /** じゅもん.txt の文を読んで、データにする（知らない行は とばす） */
 function readText(text) {
@@ -381,8 +368,6 @@ function readText(text) {
   return result;
 }
 
-// ================= 画面を作る =================
-const $ = id => document.getElementById(id);
 
 // ================= パズルの形 =================
 const KNOB = 8;        // 出っぱりの丸の半径
@@ -420,226 +405,6 @@ function shapeSvg(width, height, sides) {
   return svg;
 }
 
-/** ピースの数字を、短い文にする */
-function valueText(piece) {
-  return SPEC[piece.part].args.map(arg => `${arg.name} ${arg.kind === "num" ? numText(piece.args[arg.name]) : piece.args[arg.name]}`).join("・");
-}
-
-// ピースの大きさと、列の場所
-const SIZE = { nameW: 100, chantW: 140, effectW: 220, h: 46, gap: 0, top: 10, left: 4 };
-
-/** 作業台（魔法ぜんぶ）を描く */
-function drawBoard() {
-  const board = $("board");
-  board.replaceChildren();
-  spells.forEach((spell, s) => board.append(drawSpell(spell, s)));
-  fitBoard();
-}
-
-/** 列をならべるのを使うか（せまい画面では1列） */
-function fitting() {
-  return window.matchMedia("(min-width: 861px)").matches;
-}
-
-/** 作業台の 列の数を決める（大きさは変えない。横に入るだけ ならべる） */
-function fitBoard() {
-  const box = $("boardBox"), board = $("board");
-  if (!fitting()) { board.style.gridTemplateColumns = ""; return; }
-  let columns = 1;
-  for (let next = 2; next <= spells.length; next++) {
-    board.style.gridTemplateColumns = `repeat(${next}, max-content)`;
-    if (board.scrollWidth > box.clientWidth) break;
-    columns = next;
-  }
-  board.style.gridTemplateColumns = `repeat(${columns}, max-content)`;
-}
-
-// 作業台の見かた（ずらす量と 大きさ）
-const view = { x: 0, y: 0, zoom: 1 };
-
-/** 作業台の見かたを 画面にあてる */
-function applyView() {
-  const board = $("board");
-  if (!fitting()) { board.style.transform = ""; return; }
-  board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
-  $("zoomText").textContent = `${Math.round(view.zoom * 100)}%`;
-}
-
-/** Ctrl＋ホイールで大きさ、ホイールだけで上下（Shift で左右）、ホイールを押してドラッグで移動 */
-function setupView() {
-  const box = $("boardBox");
-  box.addEventListener("wheel", event => {
-    if (!fitting()) return;
-    event.preventDefault();
-    if (event.ctrlKey) {
-      // マウスのある所を中心に 大きく・小さく
-      const rect = box.getBoundingClientRect();
-      const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
-      const zoom = Math.min(2.5, Math.max(0.25, view.zoom * Math.exp(-event.deltaY * 0.0015)));
-      view.x = mouseX - (mouseX - view.x) * (zoom / view.zoom);
-      view.y = mouseY - (mouseY - view.y) * (zoom / view.zoom);
-      view.zoom = zoom;
-    } else if (event.shiftKey) {
-      view.x -= event.deltaY;
-    } else {
-      view.x -= event.deltaX;
-      view.y -= event.deltaY;
-    }
-    applyView();
-  }, { passive: false });
-
-  // ホイールを押したまま 動かすと、作業台ごと動く
-  let drag = null;
-  box.addEventListener("pointerdown", event => {
-    if (event.button !== 1 || !fitting()) return;
-    event.preventDefault();
-    drag = { startX: event.clientX, startY: event.clientY, x: view.x, y: view.y };
-    box.setPointerCapture(event.pointerId);
-    box.classList.add("panning");
-  });
-  box.addEventListener("pointermove", event => {
-    if (!drag) return;
-    view.x = drag.x + event.clientX - drag.startX;
-    view.y = drag.y + event.clientY - drag.startY;
-    applyView();
-  });
-  const stop = () => { drag = null; box.classList.remove("panning"); };
-  box.addEventListener("pointerup", stop);
-  box.addEventListener("pointercancel", stop);
-  // ホイールを押したときの 自動スクロールを出さない
-  box.addEventListener("mousedown", event => { if (event.button === 1) event.preventDefault(); });
-  $("resetView").addEventListener("click", () => { view.x = 0; view.y = 0; view.zoom = 1; applyView(); });
-}
-
-/** 右がわは 大きさを変えない（前は縮めていた） */
-function fitSide() {}
-
-/** いま えらんでいる魔法を かえる（描きなおさず、わくの色だけ） */
-function setCurrent(s) {
-  if (s === current) return;
-  current = s;
-  selected = -1;
-  document.querySelectorAll(".spell-block").forEach((block, index) => block.classList.toggle("current", index === s));
-  document.querySelectorAll(".jig.selected").forEach(jig => jig.classList.remove("selected"));
-  drawDetail();
-}
-
-/** 魔法1つぶん（見出しと 名前・詠唱・効果のパズル）を作る */
-function drawSpell(spell, s) {
-  const block = document.createElement("div");
-  block.className = "spell-block" + (s === current ? " current" : "");
-  block.addEventListener("pointerdown", () => setCurrent(s));
-  block.addEventListener("focusin", () => setCurrent(s));
-
-  const puzzle = document.createElement("div");
-  puzzle.className = "puzzle";
-  block.append(puzzle);
-
-  // 名前 ▶ 詠唱 はくっつけて、効果の列は すこしはなす
-  const nameX = SIZE.left;
-  const chantX = nameX + SIZE.nameW;
-  const effectX = chantX + SIZE.chantW + 18;
-  const chantRows = Math.max(spell.chants.length, 1);
-
-  // 名前のピース（右に出っぱり）。詠唱の列の まんなかの高さに置く
-  const name = makeJig(nameX, SIZE.top + (chantRows - 1) * SIZE.h / 2, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
-  name.body.append(titleSpan("名前"));
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.id = `spellName-${s}`;
-  nameInput.value = spell.name;
-  nameInput.setAttribute("aria-label", `魔法 ${s + 1} の名前`);
-  nameInput.addEventListener("input", () => { spell.name = nameInput.value; save(); });
-  name.body.append(nameInput);
-  // ✕ で この魔法を消す（1回目は確認、2回目で消す）
-  const del = closeButton(`魔法「${spell.name}」を消す`, () => {
-    if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "もう一度で消す"; setTimeout(() => { del.dataset.sure = ""; del.textContent = "✕"; }, 3000); return; }
-    spells.splice(s, 1); current = Math.max(0, Math.min(current, spells.length - 1)); selected = -1;
-    drawAll(); save();
-  });
-  name.root.append(del);
-  puzzle.append(name.root);
-
-  // 詠唱の列の いちばん下に「＋」の うすいピース（押すと詠唱をふやす）
-  const add = makeJig(chantX, SIZE.top + spell.chants.length * SIZE.h, SIZE.chantW, SIZE.h * 0.6, ["tab", "flat", "flat", "flat"], "chant");
-  add.root.classList.add("ghost");
-  add.body.append(titleSpan("＋ 詠唱をふやす"));
-  add.root.tabIndex = 0;
-  add.root.setAttribute("role", "button");
-  add.root.setAttribute("aria-label", `魔法 ${s + 1} に詠唱をふやす`);
-  const addChant = () => { spell.chants.push(""); drawBoard(); save(); $(`chant-${s}-${spell.chants.length - 1}`)?.focus(); };
-  add.root.addEventListener("click", addChant);
-  add.root.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); addChant(); } });
-  puzzle.append(add.root);
-
-  // 詠唱のピース（上に出っぱり・下にへこみ・左にへこみ・右に出っぱり）
-  spell.chants.forEach((line, index) => {
-    const jig = makeJig(chantX, SIZE.top + index * SIZE.h, SIZE.chantW, SIZE.h, ["tab", "tab", "hole", "hole"], "chant");
-    jig.body.append(titleSpan(`詠唱 ${index + 1}`));
-    const input = document.createElement("input");
-    input.type = "text";
-    input.id = `chant-${s}-${index}`;
-    input.value = line;
-    input.placeholder = "ここに言うことを書く";
-    input.setAttribute("aria-label", `魔法 ${s + 1} の ${index + 1}番目の詠唱`);
-    input.addEventListener("input", () => { spell.chants[index] = input.value; save(); });
-    jig.body.append(input);
-    jig.root.append(closeButton(`${index + 1}番目の詠唱を消す`, () => { spell.chants.splice(index, 1); drawBoard(); save(); }));
-    dragSetup(jig.root, `chant:${s}:${index}`, data => dropChant(data, s, index));
-    puzzle.append(jig.root);
-  });
-
-  // 効果のピース（同じ形。くりかえすの中は 黄色い線と字下げ）。種類や数字は ピースの上で そのまま変える
-  let depth = 0;
-  let effectY = SIZE.top;
-  let maxDepth = 0;
-  spell.pieces.forEach((piece, index) => {
-    if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
-    const spec = SPEC[piece.part];
-    const height = pieceHeight(piece);
-    const jig = makeJig(effectX + depth * 18, effectY, SIZE.effectW, height, ["tab", "tab", "hole", "hole"], spec.cat);
-    effectY += height;
-    if (depth > 0) { const loop = document.createElement("span"); loop.className = "loop"; jig.root.append(loop); }
-    if (piece.part === "くりかえす") depth++;
-    maxDepth = Math.max(maxDepth, depth);
-    jig.body.append(kindSelect(spell, piece, s, index));
-    if (spec.args.length) jig.body.append(argControls(piece));
-    if (s === current && index === selected) jig.root.classList.add("selected");
-    jig.root.tabIndex = 0;
-    jig.root.setAttribute("aria-label", `魔法 ${s + 1} の ${index + 1}番目の効果 ${piece.part}`);
-    // 押すと えらぶ（ピース箱のピースが このすぐ下につながる）。描きなおさないので 入力のじゃまをしない
-    jig.root.addEventListener("click", () => choosePiece(s, index, jig.root));
-    // ✕ で消す・⧉ でふやす
-    jig.root.append(closeButton(`${index + 1}番目の効果を消す`, () => { spell.pieces.splice(index, 1); current = s; selected = Math.min(index, spell.pieces.length - 1); drawBoard(); save(); }));
-    const copy = closeButton(`${index + 1}番目の効果をふやす`, () => { spell.pieces.splice(index + 1, 0, structuredClone(piece)); current = s; selected = index + 1; drawBoard(); save(); });
-    copy.textContent = "⧉";
-    copy.classList.add("copy");
-    jig.root.append(copy);
-    dragSetup(jig.root, `move:${s}:${index}`, data => dropAtData(data, s, index));
-    puzzle.append(jig.root);
-  });
-  if (spell.pieces.length === 0) {
-    const hint = document.createElement("span");
-    hint.className = "column-label";
-    hint.style.left = `${effectX + 8}px`;
-    hint.style.top = `${SIZE.top + 20}px`;
-    hint.textContent = "右のピース箱の「効果」を押してね";
-    puzzle.append(hint);
-  }
-
-  // いちばん下の空き（ここに落とすと さいごに入る）
-  const rows = Math.max(spell.chants.length + 0.6, 1);
-  puzzle.style.height = `${Math.max(SIZE.top + rows * SIZE.h, effectY) + 30}px`;
-  puzzle.style.width = `${effectX + SIZE.effectW + maxDepth * 18 + 12}px`;
-  puzzle.ondragover = event => event.preventDefault();
-  puzzle.ondrop = event => {
-    event.preventDefault();
-    const data = event.dataTransfer.getData("text/plain");
-    if (data.startsWith("chant:") || data === "new:詠唱") dropChant(data, s, spell.chants.length);
-    else dropAtData(data, s, spell.pieces.length);
-  };
-  return block;
-}
 
 /** 効果ピースの高さ（設定の数で のびる。2つずつ ならぶ） */
 function pieceHeight(piece) {
@@ -682,13 +447,6 @@ function argControls(piece) {
   return box;
 }
 
-/** 効果ピースを えらぶ（描きなおさず、しるしだけ つけかえる） */
-function choosePiece(s, index, element) {
-  if (s !== current) setCurrent(s);
-  selected = index;
-  document.querySelectorAll(".jig.selected").forEach(jig => jig.classList.remove("selected"));
-  element.classList.add("selected");
-}
 
 /** ピースの入れものを作る（root の中に SVG の形と body） */
 function makeJig(x, y, width, height, sides, cat) {
@@ -741,62 +499,575 @@ function dragSetup(element, data, onDrop) {
   element.addEventListener("drop", event => { event.preventDefault(); event.stopPropagation(); onDrop(event.dataTransfer.getData("text/plain")); });
 }
 
-/** 詠唱ピースを 魔法 s の index の前へ動かす（ほかの魔法からでも） */
-function dropChant(data, s, index) {
+
+// ================= 作業台（データ） =================
+// かたまり: { id, kind: "chant" か "effect", x, y, name（詠唱だけ）, items（詠唱の文 か 効果ピース） }
+// 線: { from: 詠唱のかたまりの id, to: 効果のかたまりの id }
+let groups = [];
+let links = [];
+let nextId = 1;
+// えらんでいるピース（ピース箱のピースが ここにつながる）
+let selected = null;
+
+// ピースの大きさ
+const SIZE = { nameW: 100, chantW: 140, effectW: 220, h: 46 };
+const GRIP = 26;          // かたまりの上の つかむところ
+const FIRST_EFFECT = "爆発";
+
+/** id から かたまりをさがす */
+function groupById(id) {
+  return groups.find(group => group.id === id);
+}
+
+/** かたまりを作って 作業台にのせる */
+function makeGroup(kind, x, y, items, name = "") {
+  const group = { id: nextId++, kind, x: Math.round(x), y: Math.round(y), items };
+  if (kind === "chant") group.name = name;
+  groups.push(group);
+  return group;
+}
+
+/** 詠唱のかたまりの 高さ（「＋」のピースもふくむ） */
+function chantHeight(group) {
+  return Math.max(group.items.length, 1) * SIZE.h;
+}
+
+/** 効果のかたまりの 高さ */
+function effectHeight(group) {
+  return group.items.reduce((sum, piece) => sum + pieceHeight(piece), 0);
+}
+
+/** 詠唱のかたまりの 線が出るところ（作業台の上の場所） */
+function portOut(group) {
+  return { x: group.x + SIZE.nameW + SIZE.chantW + 18, y: group.y + GRIP + Math.max(group.items.length, 1) * SIZE.h / 2 };
+}
+
+/** 効果のかたまりの 線が入るところ */
+function portIn(group) {
+  return { x: group.x - 16, y: group.y + GRIP + SIZE.h / 2 };
+}
+
+/** かたまりと、そこへの線を消す */
+function removeGroup(id) {
+  groups = groups.filter(group => group.id !== id);
+  links = links.filter(link => link.from !== id && link.to !== id);
+  if (selected?.group === id) selected = null;
+}
+
+/** 空になった効果のかたまりを かたづける */
+function cleanEmpty() {
+  for (const group of [...groups]) if (group.kind === "effect" && group.items.length === 0) removeGroup(group.id);
+}
+
+// ================= じゅもん.txt ⇄ データ =================
+/** 効果ピースの ならびを「＞」の行にする（くりかえすが とじていなければ さいごに とじる） */
+function pieceLines(pieces) {
+  const out = [];
+  let depth = 0;
+  for (const piece of pieces) {
+    if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
+    const words = [piece.part, ...SPEC[piece.part].args.map(arg =>
+      `${arg.name}=${arg.kind === "num" ? numText(piece.args[arg.name]) : String(piece.args[arg.name]).replace(/\s+/g, "_")}`)];
+    out.push(`＞${"  ".repeat(depth)}${words.join(" ")}`);
+    if (piece.part === "くりかえす") depth++;
+  }
+  while (depth-- > 0) out.push(`＞${"  ".repeat(depth)}ここまで`);
+  return out;
+}
+
+/** 作業台を じゅもん.txt の文にする（詠唱のかたまり1つが 魔法1つ。つながった効果を上から順に ぜんぶ動かす） */
+function makeText() {
+  const out = ["# じゅもん表 v5", "# 魔法パズルで作りました", ""];
+  const usedNames = new Set();
+  const lonely = [];
+  // 上にあるものから順に
+  const chants = groups.filter(group => group.kind === "chant").sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const group of chants) {
+    const lines = group.items.map(line => line.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const effects = links.filter(link => link.from === group.id).map(link => groupById(link.to)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x);
+    if (!effects.length) { lonely.push(lines[0]); continue; }
+    // 名前がなければ さいしょの詠唱を名前にする。同じ名前は (2) をつける
+    let name = (group.name || "").trim() || lines[0];
+    for (let number = 2; usedNames.has(name); number++) name = `${(group.name || "").trim() || lines[0]}(${number})`;
+    usedNames.add(name);
+    out.push(`[${name}]`, ...lines);
+    for (const effect of effects) out.push(...pieceLines(effect.items));
+    out.push("");
+  }
+  if (lonely.length) out.push(`# 効果につながっていない詠唱: ${lonely.join("・")}`);
+  return out.join("\n");
+}
+
+/** 魔法のならび（readText の結果）を 作業台にする。同じ効果は 1つのかたまりにまとめて 線を2本ひく */
+function spellsToBoard(spells) {
+  groups = []; links = []; nextId = 1; selected = null;
+  const byProgram = new Map();
+  let y = 20;
+  for (const spell of spells) {
+    const chant = makeGroup("chant", 20, y, spell.chants.length ? spell.chants : [""], spell.name);
+    let height = chantHeight(chant);
+    if (spell.pieces.length) {
+      const key = pieceLines(spell.pieces).join("\n");
+      let effect = byProgram.get(key);
+      if (!effect) {
+        effect = makeGroup("effect", 420, y, spell.pieces);
+        byProgram.set(key, effect);
+        height = Math.max(height, effectHeight(effect));
+      }
+      links.push({ from: chant.id, to: effect.id });
+    }
+    y += height + GRIP + 40;
+  }
+}
+
+// ================= 画面を作る =================
+const $ = id => document.getElementById(id);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** 作業台を ぜんぶ描く */
+function drawBoard() {
+  const board = $("board");
+  board.replaceChildren();
+  // 線は いちばん下に
+  const wires = document.createElementNS(SVG_NS, "svg");
+  wires.id = "wires";
+  wires.setAttribute("width", "1");
+  wires.setAttribute("height", "1");
+  board.append(wires);
+  for (const group of groups) board.append(group.kind === "chant" ? drawChantGroup(group) : drawEffectGroup(group));
+  drawWires();
+}
+
+/** 線を描きなおす（かたまりを動かしたときも） */
+function drawWires(extra) {
+  const wires = $("wires");
+  if (!wires) return;
+  wires.replaceChildren();
+  const curve = (from, to) => {
+    const bend = Math.max(40, Math.abs(to.x - from.x) / 2);
+    return `M ${from.x} ${from.y} C ${from.x + bend} ${from.y}, ${to.x - bend} ${to.y}, ${to.x} ${to.y}`;
+  };
+  for (const link of links) {
+    const from = groupById(link.from), to = groupById(link.to);
+    if (!from || !to) continue;
+    const d = curve(portOut(from), portIn(to));
+    // 押しやすいように 太い とうめいの線を下にしく
+    const hit = document.createElementNS(SVG_NS, "path");
+    hit.setAttribute("d", d);
+    hit.setAttribute("class", "wire-hit");
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = "押すと この線を消す";
+    hit.append(title);
+    hit.addEventListener("click", () => { links = links.filter(item => item !== link); drawWires(); save(); });
+    const line = document.createElementNS(SVG_NS, "path");
+    line.setAttribute("d", d);
+    line.setAttribute("class", "wire");
+    wires.append(line, hit);
+  }
+  // ひいている とちゅうの線
+  if (extra) {
+    const line = document.createElementNS(SVG_NS, "path");
+    line.setAttribute("d", curve(extra.from, extra.to));
+    line.setAttribute("class", "wire drawing");
+    wires.append(line);
+  }
+}
+
+/** かたまりの入れもの（上に つかんで動かすところ） */
+function groupShell(group, label, width) {
+  const root = document.createElement("div");
+  root.className = `group ${group.kind}`;
+  root.dataset.id = group.id;
+  root.style.left = `${group.x}px`;
+  root.style.top = `${group.y}px`;
+  root.style.width = `${width}px`;
+  const grip = document.createElement("div");
+  grip.className = "grip";
+  grip.textContent = "⠿";
+  grip.setAttribute("aria-label", `${label}のかたまりを動かす`);
+  grip.title = "つかんで動かす（同じ種類のかたまりの上で はなすと くっつく）";
+  root.append(grip);
+  moveSetup(grip, root, group);
+  // ここ（ピースのないところ）に落とすと、さいごに入る
+  root.addEventListener("dragover", event => event.preventDefault());
+  root.addEventListener("drop", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const data = event.dataTransfer.getData("text/plain");
+    if (group.kind === "chant") dropChant(data, group, group.items.length);
+    else dropEffect(data, group, group.items.length);
+  });
+  return root;
+}
+
+/** 詠唱のかたまりを描く（名前 ▶ 詠唱の列 ▶ 線の出るところ） */
+function drawChantGroup(group) {
+  const height = chantHeight(group);
+  const root = groupShell(group, "詠唱", SIZE.nameW + SIZE.chantW + 30);
+  root.style.height = `${GRIP + height}px`;
+  const rows = Math.max(group.items.length, 1);
+
+  // 名前のピース（右に出っぱり）。詠唱の列の まんなかの高さに置く。名前はなくてもいい
+  const name = makeJig(0, GRIP + (rows - 1) * SIZE.h / 2, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
+  name.body.append(titleSpan("名前"));
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = group.name || "";
+  nameInput.placeholder = "なくてOK";
+  nameInput.setAttribute("aria-label", "魔法の名前");
+  nameInput.addEventListener("input", () => { group.name = nameInput.value; save(); });
+  name.body.append(nameInput);
+  // ✕ で この詠唱のかたまりを消す（1回目は確認、2回目で消す）
+  const del = closeButton("この詠唱のかたまりを消す", () => {
+    if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "もう一度で消す"; setTimeout(() => { del.dataset.sure = ""; del.textContent = "✕"; }, 3000); return; }
+    removeGroup(group.id);
+    drawBoard(); save();
+  });
+  name.root.append(del);
+  root.append(name.root);
+
+  // 詠唱のピース（上に出っぱり・下にへこみ・左にへこみ・右に出っぱり）
+  group.items.forEach((line, index) => {
+    const jig = makeJig(SIZE.nameW, GRIP + index * SIZE.h, SIZE.chantW, SIZE.h, ["tab", "tab", "hole", "hole"], "chant");
+    jig.body.append(titleSpan("詠唱"));
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.chant = `${group.id}-${index}`;
+    input.value = line;
+    input.placeholder = "言うことを書く";
+    input.setAttribute("aria-label", `${index + 1}番目の詠唱`);
+    input.addEventListener("input", () => { group.items[index] = input.value; save(); });
+    input.addEventListener("focus", () => choose(group.id, index, jig.root));
+    jig.body.append(input);
+    jig.root.append(closeButton(`${index + 1}番目の詠唱を消す`, () => { group.items.splice(index, 1); selected = null; drawBoard(); save(); }));
+    jig.root.addEventListener("click", () => choose(group.id, index, jig.root));
+    if (isSelected(group.id, index)) jig.root.classList.add("selected");
+    dragSetup(jig.root, `chant:${group.id}:${index}`, data => dropChant(data, group, index));
+    root.append(jig.root);
+  });
+
+  // 線の出るところ（ここから 効果のかたまりへ ひっぱる）
+  const out = portOut(group);
+  const port = document.createElement("div");
+  port.className = "port out";
+  port.style.left = `${out.x - group.x}px`;
+  port.style.top = `${out.y - group.y}px`;
+  port.title = "ひっぱって 効果のかたまりに つなぐ";
+  wireSetup(port, group);
+  root.append(port);
+  return root;
+}
+
+/** 効果のかたまりを描く（種類や数字は ピースの上で変える） */
+function drawEffectGroup(group) {
+  let depth = 0, maxDepth = 0, y = GRIP;
+  const root = groupShell(group, "効果", SIZE.effectW + 60);
+  group.items.forEach((piece, index) => {
+    if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
+    const spec = SPEC[piece.part];
+    const height = pieceHeight(piece);
+    const jig = makeJig(depth * 18, y, SIZE.effectW, height, ["tab", "tab", "hole", "hole"], spec.cat);
+    y += height;
+    if (depth > 0) { const loop = document.createElement("span"); loop.className = "loop"; jig.root.append(loop); }
+    if (piece.part === "くりかえす") depth++;
+    maxDepth = Math.max(maxDepth, depth);
+    jig.body.append(kindSelect(group, piece, index));
+    if (spec.args.length) jig.body.append(argControls(piece));
+    if (isSelected(group.id, index)) jig.root.classList.add("selected");
+    jig.root.tabIndex = 0;
+    jig.root.setAttribute("aria-label", `${index + 1}番目の効果 ${piece.part}`);
+    // 押すと えらぶ（ピース箱の「効果」が このすぐ下につながる）
+    jig.root.addEventListener("click", () => choose(group.id, index, jig.root));
+    // ✕ で消す・⧉ でふやす
+    jig.root.append(closeButton(`${index + 1}番目の効果を消す`, () => { group.items.splice(index, 1); selected = null; cleanEmpty(); drawBoard(); save(); }));
+    const copy = closeButton(`${index + 1}番目の効果をふやす`, () => { group.items.splice(index + 1, 0, structuredClone(piece)); selected = { group: group.id, index: index + 1 }; drawBoard(); save(); });
+    copy.textContent = "⧉";
+    copy.classList.add("copy");
+    jig.root.append(copy);
+    dragSetup(jig.root, `move:${group.id}:${index}`, data => dropEffect(data, group, index));
+    root.append(jig.root);
+  });
+  root.style.width = `${SIZE.effectW + maxDepth * 18 + 12}px`;
+  root.style.height = `${y + 10}px`;
+
+  // 線の入るところ
+  const port = document.createElement("div");
+  port.className = "port in";
+  port.style.left = `${portIn(group).x - group.x}px`;
+  port.style.top = `${portIn(group).y - group.y}px`;
+  port.title = "詠唱のかたまりから ここへ線をつなぐ";
+  root.append(port);
+  return root;
+}
+
+/** えらんでいるか */
+function isSelected(groupId, index) {
+  return selected?.group === groupId && selected.index === index;
+}
+
+/** ピースを えらぶ（描きなおさず、しるしだけ つけかえる） */
+function choose(groupId, index, element) {
+  selected = { group: groupId, index };
+  document.querySelectorAll(".jig.selected").forEach(jig => jig.classList.remove("selected"));
+  element.classList.add("selected");
+}
+
+/** 効果ピースの いちばん上：種類をえらぶ（えらびなおすと 同じ名前の設定は引きつぐ） */
+function kindSelect(group, piece, index) {
+  const select = document.createElement("select");
+  select.className = "kind";
+  select.setAttribute("aria-label", `${index + 1}番目の効果の種類`);
+  for (const name of [...new Set(PIECES.map(item => item.group))]) {
+    const box = document.createElement("optgroup");
+    box.label = name;
+    for (const item of PIECES.filter(entry => entry.group === name)) box.append(new Option(item.part, item.part));
+    select.append(box);
+  }
+  select.value = piece.part;
+  select.addEventListener("change", () => {
+    const fresh = newPiece(select.value);
+    for (const name of Object.keys(fresh.args)) if (name in piece.args) fresh.args[name] = piece.args[name];
+    group.items[index] = fresh;
+    // くりかえす には ここまで を すぐ下につける
+    if (select.value === "くりかえす") group.items.splice(index + 1, 0, newPiece("ここまで"));
+    selected = { group: group.id, index };
+    drawBoard(); save();
+  });
+  return select;
+}
+
+// ================= 動かす・つなぐ =================
+/** 画面の場所を 作業台の上の場所にする（ずらしと大きさを もどす） */
+function toBoard(clientX, clientY) {
+  const rect = $("boardBox").getBoundingClientRect();
+  return { x: (clientX - rect.left - view.x) / view.zoom, y: (clientY - rect.top - view.y) / view.zoom };
+}
+
+/** かたまり from を into の下に くっつける（線も 引きつぐ） */
+function mergeGroups(into, from) {
+  into.items.push(...from.items);
+  for (const link of links) {
+    if (link.from === from.id) link.from = into.id;
+    if (link.to === from.id) link.to = into.id;
+  }
+  // 同じ線が2本になったら 1本に
+  const seen = new Set();
+  links = links.filter(link => { const key = `${link.from}-${link.to}`; if (seen.has(key)) return false; seen.add(key); return true; });
+  removeGroup(from.id);
+}
+
+/** つかむところを ひっぱると、かたまりごと動く */
+function moveSetup(grip, root, group) {
+  grip.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const start = toBoard(event.clientX, event.clientY);
+    const from = { x: group.x, y: group.y };
+    grip.setPointerCapture(event.pointerId);
+    root.classList.add("moving");
+    const onMove = moveEvent => {
+      const now = toBoard(moveEvent.clientX, moveEvent.clientY);
+      group.x = Math.round(from.x + now.x - start.x);
+      group.y = Math.round(from.y + now.y - start.y);
+      root.style.left = `${group.x}px`;
+      root.style.top = `${group.y}px`;
+      drawWires();
+    };
+    const onUp = upEvent => {
+      grip.removeEventListener("pointermove", onMove);
+      grip.removeEventListener("pointerup", onUp);
+      root.classList.remove("moving");
+      // 同じ種類のかたまりの上で はなしたら、その下に くっつける
+      root.style.pointerEvents = "none";
+      const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(`.group.${group.kind}`);
+      root.style.pointerEvents = "";
+      const other = target && groupById(Number(target.dataset.id));
+      if (other && other !== group) {
+        mergeGroups(other, group);
+        drawBoard();
+      }
+      save();
+    };
+    grip.addEventListener("pointermove", onMove);
+    grip.addEventListener("pointerup", onUp);
+  });
+}
+
+/** 線の出るところを ひっぱって、効果のかたまりの上で はなすと つながる */
+function wireSetup(port, group) {
+  port.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    port.setPointerCapture(event.pointerId);
+    const onMove = moveEvent => drawWires({ from: portOut(group), to: toBoard(moveEvent.clientX, moveEvent.clientY) });
+    const onUp = upEvent => {
+      port.removeEventListener("pointermove", onMove);
+      port.removeEventListener("pointerup", onUp);
+      const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(".group.effect");
+      if (target) {
+        const to = Number(target.dataset.id);
+        if (!links.some(link => link.from === group.id && link.to === to)) links.push({ from: group.id, to });
+        save();
+      }
+      drawWires();
+    };
+    port.addEventListener("pointermove", onMove);
+    port.addEventListener("pointerup", onUp);
+  });
+}
+
+/** 詠唱ピースを かたまり group の index の前へ入れる（ほかのかたまりからでも、ピース箱からでも） */
+function dropChant(data, group, index) {
   let line = "", to = index;
   if (data === "new:詠唱") {
     // ピース箱からの 新しい詠唱
   } else if (data.startsWith("chant:")) {
-    const [fromSpell, from] = data.slice(6).split(":").map(Number);
-    [line] = spells[fromSpell].chants.splice(from, 1);
-    to = fromSpell === s && from < index ? index - 1 : index;
+    const [fromId, from] = data.slice(6).split(":").map(Number);
+    const source = groupById(fromId);
+    [line] = source.items.splice(from, 1);
+    to = source === group && from < index ? index - 1 : index;
   } else {
     return;
   }
-  spells[s].chants.splice(to, 0, line);
-  current = s;
+  group.items.splice(to, 0, line);
+  selected = { group: group.id, index: to };
   drawBoard(); save();
 }
 
-/** ドラッグした効果ピースを 魔法 s の index の前に入れる（ほかの魔法からでも） */
-function dropAtData(data, s, index) {
-  const pieces = spells[s].pieces;
+/** 効果ピースを かたまり group の index の前へ入れる（ほかのかたまりからでも、ピース箱からでも） */
+function dropEffect(data, group, index) {
+  let to = index;
   if (data.startsWith("move:")) {
-    const [fromSpell, from] = data.slice(5).split(":").map(Number);
-    const [piece] = spells[fromSpell].pieces.splice(from, 1);
-    const to = fromSpell === s && from < index ? index - 1 : index;
-    pieces.splice(to, 0, piece);
-    selected = to;
+    const [fromId, from] = data.slice(5).split(":").map(Number);
+    const source = groupById(fromId);
+    const [piece] = source.items.splice(from, 1);
+    to = source === group && from < index ? index - 1 : index;
+    group.items.splice(to, 0, piece);
   } else if (data === "new:効果") {
-    pieces.splice(index, 0, newPiece(FIRST_EFFECT));
-    selected = index;
-  } else if (data === "new:名前") {
-    addSpell();
-    return;
+    group.items.splice(index, 0, newPiece(FIRST_EFFECT));
   } else {
     return;
   }
-  current = s;
-  drawBoard(); drawDetail(); save();
+  selected = { group: group.id, index: to };
+  cleanEmpty();
+  drawBoard(); save();
 }
 
-/** 右がわを縮めなおす（前は「えらんだピース」の欄を描いていた。今は設定がピースの上にある） */
-function drawDetail() {
-  fitSide();
+/** 作業台の 何もないところに落とすと、そこに新しいかたまりができる */
+function dropOnEmpty(data, point) {
+  if (data === "new:名前" || data === "new:詠唱") {
+    const group = makeGroup("chant", point.x, point.y, [""]);
+    selected = { group: group.id, index: 0 };
+  } else if (data === "new:効果") {
+    const group = makeGroup("effect", point.x, point.y, [newPiece(FIRST_EFFECT)]);
+    selected = { group: group.id, index: 0 };
+  } else if (data.startsWith("chant:")) {
+    const [fromId, from] = data.slice(6).split(":").map(Number);
+    const [line] = groupById(fromId).items.splice(from, 1);
+    const group = makeGroup("chant", point.x, point.y, [line]);
+    selected = { group: group.id, index: 0 };
+  } else if (data.startsWith("move:")) {
+    const [fromId, from] = data.slice(5).split(":").map(Number);
+    const [piece] = groupById(fromId).items.splice(from, 1);
+    const group = makeGroup("effect", point.x, point.y, [piece]);
+    selected = { group: group.id, index: 0 };
+    cleanEmpty();
+  } else {
+    return;
+  }
+  drawBoard(); save();
 }
 
-// 新しい効果ピースの はじめの種類
-const FIRST_EFFECT = "爆発";
+// ================= 見かた（大きさ・移動） =================
+const view = { x: 0, y: 0, zoom: 1 };
 
+/** 作業台の見かたを 画面にあてる */
+function applyView() {
+  $("board").style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+  $("zoomText").textContent = `${Math.round(view.zoom * 100)}%`;
+}
+
+/** 新しいかたまりを置く 空いている所（いちばん下のかたまりの さらに下）。見えなければ そこまで動かす */
+function viewCenter() {
+  let bottom = 20;
+  for (const group of groups) {
+    const height = group.kind === "chant" ? chantHeight(group) : effectHeight(group);
+    bottom = Math.max(bottom, group.y + GRIP + height + 40);
+  }
+  const point = { x: 20, y: bottom };
+  // 見えるところまで 作業台を動かす
+  const box = $("boardBox");
+  const screenY = point.y * view.zoom + view.y;
+  if (screenY < 0 || screenY > box.clientHeight - 120) view.y = box.clientHeight * 0.4 - point.y * view.zoom;
+  const screenX = point.x * view.zoom + view.x;
+  if (screenX < 0 || screenX > box.clientWidth - 200) view.x = 20 - point.x * view.zoom;
+  applyView();
+  return point;
+}
+
+/** Ctrl＋ホイールで大きさ、ホイールだけで上下（Shift で左右）、ホイールを押してドラッグで移動 */
+function setupView() {
+  const box = $("boardBox");
+  box.addEventListener("wheel", event => {
+    event.preventDefault();
+    if (event.ctrlKey) {
+      // マウスのある所を中心に 大きく・小さく
+      const rect = box.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
+      const zoom = Math.min(2.5, Math.max(0.25, view.zoom * Math.exp(-event.deltaY * 0.0015)));
+      view.x = mouseX - (mouseX - view.x) * (zoom / view.zoom);
+      view.y = mouseY - (mouseY - view.y) * (zoom / view.zoom);
+      view.zoom = zoom;
+    } else if (event.shiftKey) {
+      view.x -= event.deltaY;
+    } else {
+      view.x -= event.deltaX;
+      view.y -= event.deltaY;
+    }
+    applyView();
+  }, { passive: false });
+
+  // ホイールを押したまま 動かすと、作業台ごと動く
+  let drag = null;
+  box.addEventListener("pointerdown", event => {
+    if (event.button !== 1) return;
+    event.preventDefault();
+    drag = { startX: event.clientX, startY: event.clientY, x: view.x, y: view.y };
+    box.setPointerCapture(event.pointerId);
+    box.classList.add("panning");
+  });
+  box.addEventListener("pointermove", event => {
+    if (!drag) return;
+    view.x = drag.x + event.clientX - drag.startX;
+    view.y = drag.y + event.clientY - drag.startY;
+    applyView();
+  });
+  const stop = () => { drag = null; box.classList.remove("panning"); };
+  box.addEventListener("pointerup", stop);
+  box.addEventListener("pointercancel", stop);
+  // ホイールを押したときの 自動スクロールを出さない
+  box.addEventListener("mousedown", event => { if (event.button === 1) event.preventDefault(); });
+  // 何もないところに ピースを落とす
+  box.addEventListener("dragover", event => event.preventDefault());
+  box.addEventListener("drop", event => {
+    event.preventDefault();
+    dropOnEmpty(event.dataTransfer.getData("text/plain"), toBoard(event.clientX, event.clientY));
+  });
+  $("resetView").addEventListener("click", () => { view.x = 0; view.y = 0; view.zoom = 1; applyView(); });
+}
+
+// ================= ピース箱 =================
 /** ピース箱を描く（名前・詠唱・効果の3つだけ） */
 function drawShelf() {
   const shelf = $("shelf");
   const row = document.createElement("div");
   row.className = "row";
   const kinds = [
-    { label: "名前", cat: "name", help: "新しい魔法を つくる", sides: ["flat", "tab", "flat", "flat"], add: addSpell },
-    { label: "詠唱", cat: "chant", help: "えらんでいる魔法に 詠唱をふやす", sides: ["tab", "tab", "hole", "hole"], add: addChantToCurrent },
-    { label: "効果", cat: "attack", help: "えらんだ効果のすぐ下に つなぐ。種類はピースの上でえらぶ", sides: ["tab", "tab", "hole", "hole"], add: () => addPiece(FIRST_EFFECT) },
+    { label: "名前", cat: "name", help: "新しい詠唱のかたまりを つくる", sides: ["flat", "tab", "flat", "flat"], add: addChantGroup },
+    { label: "詠唱", cat: "chant", help: "えらんでいる詠唱のすぐ下に ふやす", sides: ["tab", "tab", "hole", "hole"], add: addChantPiece },
+    { label: "効果", cat: "attack", help: "えらんでいる効果のすぐ下に つなぐ。詠唱をえらんでいたら 新しい効果のかたまりを作って線でつなぐ", sides: ["tab", "tab", "hole", "hole"], add: addEffectPiece },
   ];
   for (const kind of kinds) {
     const button = document.createElement("button");
@@ -817,71 +1088,55 @@ function drawShelf() {
   }
   const hint = document.createElement("p");
   hint.className = "hint";
-  hint.textContent = "押すと、えらんでいる魔法につながります。ドラッグで好きな所へ入れることもできます。";
+  hint.textContent = "押すと えらんでいるピースのすぐ下に入ります。作業台の あいている所へドラッグすると 新しいかたまりに。ピースを 同じ種類のピースの上へドラッグすると くっつきます。";
   shelf.append(row, hint);
 }
 
-/** 効果ピースの いちばん上：種類をえらぶ（えらびなおすと 数字は その種類の はじめの数字に） */
-function kindSelect(spell, piece, s, index) {
-  const select = document.createElement("select");
-  select.className = "kind";
-  select.setAttribute("aria-label", `${index + 1}番目の効果の種類`);
-  for (const group of [...new Set(PIECES.map(item => item.group))]) {
-    const box = document.createElement("optgroup");
-    box.label = group;
-    for (const item of PIECES.filter(entry => entry.group === group)) box.append(new Option(item.part, item.part));
-    select.append(box);
-  }
-  select.value = piece.part;
-  select.addEventListener("change", () => {
-    const fresh = newPiece(select.value);
-    // 同じ名前の設定は そのまま引きつぐ
-    for (const name of Object.keys(fresh.args)) if (name in piece.args) fresh.args[name] = piece.args[name];
-    spell.pieces[index] = fresh;
-    // くりかえす には ここまで を すぐ下につける
-    if (select.value === "くりかえす") spell.pieces.splice(index + 1, 0, newPiece("ここまで"));
-    current = s; selected = index;
-    drawBoard(); save();
-  });
-  return select;
-}
-
-/** 新しい魔法をつくる */
-function addSpell() {
-  spells.push({ name: `魔法${spells.length + 1}`, chants: ["", ""], pieces: [] });
-  current = spells.length - 1; selected = -1;
-  drawAll(); save();
-  $(`spellName-${current}`)?.focus({ preventScroll: true });
-}
-
-/** えらんでいる魔法に 詠唱をふやす */
-function addChantToCurrent() {
-  const chants = spells[current].chants;
-  chants.push("");
+/** 新しい詠唱のかたまりを作る */
+function addChantGroup() {
+  const point = viewCenter();
+  const group = makeGroup("chant", point.x, point.y, [""]);
+  selected = { group: group.id, index: 0 };
   drawBoard(); save();
-  $(`chant-${current}-${chants.length - 1}`)?.focus({ preventScroll: true });
+  document.querySelector(`[data-chant="${group.id}-0"]`)?.focus({ preventScroll: true });
 }
 
-/** 効果ピースを、えらんだピースのすぐ下（なければさいご）に足す。くりかえすなら ここまで もいっしょに */
-function addPiece(part) {
-  const pieces = spells[current].pieces;
-  const at = selected >= 0 ? selected + 1 : pieces.length;
-  if (part === "くりかえす") {
-    pieces.splice(at, 0, newPiece("くりかえす"), newPiece("ここまで"));
+/** 詠唱のかたまりに 詠唱をふやす（えらんでいる詠唱のすぐ下、なければ さいご） */
+function addChantTo(group) {
+  const at = selected?.group === group.id ? selected.index + 1 : group.items.length;
+  group.items.splice(at, 0, "");
+  selected = { group: group.id, index: at };
+  drawBoard(); save();
+  document.querySelector(`[data-chant="${group.id}-${at}"]`)?.focus({ preventScroll: true });
+}
+
+/** ピース箱の「詠唱」：えらんでいる詠唱のかたまりへ。なければ 新しいかたまり */
+function addChantPiece() {
+  const group = groupById(selected?.group);
+  if (group?.kind === "chant") addChantTo(group);
+  else addChantGroup();
+}
+
+/** ピース箱の「効果」：えらんでいる効果のすぐ下へ。詠唱をえらんでいたら 新しい効果のかたまりを作って つなぐ */
+function addEffectPiece() {
+  const group = groupById(selected?.group);
+  if (group?.kind === "effect") {
+    const at = selected.index + 1;
+    group.items.splice(at, 0, newPiece(FIRST_EFFECT));
+    selected = { group: group.id, index: at };
+  } else if (group?.kind === "chant") {
+    const effect = makeGroup("effect", group.x + SIZE.nameW + SIZE.chantW + 90, group.y, [newPiece(FIRST_EFFECT)]);
+    links.push({ from: group.id, to: effect.id });
+    selected = { group: effect.id, index: 0 };
   } else {
-    pieces.splice(at, 0, newPiece(part));
+    const point = viewCenter();
+    const effect = makeGroup("effect", point.x + 400, point.y, [newPiece(FIRST_EFFECT)]);
+    selected = { group: effect.id, index: 0 };
   }
-  selected = at;
-  drawBoard(); drawDetail(); save();
+  drawBoard(); save();
 }
 
-/** 全部 描きなおす */
-function drawAll() {
-  if (!spells.length) spells.push({ name: "新しい魔法", chants: [""], pieces: [] });
-  current = Math.min(current, spells.length - 1);
-  drawBoard(); drawDetail(); refreshText();
-}
-
+// ================= ほぞん =================
 /** 右の文を作りなおす */
 function refreshText() {
   $("output").value = makeText();
@@ -890,7 +1145,21 @@ function refreshText() {
 /** 変わったら、文を作りなおして このブラウザにとっておく */
 function save() {
   refreshText();
-  try { localStorage.setItem("koemahou-puzzle", JSON.stringify(spells)); } catch (error) { /* とっておけなくても動く */ }
+  try { localStorage.setItem("koemahou-board", JSON.stringify({ groups, links, nextId })); } catch (error) { /* とっておけなくても動く */ }
+}
+
+/** とっておいた作業台を読む（前の形「魔法ごと」のデータなら 作業台にする） */
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("koemahou-board") || "null");
+    if (saved && Array.isArray(saved.groups)) {
+      groups = saved.groups; links = saved.links || []; nextId = saved.nextId || groups.length + 1;
+      return;
+    }
+    const old = JSON.parse(localStorage.getItem("koemahou-puzzle") || "null");
+    if (Array.isArray(old) && old.length) { spellsToBoard(old); return; }
+  } catch (error) { /* 読めなければ 見本から */ }
+  spellsToBoard(readText(SAMPLE_TEXT));
 }
 
 // ================= ボタン =================
@@ -902,20 +1171,17 @@ $("copy").addEventListener("click", () => {
 $("importBtn").addEventListener("click", () => {
   const read = readText($("importText").value);
   if (!read.length) { $("status").textContent = "魔法が見つかりませんでした（[名前] の行がいります）"; return; }
-  spells = read; current = 0; selected = -1;
-  drawAll(); save();
+  spellsToBoard(read);
+  view.x = 0; view.y = 0; view.zoom = 1; applyView();
+  drawBoard(); save();
   $("status").textContent = `魔法を ${read.length} こ 読みこみました`;
 });
 
 // ================= はじめる =================
-try { const saved = JSON.parse(localStorage.getItem("koemahou-puzzle") || "null"); if (Array.isArray(saved) && saved.length) spells = saved; } catch (error) { spells = []; }
-if (!spells.length) spells = readText(SAMPLE_TEXT);
+load();
 drawShelf();
 setupView();
-drawAll();
 applyView();
-// 画面の大きさが変わったら・文字が読みこまれたら 縮めなおす
-window.addEventListener("resize", () => { fitBoard(); fitSide(); });
-$("importBox").addEventListener("toggle", fitSide);
-document.fonts?.ready.then(() => { fitBoard(); fitSide(); });
+drawBoard();
+refreshText();
 </script>
