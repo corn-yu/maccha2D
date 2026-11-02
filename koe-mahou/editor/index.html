@@ -697,7 +697,7 @@ function groupShell(group, label, width) {
   grip.className = "grip";
   grip.textContent = "⠿";
   grip.setAttribute("aria-label", `${label}のかたまりを動かす`);
-  grip.title = "つかんで動かす（同じ種類のかたまりの上で はなすと くっつく）";
+  grip.title = "つかんで動かす（同じ種類のかたまりの 上か下に近づけると くっつく）";
   root.append(grip);
   moveSetup(grip, root, group);
   // ここ（ピースのないところ）に落とすと、さいごに入る
@@ -869,9 +869,38 @@ function toBoard(clientX, clientY) {
   return { x: (clientX - rect.left - view.x) / view.zoom, y: (clientY - rect.top - view.y) / view.zoom };
 }
 
-/** かたまり from を into の下に くっつける（線も 引きつぐ） */
-function mergeGroups(into, from) {
-  into.items.push(...from.items);
+/** かたまりの高さ（名前は1こぶん） */
+function groupHeight(group) {
+  return group.kind === "chant" ? chantHeight(group) : group.kind === "effect" ? effectHeight(group) : SIZE.h;
+}
+
+/** 動かしたかたまりが くっつく相手をさがす（同じ種類で、上か下に近いか 重なっているもの） */
+function snapTarget(group) {
+  if (group.kind === "name") return null;
+  const near = 40;
+  const myTop = group.y, myBottom = group.y + groupHeight(group);
+  for (const other of groups) {
+    if (other === group || other.kind !== group.kind) continue;
+    if (Math.abs(other.x - group.x) > 90) continue;
+    const otherTop = other.y, otherBottom = other.y + groupHeight(other);
+    // 相手の上に近い → 上に、相手の下に近い → 下に
+    if (Math.abs(myBottom - otherTop) < near) return { other, top: true };
+    if (Math.abs(myTop - otherBottom) < near) return { other, top: false };
+    // 重なっていたら、まんなかが上か下かで決める
+    if (myTop < otherBottom && myBottom > otherTop) return { other, top: myTop + myBottom < otherTop + otherBottom };
+  }
+  return null;
+}
+
+/** かたまり from を into の下（top なら上）に くっつける（線も 引きつぐ） */
+function mergeGroups(into, from, top = false) {
+  if (top) {
+    // 上につけたときは、かたまりの場所も 上にずらす
+    into.items.unshift(...from.items);
+    into.y -= (from.kind === "chant" ? chantHeight(from) : effectHeight(from));
+  } else {
+    into.items.push(...from.items);
+  }
   for (const link of links) {
     if (link.from === from.id) link.from = into.id;
     if (link.to === from.id) link.to = into.id;
@@ -903,13 +932,10 @@ function moveSetup(grip, root, group) {
       grip.removeEventListener("pointermove", onMove);
       grip.removeEventListener("pointerup", onUp);
       root.classList.remove("moving");
-      // 同じ種類のかたまりの上で はなしたら、その下に くっつける
-      root.style.pointerEvents = "none";
-      const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(`.group.${group.kind}`);
-      root.style.pointerEvents = "";
-      const other = target && group.kind !== "name" && groupById(Number(target.dataset.id));
-      if (other && other !== group) {
-        mergeGroups(other, group);
+      // 同じ種類のかたまりの 上か下に近づけて はなしたら、そこに くっつける
+      const snap = snapTarget(group);
+      if (snap) {
+        mergeGroups(snap.other, group, snap.top);
         drawBoard();
       }
       save();
