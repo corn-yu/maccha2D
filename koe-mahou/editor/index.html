@@ -64,15 +64,15 @@
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
   /* 作業台の上の 魔法1つぶん */
-  .board { display: grid; gap: 10px; align-items: start; grid-auto-flow: row; }
+  .board { display: grid; gap: 28px 36px; align-items: center; justify-items: center; grid-auto-flow: row; }
   .board-card { height: 100%; box-sizing: border-box; }
-  .spell-block { border: 2px dashed var(--line); border-radius: 12px; padding: 8px 10px 4px; min-width: 0; }
-  .spell-block.current { border-style: solid; border-color: var(--accent); }
-  .spell-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
-  .spell-head .no { font-family: var(--font-display); color: var(--muted); }
+  .spell-block { border-radius: 16px; padding: 6px 10px; min-width: 0; }
+  .spell-block.current { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .jig.ghost { opacity: 0.45; }
+  .jig.ghost:hover, .jig.ghost:focus-visible { opacity: 0.8; }
+  .jig.ghost svg path { stroke-dasharray: 6 4; }
 
   /* パズル：ピースは SVG の形の上に 文字や入力をのせる */
-  .puzzle-scroll { padding-bottom: 2px; }
   .puzzle { position: relative; min-height: 200px; }
   .jig { position: absolute; cursor: pointer; }
   .jig svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
@@ -81,7 +81,7 @@
   .jig .title { font-weight: 900; font-size: 0.95rem; line-height: 1.2; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
   .jig .vals { font-size: 0.72rem; line-height: 1.35; opacity: 0.95; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .jig input { width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35; border: none; border-radius: 6px; padding: 5px 8px; font-size: 0.9rem; }
-  .jig .x { position: absolute; top: 6px; right: 18px; background: rgba(0, 0, 0, 0.25); color: #fff; border: none; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; line-height: 1.5; }
+  .jig .x { position: absolute; top: 6px; right: 18px; z-index: 1; background: rgba(0, 0, 0, 0.25); color: #fff; border: none; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; line-height: 1.5; }
   .jig.selected svg path { stroke: var(--ink); stroke-width: 3.5; }
   .jig.dragging { opacity: 0.4; }
   .jig.drop-here svg path { stroke: var(--accent); stroke-width: 4; stroke-dasharray: 6 4; }
@@ -407,7 +407,7 @@ function valueText(piece) {
 }
 
 // ピースの大きさと、列の場所
-const SIZE = { nameW: 170, chantW: 230, effectW: 250, h: 78, gap: 0, top: 34, left: 4 };
+const SIZE = { nameW: 170, chantW: 230, effectW: 250, h: 78, gap: 0, top: 14, left: 4 };
 
 /** 作業台（魔法ぜんぶ）を描く */
 function drawBoard() {
@@ -471,49 +471,18 @@ function drawSpell(spell, s) {
   block.addEventListener("pointerdown", () => setCurrent(s));
   block.addEventListener("focusin", () => setCurrent(s));
 
-  // 見出し（番号と、この魔法のボタン）
-  const head = document.createElement("div");
-  head.className = "spell-head";
-  const no = document.createElement("span");
-  no.className = "no";
-  no.textContent = `魔法 ${s + 1}`;
-  const tools = document.createElement("div");
-  tools.className = "row";
-  const addChant = document.createElement("button");
-  addChant.type = "button";
-  addChant.className = "small quiet";
-  addChant.textContent = "＋ 詠唱ピース";
-  addChant.addEventListener("click", () => { spell.chants.push(""); drawBoard(); save(); $(`chant-${s}-${spell.chants.length - 1}`)?.focus(); });
-  const del = document.createElement("button");
-  del.type = "button";
-  del.className = "small quiet";
-  del.textContent = "この魔法を消す";
-  del.addEventListener("click", () => {
-    // 1回目は確認、2回目で消す
-    if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "もう一度押すと消えます"; setTimeout(() => { del.dataset.sure = ""; del.textContent = "この魔法を消す"; }, 3000); return; }
-    spells.splice(s, 1); current = Math.max(0, Math.min(current, spells.length - 1)); selected = -1;
-    drawAll(); save();
-  });
-  tools.append(addChant, del);
-  head.append(no, tools);
-
-  const scroll = document.createElement("div");
-  scroll.className = "puzzle-scroll";
   const puzzle = document.createElement("div");
   puzzle.className = "puzzle";
-  scroll.append(puzzle);
-  block.append(head, scroll);
+  block.append(puzzle);
 
+  // 名前 ▶ 詠唱 はくっつけて、効果の列は すこしはなす
   const nameX = SIZE.left;
   const chantX = nameX + SIZE.nameW;
-  const effectX = chantX + SIZE.chantW;
+  const effectX = chantX + SIZE.chantW + 40;
+  const chantRows = Math.max(spell.chants.length, 1);
 
-  // 列の見出し
-  const label = (text, x) => { const span = document.createElement("span"); span.className = "column-label"; span.textContent = text; span.style.left = `${x + 8}px`; span.style.top = "4px"; puzzle.append(span); };
-  label("名前", nameX); label("詠唱（上から言う）", chantX); label("効果（上から動く）", effectX);
-
-  // 名前のピース（右に出っぱり）
-  const name = makeJig(nameX, SIZE.top, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
+  // 名前のピース（右に出っぱり）。詠唱の列の まんなかの高さに置く
+  const name = makeJig(nameX, SIZE.top + (chantRows - 1) * SIZE.h / 2, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
   name.body.append(titleSpan("名前"));
   const nameInput = document.createElement("input");
   nameInput.type = "text";
@@ -522,7 +491,26 @@ function drawSpell(spell, s) {
   nameInput.setAttribute("aria-label", `魔法 ${s + 1} の名前`);
   nameInput.addEventListener("input", () => { spell.name = nameInput.value; save(); });
   name.body.append(nameInput);
+  // ✕ で この魔法を消す（1回目は確認、2回目で消す）
+  const del = closeButton(`魔法「${spell.name}」を消す`, () => {
+    if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "もう一度で消す"; setTimeout(() => { del.dataset.sure = ""; del.textContent = "✕"; }, 3000); return; }
+    spells.splice(s, 1); current = Math.max(0, Math.min(current, spells.length - 1)); selected = -1;
+    drawAll(); save();
+  });
+  name.root.append(del);
   puzzle.append(name.root);
+
+  // 詠唱の列の いちばん下に「＋」の うすいピース（押すと詠唱をふやす）
+  const add = makeJig(chantX, SIZE.top + spell.chants.length * SIZE.h, SIZE.chantW, SIZE.h * 0.6, ["tab", "flat", "flat", "flat"], "chant");
+  add.root.classList.add("ghost");
+  add.body.append(titleSpan("＋ 詠唱をふやす"));
+  add.root.tabIndex = 0;
+  add.root.setAttribute("role", "button");
+  add.root.setAttribute("aria-label", `魔法 ${s + 1} に詠唱をふやす`);
+  const addChant = () => { spell.chants.push(""); drawBoard(); save(); $(`chant-${s}-${spell.chants.length - 1}`)?.focus(); };
+  add.root.addEventListener("click", addChant);
+  add.root.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); addChant(); } });
+  puzzle.append(add.root);
 
   // 詠唱のピース（上に出っぱり・下にへこみ・左にへこみ・右に出っぱり）
   spell.chants.forEach((line, index) => {
@@ -571,7 +559,7 @@ function drawSpell(spell, s) {
   }
 
   // いちばん下の空き（ここに落とすと さいごに入る）
-  const rows = Math.max(spell.chants.length, spell.pieces.length, 1);
+  const rows = Math.max(spell.chants.length + 0.6, spell.pieces.length, 1);
   puzzle.style.height = `${SIZE.top + rows * SIZE.h + 30}px`;
   puzzle.style.width = `${effectX + SIZE.effectW + 3 * 18 + 30}px`;
   puzzle.ondragover = event => event.preventDefault();
