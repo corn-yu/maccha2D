@@ -44,6 +44,11 @@
   .bench { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 240px; grid-template-rows: minmax(0, 1fr); gap: 10px; }
   .fit-box { position: relative; overflow: auto; min-width: 0; min-height: 0; }
   .fit { position: relative; }
+  /* 作業台は 動かせる・大きさを変えられる 台の上 */
+  #boardBox { overflow: hidden; cursor: default; }
+  #boardBox.panning { cursor: grabbing; }
+  #board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .zoom { color: var(--muted); font-size: 0.8rem; }
   .side .fit { display: flex; flex-direction: column; gap: 8px; }
   .side .card { padding: 10px; gap: 6px; }
   .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -135,6 +140,8 @@
     .fit-box { overflow-x: auto; }
     .fit { position: static; transform: none !important; }
     .side .fit { width: auto; }
+    #boardBox { overflow-x: auto; }
+    #board { position: static; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -147,7 +154,14 @@
 
   <div class="bench">
     <section class="card board-card" aria-label="魔法の作業台">
-      <h2>魔法の作業台</h2>
+      <div class="row" style="justify-content: space-between">
+        <h2>魔法の作業台</h2>
+        <div class="row">
+          <span class="zoom" id="zoomText">100%</span>
+          <span class="hint">Ctrl＋ホイールで大きさ・ホイールを押してドラッグで移動</span>
+          <button id="resetView" type="button" class="small quiet">もとにもどす</button>
+        </div>
+      </div>
       <div class="fit-box" id="boardBox" style="flex: 1">
         <div class="fit board" id="board"></div>
       </div>
@@ -438,6 +452,63 @@ function fitBoard() {
     columns = next;
   }
   board.style.gridTemplateColumns = `repeat(${columns}, max-content)`;
+}
+
+// 作業台の見かた（ずらす量と 大きさ）
+const view = { x: 0, y: 0, zoom: 1 };
+
+/** 作業台の見かたを 画面にあてる */
+function applyView() {
+  const board = $("board");
+  if (!fitting()) { board.style.transform = ""; return; }
+  board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+  $("zoomText").textContent = `${Math.round(view.zoom * 100)}%`;
+}
+
+/** Ctrl＋ホイールで大きさ、ホイールだけで上下（Shift で左右）、ホイールを押してドラッグで移動 */
+function setupView() {
+  const box = $("boardBox");
+  box.addEventListener("wheel", event => {
+    if (!fitting()) return;
+    event.preventDefault();
+    if (event.ctrlKey) {
+      // マウスのある所を中心に 大きく・小さく
+      const rect = box.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
+      const zoom = Math.min(2.5, Math.max(0.25, view.zoom * Math.exp(-event.deltaY * 0.0015)));
+      view.x = mouseX - (mouseX - view.x) * (zoom / view.zoom);
+      view.y = mouseY - (mouseY - view.y) * (zoom / view.zoom);
+      view.zoom = zoom;
+    } else if (event.shiftKey) {
+      view.x -= event.deltaY;
+    } else {
+      view.x -= event.deltaX;
+      view.y -= event.deltaY;
+    }
+    applyView();
+  }, { passive: false });
+
+  // ホイールを押したまま 動かすと、作業台ごと動く
+  let drag = null;
+  box.addEventListener("pointerdown", event => {
+    if (event.button !== 1 || !fitting()) return;
+    event.preventDefault();
+    drag = { startX: event.clientX, startY: event.clientY, x: view.x, y: view.y };
+    box.setPointerCapture(event.pointerId);
+    box.classList.add("panning");
+  });
+  box.addEventListener("pointermove", event => {
+    if (!drag) return;
+    view.x = drag.x + event.clientX - drag.startX;
+    view.y = drag.y + event.clientY - drag.startY;
+    applyView();
+  });
+  const stop = () => { drag = null; box.classList.remove("panning"); };
+  box.addEventListener("pointerup", stop);
+  box.addEventListener("pointercancel", stop);
+  // ホイールを押したときの 自動スクロールを出さない
+  box.addEventListener("mousedown", event => { if (event.button === 1) event.preventDefault(); });
+  $("resetView").addEventListener("click", () => { view.x = 0; view.y = 0; view.zoom = 1; applyView(); });
 }
 
 /** 右がわは 大きさを変えない（前は縮めていた） */
@@ -840,7 +911,9 @@ $("importBtn").addEventListener("click", () => {
 try { const saved = JSON.parse(localStorage.getItem("koemahou-puzzle") || "null"); if (Array.isArray(saved) && saved.length) spells = saved; } catch (error) { spells = []; }
 if (!spells.length) spells = readText(SAMPLE_TEXT);
 drawShelf();
+setupView();
 drawAll();
+applyView();
 // 画面の大きさが変わったら・文字が読みこまれたら 縮めなおす
 window.addEventListener("resize", () => { fitBoard(); fitSide(); });
 $("importBox").addEventListener("toggle", fitSide);
