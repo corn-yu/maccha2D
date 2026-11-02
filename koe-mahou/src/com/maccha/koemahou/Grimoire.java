@@ -50,8 +50,10 @@ import java.util.UUID;
  */
 public class Grimoire {
 
-    // 宝箱に「謎の魔導書」が入る確率
-    static final double CHEST_CHANCE = 0.3;
+    // 宝箱に「謎の魔導書」が入る確率（はじめの値。/koemahou 宝箱 で ワールドごとに変えられる）
+    static final int DEFAULT_CHEST_PERCENT = 30;
+    static int chestPercent = DEFAULT_CHEST_PERCENT;
+    static Path settingsFile;
     // 謎の魔導書が入る宝箱
     static final Set<ResourceKey<LootTable>> CHESTS = Set.of(
             BuiltInLootTables.SIMPLE_DUNGEON, BuiltInLootTables.ABANDONED_MINESHAFT, BuiltInLootTables.DESERT_PYRAMID,
@@ -86,6 +88,8 @@ public class Grimoire {
         reloadBookIfChanged();
         learnedFile = server.getWorldPath(LevelResource.ROOT).resolve("koemahou_learned.txt");
         loadLearned();
+        settingsFile = server.getWorldPath(LevelResource.ROOT).resolve("koemahou_settings.txt");
+        loadSettings();
     }
 
     /** サーバーが止まったら、わすれる（次のワールドと まざらないように） */
@@ -138,6 +142,38 @@ public class Grimoire {
         }
         KoeMahouMod.LOG.info("こえまほう: サーバーの じゅもん表 {} こ", book.spells.size());
         return true;
+    }
+
+    /** ワールドの設定を読む（「chest=30」のように書いてある） */
+    static void loadSettings() {
+        chestPercent = DEFAULT_CHEST_PERCENT;
+        try {
+            if (!Files.exists(settingsFile)) return;
+            for (String line : Files.readAllLines(settingsFile, StandardCharsets.UTF_8)) {
+                if (line.startsWith("chest=")) chestPercent = Math.max(0, Math.min(100, Integer.parseInt(line.substring(6).strip())));
+            }
+        } catch (Exception error) {
+            KoeMahouMod.LOG.warn("こえまほう: 設定が読めません: {}", error.toString());
+        }
+    }
+
+    /** ワールドの設定を書く */
+    static void saveSettings() {
+        if (settingsFile == null) return;
+        try {
+            Files.write(settingsFile, List.of("chest=" + chestPercent), StandardCharsets.UTF_8);
+        } catch (Exception error) {
+            KoeMahouMod.LOG.warn("こえまほう: 設定が書けません: {}", error.toString());
+        }
+    }
+
+    /** 宝箱の設定を変えて、知らせる */
+    static int setChest(CommandSourceStack source, int percent) {
+        chestPercent = percent;
+        saveSettings();
+        source.sendSuccess(() -> Component.literal(percent == 0 ? "宝箱に 謎の魔導書 を入れないようにしました"
+                : "宝箱に 謎の魔導書 が " + percent + "% で入るようにしました（まだ開けていない宝箱から）"), true);
+        return 1;
     }
 
     /** 覚えた魔法を ワールドのフォルダから読む（1行に「プレイヤーのid タブ 魔法 タブ 魔法…」） */
@@ -339,12 +375,12 @@ public class Grimoire {
     public static void onChestLoot(Holder<LootTable> table, LootContext context, List<ItemStack> drops) {
         boolean chest = false;
         for (ResourceKey<LootTable> key : CHESTS) if (table.is(key)) chest = true;
-        if (chest && context.getRandom().nextDouble() < CHEST_CHANCE) drops.add(makeGrimoire(null));
+        if (chest && context.getRandom().nextDouble() * 100 < chestPercent) drops.add(makeGrimoire(null));
     }
 
     // ================= コマンド =================
 
-    /** /koemahou 魔導書 <名前>・/koemahou 謎の魔導書（どちらもチート）・/koemahou 魔法本（だれでも） */
+    /** /koemahou 魔導書 <名前>・謎の魔導書・宝箱 オン|オフ|<パーセント>（どれもチート）・/koemahou 魔法本（だれでも） */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("koemahou")
                 .then(Commands.literal("魔導書")
@@ -369,6 +405,18 @@ public class Grimoire {
                             context.getSource().sendSuccess(() -> Component.literal("謎の魔導書をわたしました"), false);
                             return 1;
                         }))
+                .then(Commands.literal("宝箱")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(context -> {
+                            context.getSource().sendSuccess(() -> Component.literal(chestPercent == 0 ? "いまは 宝箱に 謎の魔導書 は入りません"
+                                    : "いまは 宝箱に 謎の魔導書 が " + chestPercent + "% で入ります"), false);
+                            return 1;
+                        })
+                        .then(Commands.literal("オン").executes(context -> setChest(context.getSource(), DEFAULT_CHEST_PERCENT)))
+                        .then(Commands.literal("オフ").executes(context -> setChest(context.getSource(), 0)))
+                        .then(Commands.argument("パーセント", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 100))
+                                .executes(context -> setChest(context.getSource(),
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "パーセント")))))
                 .then(Commands.literal("魔法本")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
