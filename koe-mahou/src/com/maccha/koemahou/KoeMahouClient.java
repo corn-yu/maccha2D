@@ -8,12 +8,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * こえまほう（クライアント側）：マイクで詠唱を聞いて、1行ずつ進め、言いきったら魔法をたのむ
+ * 聞くのは「覚えている魔法」の詠唱だけ（サーバーが送ってくる）
  */
 public class KoeMahouClient implements ClientModInitializer {
 
@@ -21,10 +22,10 @@ public class KoeMahouClient implements ClientModInitializer {
     static final long CHANT_TIMEOUT_MS = 6000;
 
     final ConcurrentLinkedQueue<VoiceListener.Heard> queue = new ConcurrentLinkedQueue<>();
+    // 覚えている魔法（サーバーから来る。来るまでは からっぽ）
     SpellBook book = new SpellBook();
-    Path bookFile;
-    long bookFileTime = 0;
-    int tickCount = 0;
+    // サーバーから 新しい「覚えている魔法」が来たら ここに入る（ゲームのスレッドで入れかえる）
+    volatile String learnedText = null;
     VoiceListener listener;
 
     // 今となえている魔法と、次に言う行（何も となえていないときは null）
@@ -33,15 +34,10 @@ public class KoeMahouClient implements ClientModInitializer {
     long lastLineTime = 0;
     boolean warnedNoServer = false;
 
-    /** MOD が読みこまれたら、じゅもん表を読んで、マイクを聞きはじめる */
+    /** MOD が読みこまれたら、マイクを聞きはじめて、覚えている魔法のお知らせを待つ */
     @Override
     public void onInitializeClient() {
-        // じゅもん表を読む
         Path folder = FabricLoader.getInstance().getConfigDir().resolve("koemahou");
-        bookFile = folder.resolve("じゅもん.txt");
-        book.load(bookFile);
-        bookFileTime = fileTime();
-        KoeMahouMod.LOG.info("こえまほう: 魔法を {} こ読みこみました", book.spells.size());
 
         // 音声認識を別スレッドで始める（ゲームが止まらないように）
         listener = new VoiceListener(folder, book, queue);
@@ -49,18 +45,30 @@ public class KoeMahouClient implements ClientModInitializer {
         thread.setDaemon(true);
         thread.start();
 
+        // サーバーから「覚えている魔法」が来たら とっておく
+        ClientPlayNetworking.registerGlobalReceiver(LearnedPayload.TYPE, (payload, context) -> learnedText = payload.text());
+
         // 毎tick、聞こえた行を進める
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
     }
 
-    /** 毎tick：聞こえた行で詠唱を進めて、だまりすぎていたら失敗にする */
+    /** 毎tick：覚えている魔法が変わっていたら入れかえ、聞こえた行で詠唱を進めて、だまりすぎていたら失敗にする */
     void onTick(Minecraft minecraft) {
         LocalPlayer player = minecraft.player;
         if (player == null) return;
 
-        // じゅもん.txt が書きかえられたら、読みなおす（1秒ごとに見る）
-        tickCount++;
-        if (tickCount % 20 == 0) reloadIfChanged(player);
+        // 覚えている魔法が新しく来たら、マイクの聞く言葉を入れかえる
+        String text = learnedText;
+        if (text != null) {
+            learnedText = null;
+            SpellBook newBook = new SpellBook();
+            newBook.parse(List.of(text.split("\n")));
+            boolean more = newBook.spells.size() > book.spells.size();
+            book = newBook;
+            chanting = null;
+            listener.setBook(newBook);
+            if (more) player.sendSystemMessage(Component.literal("§dこえまほう：唱えられる魔法 " + newBook.spells.size() + " こ"));
+        }
 
         // 聞こえたものを全部しらべる
         VoiceListener.Heard heard;
@@ -79,7 +87,7 @@ public class KoeMahouClient implements ClientModInitializer {
         // 状態のお知らせ
         switch (heard.event()) {
             case "ready" -> {
-                player.sendSystemMessage(Component.literal("§dこえまほう：聞いています！呪文は config/koemahou/じゅもん.txt にあります"));
+                player.sendSystemMessage(Component.literal("§dこえまほう：聞いています！魔導書を読んで覚えた魔法を唱えられます（覚えた魔法は魔法本にのります）"));
                 return;
             }
             case "status", "error" -> {
@@ -149,28 +157,6 @@ public class KoeMahouClient implements ClientModInitializer {
         } else if (!warnedNoServer) {
             warnedNoServer = true;
             player.sendSystemMessage(Component.literal("§cこえまほう：このサーバー（ワールドの持ち主）に こえまほう が入っていないので、魔法が出ません"));
-        }
-    }
-
-    /** じゅもん.txt が書きかえられていたら読みなおす */
-    void reloadIfChanged(LocalPlayer player) {
-        long time = fileTime();
-        if (time == bookFileTime) return;
-        bookFileTime = time;
-        SpellBook newBook = new SpellBook();
-        newBook.load(bookFile);
-        book = newBook;
-        chanting = null;
-        listener.setBook(newBook);
-        player.sendSystemMessage(Component.literal("§dこえまほう：じゅもん表を読みなおしました（魔法 " + newBook.spells.size() + " こ）"));
-    }
-
-    /** じゅもん.txt の書きかえ時刻（なければ 0） */
-    long fileTime() {
-        try {
-            return Files.getLastModifiedTime(bookFile).toMillis();
-        } catch (Exception error) {
-            return 0;
         }
     }
 }

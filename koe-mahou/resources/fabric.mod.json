@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "koemahou",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "name": "こえまほう（声の詠唱で魔法）",
   "description": "マイクで呪文を1行ずつ詠唱すると、魔法が出ます。音声認識はパソコンの中だけで動きます（Vosk）。マルチでは全員とワールドの持ち主に入れてください",
   "authors": ["まっちゃ"],
@@ -16,6 +16,9 @@
     "minecraft": ">=26.3",
     "java": ">=25",
     "fabric-lifecycle-events-v1": "*",
-    "fabric-networking-api-v1": "*"
+    "fabric-networking-api-v1": "*",
+    "fabric-command-api-v2": "*",
+    "fabric-events-interaction-v0": "*",
+    "fabric-loot-api-v3": "*"
   }
 }

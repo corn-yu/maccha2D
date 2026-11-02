@@ -79,6 +79,14 @@ public class SpellEffects {
             return;
         }
 
+        // 覚えていない魔法は出ない（魔法の中身は サーバーの じゅもん表のもの）
+        SpellBook.Spell spell = Grimoire.knownSpell(player, payload.spell());
+        if (spell == null) {
+            player.sendOverlayMessage(Component.literal("§7まだ覚えていない魔法だ…（魔導書を読もう）"));
+            fizzle(level, player);
+            return;
+        }
+
         // 待ち時間がのこっていたら出さない（待ち時間は魔法の名前ごと）
         long now = level.getGameTime();
         Map<String, Long> times = readyTime.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
@@ -89,10 +97,10 @@ public class SpellEffects {
             fizzle(level, player);
             return;
         }
-        times.put(payload.spell(), now + cooldownTicks(payload.program()));
+        times.put(payload.spell(), now + cooldownTicks(spell.program()));
 
         // 部品を順番に動かして、魔法を出す
-        MagicRunner.cast(level, player, payload.program());
+        MagicRunner.cast(level, player, spell.program());
     }
 
     /** 待ち時間（tick）：「待ち時間」があればそれ、なければ使った大魔法のぶん、どちらもなければ 3秒 */
