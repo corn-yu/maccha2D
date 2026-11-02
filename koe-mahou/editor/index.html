@@ -91,7 +91,7 @@
   .jig { position: absolute; cursor: pointer; }
   .jig svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
   .jig svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.25); stroke-width: 1.5; }
-  .jig .body { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 2px; color: #fff; padding: 0 12px 0 16px; box-sizing: border-box; }
+  .jig .body { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 2px; color: #fff; padding: 2px 12px 14px 16px; box-sizing: border-box; }
   .jig .title { font-weight: 900; font-size: 0.8rem; line-height: 1.2; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
   .jig .vals { font-size: 0.72rem; line-height: 1.35; opacity: 0.95; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .jig input { width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35; border: none; border-radius: 5px; padding: 2px 6px; font-size: 0.78rem; }
@@ -108,7 +108,7 @@
   .jig.selected svg path { stroke: var(--ink); stroke-width: 3.5; }
   .jig.dragging { opacity: 0.4; }
   .jig.drop-here svg path { stroke: var(--accent); stroke-width: 4; stroke-dasharray: 6 4; }
-  .jig .loop { position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 3px; background: #ffd23c; }
+  .jig .loop { position: absolute; top: 6px; bottom: 6px; width: 4px; border-radius: 3px; background: #ffd23c; }
   .column-label { position: absolute; font-family: var(--font-display); color: var(--muted); font-size: 0.85rem; }
   .shelf-piece { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 16px 0 20px; margin: 10px 18px 10px 0; color: #fff;
     border: none; background: transparent; font-family: var(--font-body); font-weight: 900; font-size: 0.9rem; cursor: pointer; }
@@ -157,7 +157,7 @@
 <div class="page">
   <header>
     <h1>こえまほう 魔法パズル</h1>
-    <p>詠唱（上から言う）の ● から 効果（上から動く）へ線をひくと魔法になる。1つの効果に詠唱いくつでも、1つの詠唱から効果いくつでも。線を押すと消える</p>
+    <p>名前 ● → 詠唱（上から言う）● → 効果（上から動く）と線をひくと魔法になる。名前はなくてもOK。1つの効果に詠唱いくつでも、1つの詠唱から効果いくつでも。線を押すと消える</p>
   </header>
 
   <div class="bench">
@@ -167,7 +167,9 @@
         <div class="row">
           <span class="zoom" id="zoomText">100%</span>
           <span class="hint">Ctrl＋ホイールで大きさ・ホイールを押してドラッグで移動</span>
-          <button id="resetView" type="button" class="small quiet">もとにもどす</button>
+          <button id="resetView" type="button" class="small quiet">表示を100%に</button>
+          <button id="clearAll" type="button" class="small quiet">全部消す</button>
+          <button id="undo" type="button" class="small" title="ひとつ前の操作にもどす（Ctrl+Z）">↶ もとにもどす</button>
         </div>
       </div>
       <div class="fit-box" id="boardBox" style="flex: 1">
@@ -370,8 +372,8 @@ function readText(text) {
 
 
 // ================= パズルの形 =================
-const KNOB = 8;        // 出っぱりの丸の半径
-const NECK = 5;        // 出っぱりの首の半分の幅
+const KNOB = 6;        // 出っぱりの丸の半径
+const NECK = 4;        // 出っぱりの首の半分の幅
 
 /** 1つの辺を描く（from から to へ。kind: "flat" 平ら / "tab" 外へ出っぱり / "hole" 内へへこみ） */
 function edge(fromX, fromY, toX, toY, kind) {
@@ -409,7 +411,7 @@ function shapeSvg(width, height, sides) {
 /** 効果ピースの高さ（設定の数で のびる。2つずつ ならぶ） */
 function pieceHeight(piece) {
   const count = SPEC[piece.part].args.length;
-  return Math.max(SIZE.h, 24 + Math.ceil(count / 2) * 21 + 4);
+  return Math.max(SIZE.h, 24 + Math.ceil(count / 2) * 21 + 18);
 }
 
 /** 効果ピースの上に置く 設定（種類はえらぶ、数字は書く） */
@@ -510,7 +512,7 @@ let nextId = 1;
 let selected = null;
 
 // ピースの大きさ
-const SIZE = { nameW: 100, chantW: 140, effectW: 220, h: 46 };
+const SIZE = { nameW: 100, chantW: 140, effectW: 230, h: 56 };
 const GRIP = 26;          // かたまりの上の つかむところ
 const FIRST_EFFECT = "爆発";
 
@@ -522,7 +524,7 @@ function groupById(id) {
 /** かたまりを作って 作業台にのせる */
 function makeGroup(kind, x, y, items, name = "") {
   const group = { id: nextId++, kind, x: Math.round(x), y: Math.round(y), items };
-  if (kind === "chant") group.name = name;
+  if (kind === "name") group.name = name;
   groups.push(group);
   return group;
 }
@@ -537,12 +539,13 @@ function effectHeight(group) {
   return group.items.reduce((sum, piece) => sum + pieceHeight(piece), 0);
 }
 
-/** 詠唱のかたまりの 線が出るところ（作業台の上の場所） */
+/** 名前・詠唱のかたまりの 線が出るところ（作業台の上の場所） */
 function portOut(group) {
-  return { x: group.x + SIZE.nameW + SIZE.chantW + 18, y: group.y + GRIP + Math.max(group.items.length, 1) * SIZE.h / 2 };
+  if (group.kind === "name") return { x: group.x + SIZE.nameW + 18, y: group.y + GRIP + SIZE.h / 2 };
+  return { x: group.x + SIZE.chantW + 18, y: group.y + GRIP + Math.max(group.items.length, 1) * SIZE.h / 2 };
 }
 
-/** 効果のかたまりの 線が入るところ */
+/** 詠唱・効果のかたまりの 線が入るところ */
 function portIn(group) {
   return { x: group.x - 16, y: group.y + GRIP + SIZE.h / 2 };
 }
@@ -556,7 +559,7 @@ function removeGroup(id) {
 
 /** 空になった効果のかたまりを かたづける */
 function cleanEmpty() {
-  for (const group of [...groups]) if (group.kind === "effect" && group.items.length === 0) removeGroup(group.id);
+  for (const group of [...groups]) if (group.kind !== "name" && group.items.length === 0) removeGroup(group.id);
 }
 
 // ================= じゅもん.txt ⇄ データ =================
@@ -585,11 +588,13 @@ function makeText() {
   for (const group of chants) {
     const lines = group.items.map(line => line.trim()).filter(Boolean);
     if (!lines.length) continue;
-    const effects = links.filter(link => link.from === group.id).map(link => groupById(link.to)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x);
+    const effects = links.filter(link => link.from === group.id).map(link => groupById(link.to)).filter(item => item && item.kind === "effect").sort((a, b) => a.y - b.y || a.x - b.x);
     if (!effects.length) { lonely.push(lines[0]); continue; }
     // 名前がなければ さいしょの詠唱を名前にする。同じ名前は (2) をつける
-    let name = (group.name || "").trim() || lines[0];
-    for (let number = 2; usedNames.has(name); number++) name = `${(group.name || "").trim() || lines[0]}(${number})`;
+    const nameGroup = links.map(link => link.to === group.id && groupById(link.from)).find(item => item && item.kind === "name");
+    const base = (nameGroup?.name || "").trim() || lines[0];
+    let name = base;
+    for (let number = 2; usedNames.has(name); number++) name = `${base}(${number})`;
     usedNames.add(name);
     out.push(`[${name}]`, ...lines);
     for (const effect of effects) out.push(...pieceLines(effect.items));
@@ -605,13 +610,17 @@ function spellsToBoard(spells) {
   const byProgram = new Map();
   let y = 20;
   for (const spell of spells) {
-    const chant = makeGroup("chant", 20, y, spell.chants.length ? spell.chants : [""], spell.name);
+    const chant = makeGroup("chant", 200, y, spell.chants.length ? spell.chants : [""]);
+    if (spell.name) {
+      const name = makeGroup("name", 20, y + (Math.max(chant.items.length, 1) - 1) * SIZE.h / 2, [], spell.name);
+      links.push({ from: name.id, to: chant.id });
+    }
     let height = chantHeight(chant);
     if (spell.pieces.length) {
       const key = pieceLines(spell.pieces).join("\n");
       let effect = byProgram.get(key);
       if (!effect) {
-        effect = makeGroup("effect", 420, y, spell.pieces);
+        effect = makeGroup("effect", 440, y, spell.pieces);
         byProgram.set(key, effect);
         height = Math.max(height, effectHeight(effect));
       }
@@ -635,7 +644,8 @@ function drawBoard() {
   wires.setAttribute("width", "1");
   wires.setAttribute("height", "1");
   board.append(wires);
-  for (const group of groups) board.append(group.kind === "chant" ? drawChantGroup(group) : drawEffectGroup(group));
+  const draw = { name: drawNameGroup, chant: drawChantGroup, effect: drawEffectGroup };
+  for (const group of groups) board.append(draw[group.kind](group));
   drawWires();
 }
 
@@ -704,32 +714,12 @@ function groupShell(group, label, width) {
 /** 詠唱のかたまりを描く（名前 ▶ 詠唱の列 ▶ 線の出るところ） */
 function drawChantGroup(group) {
   const height = chantHeight(group);
-  const root = groupShell(group, "詠唱", SIZE.nameW + SIZE.chantW + 30);
+  const root = groupShell(group, "詠唱", SIZE.chantW + 30);
   root.style.height = `${GRIP + height}px`;
-  const rows = Math.max(group.items.length, 1);
-
-  // 名前のピース（右に出っぱり）。詠唱の列の まんなかの高さに置く。名前はなくてもいい
-  const name = makeJig(0, GRIP + (rows - 1) * SIZE.h / 2, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
-  name.body.append(titleSpan("名前"));
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.value = group.name || "";
-  nameInput.placeholder = "なくてOK";
-  nameInput.setAttribute("aria-label", "魔法の名前");
-  nameInput.addEventListener("input", () => { group.name = nameInput.value; save(); });
-  name.body.append(nameInput);
-  // ✕ で この詠唱のかたまりを消す（1回目は確認、2回目で消す）
-  const del = closeButton("この詠唱のかたまりを消す", () => {
-    if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "もう一度で消す"; setTimeout(() => { del.dataset.sure = ""; del.textContent = "✕"; }, 3000); return; }
-    removeGroup(group.id);
-    drawBoard(); save();
-  });
-  name.root.append(del);
-  root.append(name.root);
 
   // 詠唱のピース（上に出っぱり・下にへこみ・左にへこみ・右に出っぱり）
   group.items.forEach((line, index) => {
-    const jig = makeJig(SIZE.nameW, GRIP + index * SIZE.h, SIZE.chantW, SIZE.h, ["tab", "tab", "hole", "hole"], "chant");
+    const jig = makeJig(0, GRIP + index * SIZE.h, SIZE.chantW, SIZE.h, ["tab", "tab", "hole", "hole"], "chant");
     jig.body.append(titleSpan("詠唱"));
     const input = document.createElement("input");
     input.type = "text";
@@ -740,7 +730,7 @@ function drawChantGroup(group) {
     input.addEventListener("input", () => { group.items[index] = input.value; save(); });
     input.addEventListener("focus", () => choose(group.id, index, jig.root));
     jig.body.append(input);
-    jig.root.append(closeButton(`${index + 1}番目の詠唱を消す`, () => { group.items.splice(index, 1); selected = null; drawBoard(); save(); }));
+    jig.root.append(closeButton(`${index + 1}番目の詠唱を消す`, () => { group.items.splice(index, 1); selected = null; cleanEmpty(); drawBoard(); save(); }));
     jig.root.addEventListener("click", () => choose(group.id, index, jig.root));
     if (isSelected(group.id, index)) jig.root.classList.add("selected");
     dragSetup(jig.root, `chant:${group.id}:${index}`, data => dropChant(data, group, index));
@@ -755,23 +745,62 @@ function drawChantGroup(group) {
   port.style.top = `${out.y - group.y}px`;
   port.title = "ひっぱって 効果のかたまりに つなぐ";
   wireSetup(port, group);
+  root.append(port, inPort(group, "名前から ここへ線をつなぐ"));
+  return root;
+}
+
+/** 線の入るところ（詠唱・効果のかたまりの 左） */
+function inPort(group, title) {
+  const port = document.createElement("div");
+  port.className = "port in";
+  port.style.left = `${portIn(group).x - group.x}px`;
+  port.style.top = `${portIn(group).y - group.y}px`;
+  port.title = title;
+  return port;
+}
+
+/** 名前のピースを描く（右の ● から 詠唱のかたまりへ線をひく） */
+function drawNameGroup(group) {
+  const root = groupShell(group, "名前", SIZE.nameW + 30);
+  root.style.height = `${GRIP + SIZE.h}px`;
+  const name = makeJig(0, GRIP, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
+  name.body.append(titleSpan("名前"));
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.dataset.name = group.id;
+  nameInput.value = group.name || "";
+  nameInput.setAttribute("aria-label", "魔法の名前");
+  nameInput.addEventListener("input", () => { group.name = nameInput.value; save(); });
+  nameInput.addEventListener("focus", () => choose(group.id, 0, name.root));
+  name.body.append(nameInput);
+  name.root.append(closeButton("この名前を消す", () => { removeGroup(group.id); drawBoard(); save(); }));
+  name.root.addEventListener("click", () => choose(group.id, 0, name.root));
+  root.append(name.root);
+  const out = portOut(group);
+  const port = document.createElement("div");
+  port.className = "port out";
+  port.style.left = `${out.x - group.x}px`;
+  port.style.top = `${out.y - group.y}px`;
+  port.title = "ひっぱって 詠唱のかたまりに つなぐ";
+  wireSetup(port, group);
   root.append(port);
   return root;
 }
 
 /** 効果のかたまりを描く（種類や数字は ピースの上で変える） */
 function drawEffectGroup(group) {
-  let depth = 0, maxDepth = 0, y = GRIP;
+  let depth = 0, y = GRIP;
   const root = groupShell(group, "効果", SIZE.effectW + 60);
   group.items.forEach((piece, index) => {
     if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
     const spec = SPEC[piece.part];
     const height = pieceHeight(piece);
-    const jig = makeJig(depth * 18, y, SIZE.effectW, height, ["tab", "tab", "hole", "hole"], spec.cat);
+    // 字下げしても ピースの形は ずらさない（つなぎ目が ずれないように）。中身だけ右へ
+    const jig = makeJig(0, y, SIZE.effectW, height, ["tab", "tab", "hole", "hole"], spec.cat);
+    if (depth > 0) jig.body.style.paddingLeft = `${16 + depth * 12}px`;
     y += height;
-    if (depth > 0) { const loop = document.createElement("span"); loop.className = "loop"; jig.root.append(loop); }
+    for (let level = 0; level < depth; level++) { const loop = document.createElement("span"); loop.className = "loop"; loop.style.left = `${14 + level * 12}px`; jig.root.append(loop); }
     if (piece.part === "くりかえす") depth++;
-    maxDepth = Math.max(maxDepth, depth);
     jig.body.append(kindSelect(group, piece, index));
     if (spec.args.length) jig.body.append(argControls(piece));
     if (isSelected(group.id, index)) jig.root.classList.add("selected");
@@ -788,16 +817,11 @@ function drawEffectGroup(group) {
     dragSetup(jig.root, `move:${group.id}:${index}`, data => dropEffect(data, group, index));
     root.append(jig.root);
   });
-  root.style.width = `${SIZE.effectW + maxDepth * 18 + 12}px`;
+  root.style.width = `${SIZE.effectW + 12}px`;
   root.style.height = `${y + 10}px`;
 
   // 線の入るところ
-  const port = document.createElement("div");
-  port.className = "port in";
-  port.style.left = `${portIn(group).x - group.x}px`;
-  port.style.top = `${portIn(group).y - group.y}px`;
-  port.title = "詠唱のかたまりから ここへ線をつなぐ";
-  root.append(port);
+  root.append(inPort(group, "詠唱のかたまりから ここへ線をつなぐ"));
   return root;
 }
 
@@ -882,7 +906,7 @@ function moveSetup(grip, root, group) {
       root.style.pointerEvents = "none";
       const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(`.group.${group.kind}`);
       root.style.pointerEvents = "";
-      const other = target && groupById(Number(target.dataset.id));
+      const other = target && group.kind !== "name" && groupById(Number(target.dataset.id));
       if (other && other !== group) {
         mergeGroups(other, group);
         drawBoard();
@@ -905,7 +929,9 @@ function wireSetup(port, group) {
     const onUp = upEvent => {
       port.removeEventListener("pointermove", onMove);
       port.removeEventListener("pointerup", onUp);
-      const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(".group.effect");
+      // 名前 → 詠唱、詠唱 → 効果
+      const want = group.kind === "name" ? "chant" : "effect";
+      const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(`.group.${want}`);
       if (target) {
         const to = Number(target.dataset.id);
         if (!links.some(link => link.from === group.id && link.to === to)) links.push({ from: group.id, to });
@@ -957,7 +983,10 @@ function dropEffect(data, group, index) {
 
 /** 作業台の 何もないところに落とすと、そこに新しいかたまりができる */
 function dropOnEmpty(data, point) {
-  if (data === "new:名前" || data === "new:詠唱") {
+  if (data === "new:名前") {
+    const group = makeGroup("name", point.x, point.y, [], "");
+    selected = { group: group.id, index: 0 };
+  } else if (data === "new:詠唱") {
     const group = makeGroup("chant", point.x, point.y, [""]);
     selected = { group: group.id, index: 0 };
   } else if (data === "new:効果") {
@@ -993,7 +1022,7 @@ function applyView() {
 function viewCenter() {
   let bottom = 20;
   for (const group of groups) {
-    const height = group.kind === "chant" ? chantHeight(group) : effectHeight(group);
+    const height = group.kind === "chant" ? chantHeight(group) : group.kind === "effect" ? effectHeight(group) : SIZE.h;
     bottom = Math.max(bottom, group.y + GRIP + height + 40);
   }
   const point = { x: 20, y: bottom };
@@ -1065,7 +1094,7 @@ function drawShelf() {
   const row = document.createElement("div");
   row.className = "row";
   const kinds = [
-    { label: "名前", cat: "name", help: "新しい詠唱のかたまりを つくる", sides: ["flat", "tab", "flat", "flat"], add: addChantGroup },
+    { label: "名前", cat: "name", help: "名前のピースを作る。詠唱をえらんでいたら 線でつなぐ（名前はなくてもいい）", sides: ["flat", "tab", "flat", "flat"], add: addNamePiece },
     { label: "詠唱", cat: "chant", help: "えらんでいる詠唱のすぐ下に ふやす", sides: ["tab", "tab", "hole", "hole"], add: addChantPiece },
     { label: "効果", cat: "attack", help: "えらんでいる効果のすぐ下に つなぐ。詠唱をえらんでいたら 新しい効果のかたまりを作って線でつなぐ", sides: ["tab", "tab", "hole", "hole"], add: addEffectPiece },
   ];
@@ -1092,10 +1121,26 @@ function drawShelf() {
   shelf.append(row, hint);
 }
 
+/** ピース箱の「名前」：名前のピースを作る。詠唱をえらんでいたら その左に置いて つなぐ */
+function addNamePiece() {
+  const chant = groupById(selected?.group);
+  let name;
+  if (chant?.kind === "chant") {
+    name = makeGroup("name", chant.x - SIZE.nameW - 50, chant.y, [], "");
+    links.push({ from: name.id, to: chant.id });
+  } else {
+    const point = viewCenter();
+    name = makeGroup("name", point.x, point.y, [], "");
+  }
+  selected = { group: name.id, index: 0 };
+  drawBoard(); save();
+  document.querySelector(`[data-name="${name.id}"]`)?.focus({ preventScroll: true });
+}
+
 /** 新しい詠唱のかたまりを作る */
 function addChantGroup() {
   const point = viewCenter();
-  const group = makeGroup("chant", point.x, point.y, [""]);
+  const group = makeGroup("chant", point.x + 150, point.y, [""]);
   selected = { group: group.id, index: 0 };
   drawBoard(); save();
   document.querySelector(`[data-chant="${group.id}-0"]`)?.focus({ preventScroll: true });
@@ -1125,7 +1170,7 @@ function addEffectPiece() {
     group.items.splice(at, 0, newPiece(FIRST_EFFECT));
     selected = { group: group.id, index: at };
   } else if (group?.kind === "chant") {
-    const effect = makeGroup("effect", group.x + SIZE.nameW + SIZE.chantW + 90, group.y, [newPiece(FIRST_EFFECT)]);
+    const effect = makeGroup("effect", group.x + SIZE.chantW + 70, group.y, [newPiece(FIRST_EFFECT)]);
     links.push({ from: group.id, to: effect.id });
     selected = { group: effect.id, index: 0 };
   } else {
@@ -1142,8 +1187,39 @@ function refreshText() {
   $("output").value = makeText();
 }
 
-/** 変わったら、文を作りなおして このブラウザにとっておく */
+// もとにもどす用の 前の形（新しいものが うしろ）
+const history = [];
+let lastState = null;
+let lastPush = 0;
+
+/** 今の形を 文字にする */
+function snapshot() {
+  return JSON.stringify({ groups, links, nextId });
+}
+
+/** ひとつ前の形に もどす */
+function undo() {
+  if (!history.length) { $("status").textContent = "もうもどれません"; return; }
+  const state = JSON.parse(history.pop());
+  groups = state.groups; links = state.links; nextId = state.nextId;
+  lastState = snapshot();
+  selected = null;
+  drawBoard(); refreshText();
+  try { localStorage.setItem("koemahou-board", lastState); } catch (error) { /* とっておけなくても動く */ }
+  $("status").textContent = "ひとつ前にもどしました";
+}
+
+/** 変わったら、前の形を とっておき（文字を打っている間は まとめる）、文を作りなおして このブラウザにとっておく */
 function save() {
+  const now = snapshot();
+  if (lastState !== null && now !== lastState) {
+    if (Date.now() - lastPush > 700) {
+      history.push(lastState);
+      if (history.length > 200) history.shift();
+    }
+    lastPush = Date.now();
+  }
+  lastState = now;
   refreshText();
   try { localStorage.setItem("koemahou-board", JSON.stringify({ groups, links, nextId })); } catch (error) { /* とっておけなくても動く */ }
 }
@@ -1154,6 +1230,16 @@ function load() {
     const saved = JSON.parse(localStorage.getItem("koemahou-board") || "null");
     if (saved && Array.isArray(saved.groups)) {
       groups = saved.groups; links = saved.links || []; nextId = saved.nextId || groups.length + 1;
+      // 前の版（詠唱のかたまりに名前が入っていた）なら、名前のピースに分ける
+      for (const group of [...groups]) {
+        if (group.kind === "chant" && group.name !== undefined) {
+          if (group.name.trim()) {
+            const name = makeGroup("name", group.x - 150, group.y, [], group.name);
+            links.push({ from: name.id, to: group.id });
+          }
+          delete group.name;
+        }
+      }
       return;
     }
     const old = JSON.parse(localStorage.getItem("koemahou-puzzle") || "null");
@@ -1177,8 +1263,27 @@ $("importBtn").addEventListener("click", () => {
   $("status").textContent = `魔法を ${read.length} こ 読みこみました`;
 });
 
+$("undo").addEventListener("click", undo);
+// 全部消す（1回目は確認、2回目で消す。もとにもどす で もどせる）
+$("clearAll").addEventListener("click", () => {
+  const button = $("clearAll");
+  if (button.dataset.sure !== "1") { button.dataset.sure = "1"; button.textContent = "もう一度押すと全部消えます"; setTimeout(() => { button.dataset.sure = ""; button.textContent = "全部消す"; }, 3000); return; }
+  button.dataset.sure = ""; button.textContent = "全部消す";
+  groups = []; links = []; selected = null;
+  drawBoard(); save();
+  $("status").textContent = "全部消しました（もとにもどす で もどせます）";
+});
+// Ctrl+Z で もとにもどす（文字を打っているところでは ふつうの もどす）
+document.addEventListener("keydown", event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.target.closest("input, textarea")) {
+    event.preventDefault();
+    undo();
+  }
+});
+
 // ================= はじめる =================
 load();
+lastState = snapshot();
 drawShelf();
 setupView();
 applyView();
