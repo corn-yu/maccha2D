@@ -1,18 +1,22 @@
-<title>こえまほう 魔法ブロック</title>
+<title>こえまほう 魔法パズル</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
-  /* レイアウト: 左にブロックを置く机、右に できた じゅもん.txt。せまい画面では上下 */
+  /* レイアウト: 上に魔法の本（タブ）、まんなかに詠唱とピースの列、下にピース箱。右（せまいときは下）に じゅもん.txt */
   :root {
-    --bg: #f3f0fa;
+    --bg: #f1eef8;
     --panel: #ffffff;
-    --ink: #221d33;
-    --muted: #6b6485;
-    --line: #d9d2ea;
+    --ink: #231d35;
+    --muted: #6c6486;
+    --line: #dbd3ec;
     --accent: #7b3fe4;
     --accent-ink: #ffffff;
     --code-bg: #faf8ff;
     --ok: #1f8a4c;
+    --shadow: rgba(35, 29, 53, 0.18);
+    --c-place: #2f8fd8; --c-control: #d4a017; --c-attack: #e0533d; --c-move: #e8862b;
+    --c-friend: #2fa86a; --c-summon: #9c6b2c; --c-look: #5a58d6; --c-big: #8a3fd1;
+    --c-build: #4f7f8f; --c-name: #6b4bd6; --c-chant: #c04fd1;
     --font-display: "DotGothic16", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
     --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
     --font-code: ui-monospace, "BIZ UDGothic", "MS Gothic", monospace;
@@ -20,85 +24,155 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #15121f; --panel: #1f1a2e; --ink: #ece8f7; --muted: #a59dbd; --line: #3a3252;
-      --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; color-scheme: dark;
+      --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; --shadow: rgba(0, 0, 0, 0.5); color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #15121f; --panel: #1f1a2e; --ink: #ece8f7; --muted: #a59dbd; --line: #3a3252;
-    --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; color-scheme: dark;
+    --accent: #a77bff; --accent-ink: #15121f; --code-bg: #1a1627; --ok: #5fd28f; --shadow: rgba(0, 0, 0, 0.5); color-scheme: dark;
   }
-  html, body { height: 100%; }
   body {
-    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; margin: 0;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-    padding-block: 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
+    padding-block: 14px 28px;
   }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
-  h1 { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; margin: 0; letter-spacing: 0.04em; text-wrap: balance; }
-  header p { margin: 0; color: var(--muted); font-size: 0.9rem; min-width: 0; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 12px; }
-  #desk { min-height: 420px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
-  aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
-  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .box h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.05rem; margin: 0; }
-  .box.grow { flex: 1; min-height: 220px; }
-  textarea {
-    width: 100%; box-sizing: border-box; flex: 1; min-height: 140px; resize: vertical; font-family: var(--font-code); font-size: 13px;
-    background: var(--code-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; line-height: 1.5;
-  }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .page { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: 1.7rem; margin: 0; letter-spacing: 0.04em; }
+  header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 14px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.1rem; margin: 0; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 0; line-height: 1.6; }
   button {
-    font-family: var(--font-body); font-weight: 700; font-size: 0.95rem; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+    font-family: var(--font-body); font-weight: 700; font-size: 0.9rem; border-radius: 999px; padding: 6px 14px; cursor: pointer;
     border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
   }
   button.quiet { background: transparent; color: var(--accent); }
-  button:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-  .note { color: var(--muted); font-size: 0.85rem; margin: 0; line-height: 1.6; }
-  .note code { font-family: var(--font-code); font-size: 0.8rem; word-break: break-all; }
-  #status { color: var(--ok); font-size: 0.85rem; min-height: 1.2em; }
-  details summary { cursor: pointer; font-weight: 700; }
-  @media (max-width: 760px) {
-    html, body { height: auto; }
-    main { grid-template-columns: minmax(0, 1fr); }
-    #desk { min-height: 70vh; }
+  button.small { padding: 3px 10px; font-size: 0.8rem; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .piece:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  input[type="text"], input[type="number"], select {
+    font-family: var(--font-body); font-size: 0.95rem; color: var(--ink); background: var(--code-bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; min-width: 0;
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* 魔法の本（タブ） */
+  .book { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tab { background: var(--code-bg); color: var(--ink); border: 1px solid var(--line); font-weight: 700; }
+  .tab[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  /* パズル：ピースは SVG の形の上に 文字や入力をのせる */
+  .puzzle-scroll { overflow-x: auto; padding-bottom: 4px; }
+  .puzzle { position: relative; min-height: 200px; }
+  .jig { position: absolute; cursor: pointer; }
+  .jig svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+  .jig svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.25); stroke-width: 1.5; }
+  .jig .body { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 4px; color: #fff; padding: 0 14px 0 22px; box-sizing: border-box; }
+  .jig .title { font-weight: 900; font-size: 0.95rem; line-height: 1.2; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+  .jig .vals { font-size: 0.72rem; line-height: 1.35; opacity: 0.95; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .jig input { width: 100%; box-sizing: border-box; background: rgba(255, 255, 255, 0.92); color: #231d35; border: none; border-radius: 6px; padding: 5px 8px; font-size: 0.9rem; }
+  .jig .x { position: absolute; top: 6px; right: 18px; background: rgba(0, 0, 0, 0.25); color: #fff; border: none; border-radius: 999px; padding: 0 7px; font-size: 0.75rem; line-height: 1.5; }
+  .jig.selected svg path { stroke: var(--ink); stroke-width: 3.5; }
+  .jig.dragging { opacity: 0.4; }
+  .jig.drop-here svg path { stroke: var(--accent); stroke-width: 4; stroke-dasharray: 6 4; }
+  .jig .loop { position: absolute; left: 6px; top: 10px; bottom: 10px; width: 5px; border-radius: 3px; background: #ffd23c; }
+  .column-label { position: absolute; font-family: var(--font-display); color: var(--muted); font-size: 0.85rem; }
+  .shelf-piece { position: relative; display: inline-flex; align-items: center; height: 40px; padding: 0 14px 0 20px; margin: 0 20px 8px 0; color: #fff;
+    border: none; background: transparent; font-family: var(--font-body); font-weight: 900; font-size: 0.85rem; cursor: pointer; }
+  .shelf-piece svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+  .shelf-piece svg path { fill: var(--c); stroke: rgba(0, 0, 0, 0.2); }
+  .shelf-piece span { position: relative; }
+  .jig:focus-visible, .shelf-piece:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+  /* えらんだピースの くわしい設定 */
+  .detail { border-left: 6px solid var(--c, var(--accent)); }
+  .args { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .arg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .arg label { font-weight: 700; }
+  .arg .help { color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+  .arg .pair { display: flex; gap: 8px; align-items: center; }
+  .arg input[type="range"] { flex: 1; min-width: 0; accent-color: var(--c, var(--accent)); }
+  .arg input[type="number"] { width: 5.5em; }
+
+  /* ピース箱 */
+  .shelf { display: flex; flex-direction: column; gap: 10px; }
+  .shelf h3 { margin: 0; font-size: 0.85rem; color: var(--muted); letter-spacing: 0.08em; }
+  .shelf .row { gap: 0; }
+
+  textarea {
+    width: 100%; box-sizing: border-box; min-height: 260px; resize: vertical; font-family: var(--font-code); font-size: 12.5px;
+    background: var(--code-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; line-height: 1.55;
+  }
+  #status { color: var(--ok); font-size: 0.85rem; min-height: 1.2em; }
+  .note code { font-family: var(--font-code); font-size: 0.78rem; word-break: break-all; }
+  details summary { cursor: pointer; font-weight: 700; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
-<header>
-  <h1>こえまほう 魔法ブロック</h1>
-  <p>左のブロックを「魔法」ブロックの中にならべると、右に じゅもん.txt の文ができます</p>
-</header>
+<div class="page">
+  <header>
+    <h1>こえまほう 魔法パズル</h1>
+    <p>名前 ▶ 詠唱 ▶ 効果 の順にピースをつなげると魔法ができます</p>
+  </header>
 
-<main>
-  <div id="desk" aria-label="ブロックを組み立てる場所"></div>
-  <aside>
-    <div class="box grow">
-      <h2>できた じゅもん.txt</h2>
-      <textarea id="output" readonly spellcheck="false" aria-label="できた文"></textarea>
-      <div class="row">
-        <button id="copy" type="button">ぜんぶコピー</button>
-        <span id="status" role="status"></span>
-      </div>
-      <p class="note">コピーして、<code>.minecraft\installations\iroiro\config\koemahou\じゅもん.txt</code> にはりつけて保存すると、ゲームの中ですぐ使えます。</p>
-    </div>
-    <div class="box">
-      <details>
-        <summary>じゅもん.txt をブロックにもどす</summary>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          <textarea id="importText" spellcheck="false" placeholder="ここに じゅもん.txt の中身をはりつけて…" aria-label="読みこむ文"></textarea>
+  <div class="layout">
+    <div class="col">
+      <section class="card" aria-label="魔法の本">
+        <div class="row" style="justify-content: space-between">
+          <h2>魔法の本</h2>
           <div class="row">
-            <button id="importBtn" type="button" class="quiet">ブロックにする</button>
-            <button id="clearBtn" type="button" class="quiet">机をからっぽにする</button>
+            <button id="addSpell" type="button" class="small">＋ 新しい魔法</button>
+            <button id="delSpell" type="button" class="small quiet">この魔法を消す</button>
           </div>
         </div>
-      </details>
-    </div>
-  </aside>
-</main>
+        <div class="book" id="book"></div>
+      </section>
 
-<script src="https://unpkg.com/blockly@11.1.1/blockly_compressed.js"></script>
-<script src="https://unpkg.com/blockly@11.1.1/msg/ja.js"></script>
+      <section class="card" aria-label="魔法のパズル">
+        <div class="row" style="justify-content: space-between">
+          <h2>パズル</h2>
+          <div class="row">
+            <button id="addChant" type="button" class="small quiet">＋ 詠唱ピース</button>
+          </div>
+        </div>
+        <div class="puzzle-scroll"><div class="puzzle" id="puzzle"></div></div>
+        <p class="hint">名前 ▶ 詠唱（上から順に言う） ▶ 効果（上から順に動く）。効果ピースを押すと下で数字を変えられます。ピース箱のピースを押すと、えらんだピースのすぐ下（なければ さいご）につながります。ドラッグでならべかえもできます。</p>
+      </section>
+
+      <section class="card detail" id="detail" aria-label="えらんだピース"></section>
+
+      <section class="card" aria-label="ピース箱">
+        <h2>ピース箱</h2>
+        <div class="shelf" id="shelf"></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <h2>できた じゅもん.txt</h2>
+        <textarea id="output" readonly spellcheck="false" aria-label="できた文"></textarea>
+        <div class="row">
+          <button id="copy" type="button">ぜんぶコピー</button>
+          <span id="status" role="status"></span>
+        </div>
+        <p class="hint note">コピーして <code>.minecraft\installations\iroiro\config\koemahou\じゅもん.txt</code> にはりつけて保存すると、ゲームの中ですぐ使えます。</p>
+      </section>
+      <section class="card">
+        <details>
+          <summary>じゅもん.txt を読みこむ</summary>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+            <textarea id="importText" spellcheck="false" style="min-height: 140px" placeholder="じゅもん.txt の中身をはりつけて…" aria-label="読みこむ文"></textarea>
+            <button id="importBtn" type="button" class="quiet">パズルにする</button>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+
 <script>
 // ================= えらべる名前（MOD の MagicRunner.java と同じ） =================
 const PARTICLES = ["炎", "青い炎", "煙", "大きな煙", "闇", "ポータル", "逆ポータル", "光", "ハート", "緑", "電気", "魔法",
@@ -110,359 +184,608 @@ const POTIONS = ["再生", "衝撃吸収", "耐性", "力", "スピード", "跳
 const SHOTS = ["火の玉", "大きな火の玉", "ウィザーの頭", "ドラゴンの火の玉", "矢", "雪玉", "風の弾", "シュルカーの弾", "TNT"];
 const MOBS = ["オオカミ", "アイアンゴーレム", "スノーゴーレム", "ネコ", "ミツバチ", "アレイ", "ヴェックス", "ゾンビ", "スケルトン",
   "クリーパー", "ブタ", "ニワトリ", "ウシ", "ヒツジ", "キツネ", "コウモリ", "エヴォーカーの牙"];
-const BIG = ["ブラックホール", "メテオ", "ジャッジメント", "サンクチュアリ", "クロノスタシス", "ファイアボール", "ヒール"];
+const PLACES = ["見ている所", "自分", "上", "前", "まわり", "もどる", "近くのモブ", "ランダムなモブ"];
+const BLOCKS = ["氷", "青い氷", "ガラス", "石", "黒曜石", "光る石", "雪", "クモの巣", "葉っぱ", "金", "ダイヤ", "土", "マグマ", "木", "スライム", "アメジスト"];
+const DIRECTIONS = ["見ている方", "上", "下", "前", "うしろ", "右", "左", "ランダム", "場所の方", "自分の方", "近くのモブの方", "横にまわす", "縦にまわす"];
 
-/** 名前の一覧を、ドロップダウンの形にする */
-function options(list) {
-  return list.map(name => [name, name]);
-}
+// ================= ピースの形 =================
+// 数: [名前, はじめ, いちばん小さい, いちばん大きい, きざみ, 説明]   言葉: [名前, 一覧, 説明]
+const n = (name, def, min, max, step, help) => ({ name, kind: "num", def, min, max, step, help });
+const w = (name, list, help) => ({ name, kind: "word", def: list[0], list, help });
 
-// ================= ブロックの色（なかまごと） =================
-const COLOR = { spell: "#7b3fe4", chant: "#c04fd1", place: "#2f8fd8", attack: "#e0533d", move: "#e8962b",
-  friend: "#2fa86a", summon: "#a0702a", look: "#4c5bd4", control: "#d4a017" };
-
-// ================= ブロックの形 =================
-// 1行ぶん: [ブロックの名前, 色, 表示の文（%1 などが入れるところ）, 入れるところの中身, 文にする関数]
-// 入れるところ: ["数", 名前, はじめの数] / ["選ぶ", 名前, 一覧] / ["文字", 名前, はじめの文字]
-const EFFECT_BLOCKS = [
-  ["m_place", "place", "場所を %1 にする %2", [["選ぶ", "WHERE", ["見ている所", "自分", "上", "前", "まわり", "もどる"]], ["数", "N", 64]],
-    b => { const where = b.getFieldValue("WHERE"); return (where === "自分" || where === "もどる") ? `場所 ${where}` : `場所 ${where} ${num(b, "N")}`; }],
-  ["m_wait", "control", "%1 秒まつ", [["数", "S", 1]], b => `待つ ${num(b, "S")}`],
-  ["m_explode", "attack", "爆発 大きさ %1", [["数", "N", 4]], b => `爆発 ${num(b, "N")}`],
-  ["m_damage", "attack", "ダメージ %1 半径 %2", [["数", "N", 10], ["数", "R", 4]], b => `ダメージ ${num(b, "N")} ${num(b, "R")}`],
-  ["m_fire", "attack", "燃やす %1 秒 半径 %2", [["数", "S", 5], ["数", "R", 4]], b => `燃やす ${num(b, "S")} ${num(b, "R")}`],
-  ["m_bolt", "attack", "雷 %1 本 半径 %2", [["数", "N", 1], ["数", "R", 0]], b => `雷 ${num(b, "N")} ${num(b, "R")}`],
-  ["m_pull", "move", "吸いこむ 半径 %1 ・ %2 秒 ・ 強さ %3", [["数", "R", 15], ["数", "S", 3], ["数", "P", 1]], b => `吸いこむ ${num(b, "R")} ${num(b, "S")} ${num(b, "P")}`],
-  ["m_push", "move", "吹きとばす 半径 %1 ・ 強さ %2", [["数", "R", 8], ["数", "P", 2]], b => `吹きとばす ${num(b, "R")} ${num(b, "P")}`],
-  ["m_float", "move", "うかせる 半径 %1 ・ %2 秒 ・ 高さ %3", [["数", "R", 8], ["数", "S", 3], ["数", "H", 4]], b => `うかせる ${num(b, "R")} ${num(b, "S")} ${num(b, "H")}`],
-  ["m_freeze", "move", "時間を止める 半径 %1 ・ %2 秒", [["数", "R", 10], ["数", "S", 5]], b => `止める ${num(b, "R")} ${num(b, "S")}`],
-  ["m_heal", "friend", "回復 %1 ・ 半径 %2 （0 は自分だけ）", [["数", "N", 8], ["数", "R", 0]], b => `回復 ${num(b, "N")} ${num(b, "R")}`],
-  ["m_potion", "friend", "効果 %1 %2 秒 レベル %3 ・ %4 に ・ 半径 %5", [["選ぶ", "WHAT", POTIONS], ["数", "S", 10], ["数", "L", 1], ["選ぶ", "WHO", ["自分", "仲間", "モブ"]], ["数", "R", 8]],
-    b => `効果 ${b.getFieldValue("WHAT")} ${num(b, "S")} ${num(b, "L")} ${b.getFieldValue("WHO")} ${num(b, "R")}`],
-  ["m_warp", "friend", "前へ %1 ブロック ワープ", [["数", "N", 10]], b => `ワープ ${num(b, "N")}`],
-  ["m_warp_to", "friend", "場所へワープ", [], b => `ワープ`],
-  ["m_shoot", "summon", "撃つ %1 %2 こ ・ 速さ %3 ・ ひろがり %4", [["選ぶ", "WHAT", SHOTS], ["数", "N", 3], ["数", "V", 1.5], ["数", "A", 5]],
-    b => `撃つ ${b.getFieldValue("WHAT")} ${num(b, "N")} ${num(b, "V")} ${num(b, "A")}`],
-  ["m_summon", "summon", "よぶ %1 %2 ひき", [["選ぶ", "WHAT", MOBS], ["数", "N", 1]], b => `よぶ ${b.getFieldValue("WHAT")} ${num(b, "N")}`],
-  ["m_particle", "look", "粒 %1 %2 こ ・ 広がり %3", [["選ぶ", "WHAT", PARTICLES], ["数", "N", 20], ["数", "R", 1]], b => `粒 ${b.getFieldValue("WHAT")} ${num(b, "N")} ${num(b, "R")}`],
-  ["m_ring", "look", "輪 %1 半径 %2", [["選ぶ", "WHAT", PARTICLES], ["数", "R", 3]], b => `輪 ${b.getFieldValue("WHAT")} ${num(b, "R")}`],
-  ["m_circle", "look", "魔法陣 %1 半径 %2", [["選ぶ", "WHAT", PARTICLES], ["数", "R", 6]], b => `魔法陣 ${b.getFieldValue("WHAT")} ${num(b, "R")}`],
-  ["m_pillar", "look", "柱 %1 高さ %2", [["選ぶ", "WHAT", PARTICLES], ["数", "H", 10]], b => `柱 ${b.getFieldValue("WHAT")} ${num(b, "H")}`],
-  ["m_sphere", "look", "球 %1 大きさ %2", [["選ぶ", "WHAT", PARTICLES], ["数", "N", 1.5]], b => `球 ${b.getFieldValue("WHAT")} ${num(b, "N")}`],
-  ["m_line", "look", "線 %1 （自分から場所へ）", [["選ぶ", "WHAT", PARTICLES]], b => `線 ${b.getFieldValue("WHAT")}`],
-  ["m_sound", "look", "音 %1 大きさ %2 高さ %3", [["選ぶ", "WHAT", SOUNDS], ["数", "V", 1], ["数", "P", 1]], b => `音 ${b.getFieldValue("WHAT")} ${num(b, "V")} ${num(b, "P")}`],
-  ["m_cooldown", "control", "待ち時間 %1 秒（次に使えるまで）", [["数", "S", 10]], b => `待ち時間 ${num(b, "S")}`],
-  ["m_big", "spell", "大魔法 %1 をそのまま出す", [["選ぶ", "WHAT", BIG]], b => b.getFieldValue("WHAT")],
+const SECONDS = "何秒";
+const PIECES = [
+  { part: "場所", cat: "place", group: "場所・向き", args: [w("どこ", PLACES, "見ている所＝見ているブロック／自分＝足もと／上・前＝今の場所から動かす／まわり＝近くのランダムな所／もどる＝見ている所か自分にもどる／近くのモブ・ランダムなモブ＝モブのいる所"),
+      n("距離", 20, 0, 64, 1, "見ている所：どこまで届くか／上・前：何ブロック動かすか（マイナスで反対）／まわり：半径／モブ：さがす広さ")] },
+  { part: "向き", cat: "place", group: "場所・向き", args: [w("どっち", DIRECTIONS, "撃つ・ビーム・押す・ワープ・場所の「前」が この向きを使う。まわす＝今の向きを角度ぶん回す"),
+      n("角度", 90, -180, 180, 5, "横にまわす・縦にまわす のときだけ。プラスで右／上")] },
+  { part: "待つ", cat: "control", group: "時間", args: [n("秒", 1, 0, 10, 0.1, "次のピースまで待つ時間")] },
+  { part: "くりかえす", cat: "control", group: "時間", args: [n("回数", 10, 1, 200, 1, "「ここまで」までのピースを何回くりかえすか"),
+      n("間隔", 0.1, 0, 5, 0.05, "1回ごとに何秒あけるか")] },
+  { part: "ここまで", cat: "control", group: "時間", args: [] },
+  { part: "待ち時間", cat: "control", group: "時間", args: [n("秒", 10, 0, 120, 1, "この魔法をもう一度使えるまでの時間")] },
+  { part: "爆発", cat: "attack", group: "こうげき", args: [n("大きさ", 4, 1, 12, 0.5, "TNT が 4。ブロックはこわれない。自分と仲間には当たらない")] },
+  { part: "ダメージ", cat: "attack", group: "こうげき", args: [n("量", 10, 1, 100, 1, "2 でハート1こぶん"), n("半径", 4, 0, 48, 1, "今の場所から何ブロックまでのモブに")] },
+  { part: "燃やす", cat: "attack", group: "こうげき", args: [n("秒", 5, 1, 30, 1, "何秒 燃えるか"), n("半径", 4, 0, 48, 1, "今の場所から何ブロックまでのモブを")] },
+  { part: "雷", cat: "attack", group: "こうげき", args: [n("本数", 1, 1, 30, 1, "何本 落とすか（見た目。ダメージはダメージのピースで）"), n("半径", 0, 0, 48, 1, "0 なら今の場所、数字ならそのまわりにばらばら")] },
+  { part: "ビーム", cat: "attack", group: "こうげき", args: [w("種類", PARTICLES, "光線の見た目"), n("長さ", 20, 1, 64, 1, "何ブロック先まで"), n("ダメージ", 10, 0, 100, 1, "光線に当たったモブへ（2 でハート1こ）")] },
+  { part: "吸いこむ", cat: "move", group: "うごかす", args: [n("半径", 15, 1, 48, 1, "何ブロックまでのモブを"), n("秒", 3, 0.05, 30, 0.05, "何秒 吸いつづけるか"), n("強さ", 1, 0.1, 5, 0.1, "1 がふつう")] },
+  { part: "吹きとばす", cat: "move", group: "うごかす", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("強さ", 2, 0.5, 10, 0.5, "外へ飛ばす強さ")] },
+  { part: "押す", cat: "move", group: "うごかす", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("強さ", 2, 0.5, 10, 0.5, "今の向きへ押す強さ")] },
+  { part: "うかせる", cat: "move", group: "うごかす", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("秒", 3, 0.5, 30, 0.5, "何秒 うかせるか"), n("高さ", 4, 1, 30, 1, "何ブロックの高さに")] },
+  { part: "止める", cat: "move", group: "うごかす", args: [n("半径", 10, 1, 48, 1, "何ブロックまでのモブの時間を"), n("秒", 5, 0.5, 30, 0.5, "何秒 止めるか")] },
+  { part: "回復", cat: "friend", group: "自分・仲間", args: [n("量", 8, 1, 40, 1, "2 でハート1こぶん"), n("半径", 0, 0, 48, 1, "0 なら自分だけ。数字なら近くのプレイヤーも")] },
+  { part: "効果", cat: "friend", group: "自分・仲間", args: [w("名前", POTIONS, "ポーションの効果"), n("秒", 10, 1, 600, 1, "何秒 つづくか"), n("レベル", 1, 1, 10, 1, "1 がふつう"),
+      w("だれ", ["自分", "仲間", "モブ"], "だれにかけるか"), n("半径", 8, 0, 48, 1, "仲間・モブのとき、何ブロックまで")] },
+  { part: "ワープ", cat: "friend", group: "自分・仲間", args: [n("距離", 10, 1, 64, 1, "今の向きへ何ブロック（壁の手前で止まる）")] },
+  { part: "撃つ", cat: "summon", group: "撃つ・よぶ", args: [w("なに", SHOTS, "大きな火の玉と TNT はブロックをこわすことがある"), n("数", 3, 1, 30, 1, "何発"),
+      n("速さ", 1.5, 0.1, 6, 0.1, "1.5 がふつう"), n("ひろがり", 5, 0, 90, 1, "何度ずつ左右に広げるか")] },
+  { part: "よぶ", cat: "summon", group: "撃つ・よぶ", args: [w("なに", MOBS, "今の場所に出す"), n("数", 1, 1, 30, 1, "何ひき")] },
+  { part: "粒", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("数", 20, 1, 500, 1, "何こ"), n("広がり", 1, 0, 20, 0.5, "何ブロックに散らばるか")] },
+  { part: "輪", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("半径", 3, 0.5, 48, 0.5, "輪の大きさ")] },
+  { part: "魔法陣", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("半径", 6, 1, 48, 1, "魔法陣の大きさ")] },
+  { part: "柱", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("高さ", 10, 1, 64, 1, "何ブロックの高さ")] },
+  { part: "球", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("大きさ", 1.5, 0.5, 20, 0.5, "球の大きさ")] },
+  { part: "線", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, "自分の目から 今の場所まで")] },
+  { part: "音", cat: "look", group: "見た目・音", args: [w("種類", SOUNDS, ""), n("大きさ", 1, 0.1, 10, 0.1, "どこまで聞こえるか"), n("高さ", 1, 0.5, 2, 0.05, "1 がふつう。大きいほど高い音")] },
+  { part: "確率", cat: "control", group: "時間", args: [n("パーセント", 50, 0, 100, 5, "すぐ次のピースを、このパーセントで動かす（動かないと とばす）")] },
+  { part: "凍らせる", cat: "attack", group: "こうげき", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("秒", 5, 1, 30, 1, "何秒 こおらせるか（すごく遅くなる）")] },
+  { part: "衝撃波", cat: "attack", group: "こうげき", args: [n("半径", 10, 2, 48, 1, "どこまで広がるか（1秒に20ブロック）"), n("ダメージ", 8, 0, 100, 1, "波に当たったモブへ")] },
+  { part: "たたきつける", cat: "attack", group: "こうげき", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("ダメージ", 10, 0, 100, 1, "地面にたたきつけたときのダメージ")] },
+  { part: "連鎖雷", cat: "attack", group: "こうげき", args: [n("本数", 5, 1, 30, 1, "何ひきまで とびうつるか"), n("ダメージ", 8, 0, 100, 1, "1ぴきごとのダメージ")] },
+  { part: "隕石", cat: "attack", group: "こうげき", args: [n("大きさ", 2, 0.5, 5, 0.5, "隕石の大きさ（爆発も大きくなる）"), n("ダメージ", 20, 0, 200, 1, "落ちたところのモブへ")] },
+  { part: "牙", cat: "attack", group: "こうげき", args: [n("数", 8, 1, 30, 1, "今の向きへ、地面から何本 牙を出すか")] },
+  { part: "引きよせる", cat: "move", group: "うごかす", args: [n("半径", 12, 1, 48, 1, "何ブロックまでのモブを"), n("強さ", 1.5, 0.1, 5, 0.1, "自分の方へ引っぱる強さ")] },
+  { part: "うず", cat: "move", group: "うごかす", args: [n("半径", 8, 1, 48, 1, "何ブロックまでのモブを"), n("秒", 3, 0.5, 30, 0.5, "何秒 回すか"), n("速さ", 1, 0.1, 5, 0.1, "回る速さ")] },
+  { part: "竜巻", cat: "move", group: "うごかす", args: [n("半径", 6, 1, 48, 1, "何ブロックまでのモブを"), n("秒", 4, 0.5, 30, 0.5, "何秒 つづくか"), n("高さ", 8, 1, 30, 1, "どこまで まきあげるか")] },
+  { part: "ダッシュ", cat: "friend", group: "自分・仲間", args: [n("強さ", 2, 0.2, 6, 0.2, "今の向きへ自分が飛びだす強さ")] },
+  { part: "飛ぶ", cat: "friend", group: "自分・仲間", args: [n("高さ", 8, 1, 60, 1, "何ブロック とびあがるか（ゆっくり落ちる効果つき）")] },
+  { part: "壁", cat: "build", group: "ブロック（しばらくで消える）", args: [w("ブロック", BLOCKS, "空気のところにだけ置く。もとのブロックはこわさない"), n("幅", 5, 1, 21, 1, "今の向きに横むきの 何ブロック"),
+      n("高さ", 3, 1, 12, 1, "何ブロックの高さ"), n("秒", 10, 1, 120, 1, "何秒で消えるか")] },
+  { part: "ドーム", cat: "build", group: "ブロック（しばらくで消える）", args: [w("ブロック", BLOCKS, "今の場所をかこむ 半分の球"), n("半径", 4, 2, 10, 1, "ドームの大きさ"), n("秒", 10, 1, 120, 1, "何秒で消えるか")] },
+  { part: "足場", cat: "build", group: "ブロック（しばらくで消える）", args: [w("ブロック", BLOCKS, "今の場所の すぐ下に丸い床"), n("半径", 3, 1, 10, 1, "床の大きさ"), n("秒", 10, 1, 120, 1, "何秒で消えるか")] },
+  { part: "らせん", cat: "look", group: "見た目・音", args: [w("種類", PARTICLES, ""), n("半径", 2, 0.5, 20, 0.5, "らせんの太さ"), n("高さ", 5, 0.5, 64, 0.5, "何ブロックの高さ")] },
+  { part: "文字", cat: "look", group: "見た目・音", args: [{ name: "文", kind: "text", def: "かっこいい！", help: "近くのプレイヤーの画面に出す（空白は _ で）" }] },
+  { part: "雨", cat: "summon", group: "撃つ・よぶ", args: [w("なに", SHOTS, "今の場所の上から降らせる"), n("数", 10, 1, 30, 1, "何こ"), n("半径", 5, 0, 48, 1, "どのくらいの広さに"), n("高さ", 15, 2, 60, 1, "何ブロック上から")] },
+  ...["ブラックホール", "メテオ", "ジャッジメント", "サンクチュアリ", "クロノスタシス", "ファイアボール", "ヒール"]
+    .map(name => ({ part: name, cat: "big", group: "できあがりの大魔法", args: [] })),
 ];
+const SPEC = Object.fromEntries(PIECES.map(piece => [piece.part, piece]));
 
-/** 数のところを、文にする（1.0 は 1 に） */
-function num(block, name) {
-  const value = Number(block.getFieldValue(name));
-  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "0";
+/** ピースを1つ作る（はじめの数字で） */
+function newPiece(part) {
+  const args = {};
+  for (const arg of SPEC[part].args) args[arg.name] = arg.def;
+  return { part, args };
 }
 
-/** ブロックの形を Blockly に教える */
-function defineBlocks() {
-  // 魔法（いちばん上のブロック）
-  Blockly.Blocks["m_spell"] = {
-    init() {
-      this.appendDummyInput().appendField("✦ 魔法").appendField(new Blockly.FieldTextInput("ブラックホール"), "NAME");
-      this.appendStatementInput("CHANT").setCheck("chant").appendField("詠唱");
-      this.appendStatementInput("EFFECT").setCheck("effect").appendField("効果");
-      this.setColour(COLOR.spell);
-      this.setTooltip("詠唱を全部言いきると、効果が上から順番に動きます");
-    }
-  };
-  // 詠唱の1行
-  Blockly.Blocks["m_chant"] = {
-    init() {
-      this.appendDummyInput().appendField("言う「").appendField(new Blockly.FieldTextInput("ここに詠唱"), "TEXT").appendField("」");
-      this.setPreviousStatement(true, "chant");
-      this.setNextStatement(true, "chant");
-      this.setColour(COLOR.chant);
-      this.setTooltip("声で言う1行。上から順番に言います");
-    }
-  };
-  // くりかえす
-  Blockly.Blocks["m_repeat"] = {
-    init() {
-      this.appendDummyInput().appendField("くりかえす").appendField(new Blockly.FieldNumber(10, 1, 1000, 1), "N")
-        .appendField("回 ・ 1回ごとに").appendField(new Blockly.FieldNumber(0.1, 0, 60), "S").appendField("秒あける");
-      this.appendStatementInput("DO").setCheck("effect");
-      this.setPreviousStatement(true, "effect");
-      this.setNextStatement(true, "effect");
-      this.setColour(COLOR.control);
-    }
-  };
-  // 効果のブロック
-  for (const [type, colorName, text, inputs] of EFFECT_BLOCKS) {
-    Blockly.Blocks[type] = {
-      init() {
-        const parts = text.split(/(%\d)/);
-        let input = this.appendDummyInput();
-        for (const part of parts) {
-          const match = part.match(/^%(\d)$/);
-          if (!match) {
-            if (part.trim()) input.appendField(part.trim());
-            continue;
-          }
-          const [kind, name, value] = inputs[Number(match[1]) - 1];
-          if (kind === "数") input.appendField(new Blockly.FieldNumber(value, -1000, 1000), name);
-          if (kind === "選ぶ") input.appendField(new Blockly.FieldDropdown(options(value)), name);
-          if (kind === "文字") input.appendField(new Blockly.FieldTextInput(value), name);
-        }
-        this.setPreviousStatement(true, "effect");
-        this.setNextStatement(true, "effect");
-        this.setColour(COLOR[colorName]);
-      }
-    };
-  }
+// ================= 魔法の本（データ） =================
+const SAMPLE_TEXT = `[ブラックホール]
+闇よ
+ブラックホール
+＞場所 どこ=見ている所 距離=20
+＞場所 どこ=上 距離=3
+＞音 種類=ウォーデン
+＞くりかえす 回数=50 間隔=0.1
+＞  球 種類=闇 大きさ=1.5
+＞  吸いこむ 半径=18 秒=0.1 強さ=1
+＞ここまで
+＞爆発 大きさ=7
+＞ダメージ 量=40 半径=12
+＞吹きとばす 半径=12 強さ=3
+＞待ち時間 秒=45
+
+[ビーム]
+光よ
+つらぬけ
+＞ビーム 種類=光 長さ=30 ダメージ=15
+＞向き どっち=横にまわす 角度=15
+＞ビーム 種類=光 長さ=30 ダメージ=15
+＞向き どっち=横にまわす 角度=-30
+＞ビーム 種類=光 長さ=30 ダメージ=15
+＞待ち時間 秒=8`;
+
+let spells = [];
+let current = 0;
+let selected = -1;
+
+// ================= じゅもん.txt ⇄ データ =================
+/** 1行の数字を、きれいな文字にする */
+function numText(value) {
+  return String(Math.round(Number(value) * 100) / 100);
 }
 
-/** 道具箱（左のブロックの一覧） */
-function makeToolbox() {
-  const kinds = (...types) => types.map(type => ({ kind: "block", type }));
-  return {
-    kind: "categoryToolbox",
-    contents: [
-      { kind: "category", name: "魔法", colour: COLOR.spell, contents: kinds("m_spell", "m_chant", "m_big") },
-      { kind: "category", name: "場所・時間", colour: COLOR.place, contents: kinds("m_place", "m_wait", "m_repeat", "m_cooldown") },
-      { kind: "category", name: "こうげき", colour: COLOR.attack, contents: kinds("m_explode", "m_damage", "m_fire", "m_bolt") },
-      { kind: "category", name: "うごかす", colour: COLOR.move, contents: kinds("m_pull", "m_push", "m_float", "m_freeze") },
-      { kind: "category", name: "自分・仲間", colour: COLOR.friend, contents: kinds("m_heal", "m_potion", "m_warp", "m_warp_to") },
-      { kind: "category", name: "撃つ・よぶ", colour: COLOR.summon, contents: kinds("m_shoot", "m_summon") },
-      { kind: "category", name: "見た目・音", colour: COLOR.look, contents: kinds("m_particle", "m_ring", "m_circle", "m_pillar", "m_sphere", "m_line", "m_sound") },
-    ]
-  };
-}
-
-// ================= ブロック → じゅもん.txt =================
-const MAKERS = Object.fromEntries(EFFECT_BLOCKS.map(row => [row[0], row[4]]));
-
-/** 机の上の全部の魔法を、じゅもん.txt の文にする */
-function makeText(workspace) {
-  const out = ["# じゅもん表 v5", "# 魔法ブロックで作りました", ""];
-  const spells = workspace.getTopBlocks(true).filter(block => block.type === "m_spell");
+/** データを じゅもん.txt の文にする */
+function makeText() {
+  const out = ["# じゅもん表 v5", "# 魔法パズルで作りました", ""];
   for (const spell of spells) {
-    out.push(`[${spell.getFieldValue("NAME").trim() || "名前のない魔法"}]`);
-    for (let chant = spell.getInputTargetBlock("CHANT"); chant; chant = chant.getNextBlock()) {
-      if (chant.type === "m_chant") out.push(chant.getFieldValue("TEXT").trim());
+    out.push(`[${spell.name.trim() || "名前のない魔法"}]`);
+    for (const line of spell.chants) if (line.trim()) out.push(line.trim());
+    let depth = 0;
+    for (const piece of spell.pieces) {
+      if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
+      const words = [piece.part, ...SPEC[piece.part].args.map(arg =>
+        `${arg.name}=${arg.kind === "num" ? numText(piece.args[arg.name]) : String(piece.args[arg.name]).replace(/\s+/g, "_")}`)];
+      out.push(`＞${"  ".repeat(depth)}${words.join(" ")}`);
+      if (piece.part === "くりかえす") depth++;
     }
-    writeEffects(spell.getInputTargetBlock("EFFECT"), 0, out);
     out.push("");
   }
-  if (spells.length === 0) out.push("# 「魔法」ブロックを置くと、ここに文ができます");
   return out.join("\n");
 }
 
-/** 効果のブロックを上から順番に文にする（くりかえすの中は字下げ） */
-function writeEffects(block, depth, out) {
-  const indent = "  ".repeat(depth);
-  for (; block; block = block.getNextBlock()) {
-    if (block.type === "m_repeat") {
-      out.push(`＞${indent}くりかえす ${num(block, "N")} ${num(block, "S")}`);
-      writeEffects(block.getInputTargetBlock("DO"), depth + 1, out);
-      out.push(`＞${indent}ここまで`);
-    } else if (MAKERS[block.type]) {
-      out.push(`＞${indent}${MAKERS[block.type](block)}`);
-    }
-  }
-}
-
-// ================= じゅもん.txt → ブロック =================
-/** 1行の効果を、ブロックの形（JSON）にする。わからない行は null */
-function lineToBlock(words) {
-  const [name, ...args] = words;
-  const n = (index, fallback) => (args[index] !== undefined && Number.isFinite(Number(args[index]))) ? Number(args[index]) : fallback;
-  const w = (index, list, fallback) => list.includes(args[index]) ? args[index] : fallback;
-  switch (name) {
-    case "場所": return { type: "m_place", fields: { WHERE: w(0, ["見ている所", "自分", "上", "前", "まわり", "もどる"], "見ている所"), N: n(1, 64) } };
-    case "待つ": return { type: "m_wait", fields: { S: n(0, 1) } };
-    case "爆発": return { type: "m_explode", fields: { N: n(0, 3) } };
-    case "ダメージ": return { type: "m_damage", fields: { N: n(0, 5), R: n(1, 4) } };
-    case "燃やす": return { type: "m_fire", fields: { S: n(0, 5), R: n(1, 4) } };
-    case "雷": return { type: "m_bolt", fields: { N: n(0, 1), R: n(1, 0) } };
-    case "吸いこむ": return { type: "m_pull", fields: { R: n(0, 10), S: n(1, 3), P: n(2, 1) } };
-    case "吹きとばす": return { type: "m_push", fields: { R: n(0, 8), P: n(1, 2) } };
-    case "うかせる": return { type: "m_float", fields: { R: n(0, 8), S: n(1, 3), H: n(2, 4) } };
-    case "止める": return { type: "m_freeze", fields: { R: n(0, 8), S: n(1, 3) } };
-    case "回復": return { type: "m_heal", fields: { N: n(0, 4), R: n(1, 0) } };
-    case "効果": return { type: "m_potion", fields: { WHAT: w(0, POTIONS, "再生"), S: n(1, 5), L: n(2, 1), WHO: w(3, ["自分", "仲間", "モブ"], "自分"), R: n(4, 8) } };
-    case "ワープ": return args.length ? { type: "m_warp", fields: { N: n(0, 10) } } : { type: "m_warp_to" };
-    case "撃つ": return { type: "m_shoot", fields: { WHAT: w(0, SHOTS, "火の玉"), N: n(1, 1), V: n(2, 1.5), A: n(3, 5) } };
-    case "よぶ": return { type: "m_summon", fields: { WHAT: w(0, MOBS, "オオカミ"), N: n(1, 1) } };
-    case "粒": return { type: "m_particle", fields: { WHAT: w(0, PARTICLES, "炎"), N: n(1, 20), R: n(2, 1) } };
-    case "輪": return { type: "m_ring", fields: { WHAT: w(0, PARTICLES, "炎"), R: n(1, 3) } };
-    case "魔法陣": return { type: "m_circle", fields: { WHAT: w(0, PARTICLES, "炎"), R: n(1, 5) } };
-    case "柱": return { type: "m_pillar", fields: { WHAT: w(0, PARTICLES, "炎"), H: n(1, 10) } };
-    case "球": return { type: "m_sphere", fields: { WHAT: w(0, PARTICLES, "闇"), N: n(1, 1.5) } };
-    case "線": return { type: "m_line", fields: { WHAT: w(0, PARTICLES, "炎") } };
-    case "音": return { type: "m_sound", fields: { WHAT: w(0, SOUNDS, "爆発"), V: n(1, 1), P: n(2, 1) } };
-    case "待ち時間": return { type: "m_cooldown", fields: { S: n(0, 3) } };
-    default: return BIG.includes(name) ? { type: "m_big", fields: { WHAT: name } } : null;
-  }
-}
-
-/** ブロックの並び（配列）を、つながった JSON にする */
-function chain(blocks) {
-  for (let index = blocks.length - 2; index >= 0; index--) blocks[index].next = { block: blocks[index + 1] };
-  return blocks[0];
-}
-
-/** じゅもん.txt の文を読んで、魔法ブロックを机に置く */
-function importText(workspace, text) {
-  const spells = [];
-  let current = null;
+/** じゅもん.txt の文を読んで、データにする（知らない行は とばす） */
+function readText(text) {
+  const result = [];
+  let spell = null;
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const head = line.match(/^\[(.*?)\]\s*(.*)$/);
     if (head) {
-      current = { name: head[1].trim(), chants: [], root: [], stack: [] };
-      current.list = current.root;
-      if (head[2]) { const block = lineToBlock(head[2].split(/\s+/)); if (block) current.list.push(block); }
-      spells.push(current);
+      spell = { name: head[1].trim(), chants: [], pieces: [] };
+      if (head[2] && SPEC[head[2]]) spell.pieces.push(newPiece(head[2]));
+      result.push(spell);
       continue;
     }
-    if (!current) continue;
-    if (line.startsWith("＞") || line.startsWith(">")) {
-      const words = line.slice(1).replace(/　/g, " ").trim().split(/\s+/);
-      if (words[0] === "くりかえす") {
-        const repeat = { type: "m_repeat", fields: { N: Number(words[1]) || 1, S: Number(words[2]) || 0 }, children: [] };
-        current.list.push(repeat);
-        current.stack.push(current.list);
-        current.list = repeat.children;
-      } else if (words[0] === "ここまで") {
-        if (current.stack.length) current.list = current.stack.pop();
-      } else {
-        const block = lineToBlock(words);
-        if (block) current.list.push(block);
-      }
-    } else {
-      current.chants.push({ type: "m_chant", fields: { TEXT: line } });
+    if (!spell) continue;
+    if (!(line.startsWith("＞") || line.startsWith(">"))) {
+      spell.chants.push(line);
+      continue;
     }
+    const words = line.slice(1).replace(/　/g, " ").replace(/＝/g, "=").trim().split(/\s+/);
+    const spec = SPEC[words[0]];
+    if (!spec) continue;
+    const piece = newPiece(words[0]);
+    let next = 0;
+    for (const word of words.slice(1)) {
+      const equal = word.indexOf("=");
+      let arg = null, value = word;
+      if (equal > 0) {
+        arg = spec.args.find(item => item.name === word.slice(0, equal));
+        value = word.slice(equal + 1);
+      } else {
+        arg = spec.args[next++];
+      }
+      if (!arg) continue;
+      if (arg.kind === "num") {
+        const number = Number(value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[^0-9.\-]/g, ""));
+        if (Number.isFinite(number)) piece.args[arg.name] = number;
+      } else if (arg.kind === "text" || arg.list.includes(value)) {
+        piece.args[arg.name] = value;
+      }
+    }
+    spell.pieces.push(piece);
   }
-  // くりかえす の中身を、Blockly の形にする
-  const finish = list => list.map(block => {
-    if (block.type !== "m_repeat") return block;
-    const inner = finish(block.children);
-    const result = { type: "m_repeat", fields: block.fields };
-    if (inner.length) result.inputs = { DO: { block: chain(inner) } };
-    return result;
+  return result;
+}
+
+// ================= 画面を作る =================
+const $ = id => document.getElementById(id);
+
+// ================= パズルの形 =================
+const KNOB = 11;       // 出っぱりの丸の半径
+const NECK = 7;        // 出っぱりの首の半分の幅
+
+/** 1つの辺を描く（from から to へ。kind: "flat" 平ら / "tab" 外へ出っぱり / "hole" 内へへこみ） */
+function edge(fromX, fromY, toX, toY, kind) {
+  if (kind === "flat") return `L ${toX} ${toY} `;
+  const length = Math.hypot(toX - fromX, toY - fromY);
+  const ux = (toX - fromX) / length, uy = (toY - fromY) / length;
+  // 外がわ（時計まわりに描くので、進む向きの左が外）
+  const out = kind === "tab" ? -1 : 1;
+  const nx = uy * out, ny = -ux * out;
+  const mid = length / 2;
+  const p = (along, away) => `${(fromX + ux * along + nx * away).toFixed(1)} ${(fromY + uy * along + ny * away).toFixed(1)}`;
+  return `L ${p(mid - NECK, 0)} L ${p(mid - NECK, 2)} A ${KNOB} ${KNOB} 0 1 ${kind === "tab" ? 1 : 0} ${p(mid + NECK, 2)} L ${p(mid + NECK, 0)} L ${toX} ${toY} `;
+}
+
+/** ピースの形（幅 width・高さ height の本体と、上右下左の出っぱり・へこみ）の SVG パス */
+function jigsawPath(width, height, sides) {
+  const [top, right, bottom, left] = sides;
+  return `M 0 0 ` + edge(0, 0, width, 0, top) + edge(width, 0, width, height, right)
+    + edge(width, height, 0, height, bottom) + edge(0, height, 0, 0, left) + "Z";
+}
+
+/** SVG の形を作る */
+function shapeSvg(width, height, sides) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", jigsawPath(width, height, sides));
+  svg.append(path);
+  return svg;
+}
+
+/** ピースの数字を、短い文にする */
+function valueText(piece) {
+  return SPEC[piece.part].args.map(arg => `${arg.name} ${arg.kind === "num" ? numText(piece.args[arg.name]) : piece.args[arg.name]}`).join("・");
+}
+
+/** 魔法の本（タブ）を描く */
+function drawBook() {
+  const book = $("book");
+  book.replaceChildren();
+  spells.forEach((spell, index) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab small";
+    tab.textContent = spell.name || "名前なし";
+    tab.setAttribute("aria-pressed", String(index === current));
+    tab.addEventListener("click", () => { current = index; selected = -1; drawAll(); });
+    book.append(tab);
   });
-  let y = 20;
-  for (const spell of spells) {
-    const state = { type: "m_spell", x: 20, y, fields: { NAME: spell.name }, inputs: {} };
-    if (spell.chants.length) state.inputs.CHANT = { block: chain(spell.chants) };
-    const effects = finish(spell.root);
-    if (effects.length) state.inputs.EFFECT = { block: chain(effects) };
-    Blockly.serialization.blocks.append(state, workspace);
-    y += 80 + 34 * (spell.chants.length + countBlocks(spell.root));
+}
+
+// ピースの大きさと、列の場所
+const SIZE = { nameW: 170, chantW: 230, effectW: 250, h: 78, gap: 0, top: 34, left: 4 };
+
+/** パズル全体（名前・詠唱・効果）を描く */
+function drawPuzzle() {
+  const puzzle = $("puzzle");
+  puzzle.replaceChildren();
+  const spell = spells[current];
+  const nameX = SIZE.left;
+  const chantX = nameX + SIZE.nameW;
+  const effectX = chantX + SIZE.chantW;
+
+  // 列の見出し
+  const label = (text, x) => { const span = document.createElement("span"); span.className = "column-label"; span.textContent = text; span.style.left = `${x + 8}px`; span.style.top = "4px"; puzzle.append(span); };
+  label("名前", nameX); label("詠唱（上から言う）", chantX); label("効果（上から動く）", effectX);
+
+  // 名前のピース（右に出っぱり）
+  const name = makeJig(nameX, SIZE.top, SIZE.nameW, SIZE.h, ["flat", "tab", "flat", "flat"], "name");
+  name.body.append(titleSpan("名前"));
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.id = "spellName";
+  nameInput.value = spell.name;
+  nameInput.setAttribute("aria-label", "魔法の名前");
+  nameInput.addEventListener("input", () => { spell.name = nameInput.value; drawBook(); save(); });
+  name.body.append(nameInput);
+  puzzle.append(name.root);
+
+  // 詠唱のピース（上に出っぱり・下にへこみ・左にへこみ・右に出っぱり）
+  spell.chants.forEach((line, index) => {
+    const jig = makeJig(chantX, SIZE.top + index * SIZE.h, SIZE.chantW, SIZE.h, ["tab", "tab", "hole", "hole"], "chant");
+    jig.body.append(titleSpan(`詠唱 ${index + 1}`));
+    const input = document.createElement("input");
+    input.type = "text";
+    input.id = `chant-${index}`;
+    input.value = line;
+    input.placeholder = "ここに言うことを書く";
+    input.setAttribute("aria-label", `${index + 1}番目の詠唱`);
+    input.addEventListener("input", () => { spell.chants[index] = input.value; save(); });
+    jig.body.append(input);
+    jig.root.append(closeButton(`${index + 1}番目の詠唱を消す`, () => { spell.chants.splice(index, 1); drawPuzzle(); save(); }));
+    dragSetup(jig.root, `chant:${index}`, data => dropChant(data, index));
+    puzzle.append(jig.root);
+  });
+
+  // 効果のピース（同じ形。くりかえすの中は 黄色い線と字下げ）
+  let depth = 0;
+  spell.pieces.forEach((piece, index) => {
+    if (piece.part === "ここまで") depth = Math.max(0, depth - 1);
+    const spec = SPEC[piece.part];
+    const jig = makeJig(effectX + depth * 18, SIZE.top + index * SIZE.h, SIZE.effectW, SIZE.h, ["tab", "tab", "hole", "hole"], spec.cat);
+    if (depth > 0) { const loop = document.createElement("span"); loop.className = "loop"; jig.root.append(loop); }
+    if (piece.part === "くりかえす") depth++;
+    jig.body.append(titleSpan(piece.part));
+    if (spec.args.length) { const vals = document.createElement("span"); vals.className = "vals"; vals.textContent = valueText(piece); jig.body.append(vals); }
+    if (index === selected) jig.root.classList.add("selected");
+    jig.root.tabIndex = 0;
+    jig.root.setAttribute("role", "button");
+    jig.root.setAttribute("aria-label", `${index + 1}番目の効果 ${piece.part}`);
+    const choose = () => { selected = index === selected ? -1 : index; drawPuzzle(); drawDetail(); };
+    jig.root.addEventListener("click", choose);
+    jig.root.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); } });
+    dragSetup(jig.root, `move:${index}`, data => dropAtData(data, index));
+    puzzle.append(jig.root);
+  });
+  if (spell.pieces.length === 0) {
+    const hint = document.createElement("span");
+    hint.className = "column-label";
+    hint.style.left = `${effectX + 8}px`;
+    hint.style.top = `${SIZE.top + 20}px`;
+    hint.textContent = "下のピース箱から ピースを押してね";
+    puzzle.append(hint);
   }
-  return spells.length;
+
+  // いちばん下の空き（ここに落とすと さいごに入る）
+  const rows = Math.max(spell.chants.length, spell.pieces.length, 1);
+  puzzle.style.height = `${SIZE.top + rows * SIZE.h + 40}px`;
+  puzzle.style.width = `${effectX + SIZE.effectW + 3 * 18 + 30}px`;
+  puzzle.ondragover = event => event.preventDefault();
+  puzzle.ondrop = event => {
+    event.preventDefault();
+    const data = event.dataTransfer.getData("text/plain");
+    if (data.startsWith("chant:")) dropChant(data, spell.chants.length);
+    else dropAtData(data, spell.pieces.length);
+  };
 }
 
-/** くりかえす の中もふくめた、ブロックの数 */
-function countBlocks(list) {
-  return list.reduce((total, block) => total + 1 + (block.children ? countBlocks(block.children) + 1 : 0), 0);
+/** ピースの入れものを作る（root の中に SVG の形と body） */
+function makeJig(x, y, width, height, sides, cat) {
+  const pad = KNOB * 2 + 2;
+  const root = document.createElement("div");
+  root.className = "jig";
+  root.style.setProperty("--c", `var(--c-${cat})`);
+  root.style.left = `${x}px`;
+  root.style.top = `${y}px`;
+  root.style.width = `${width}px`;
+  root.style.height = `${height}px`;
+  const svg = shapeSvg(width, height, sides);
+  root.append(svg);
+  const body = document.createElement("div");
+  body.className = "body";
+  body.style.inset = "0";
+  root.append(body);
+  void pad;
+  return { root, body };
 }
 
-// ================= 見本（まっちゃの「目の前＋吸いこみ＋爆発」） =================
-const SAMPLE = `[ブラックホール]
-闇よ
-ブラックホール
-＞場所 見ている所 20
-＞場所 上 3
-＞音 ウォーデン 2 0.6
-＞くりかえす 50 0.1
-＞  球 闇 1.5
-＞  輪 ポータル 6
-＞  吸いこむ 18 0.1 1
-＞ここまで
-＞爆発 7
-＞ダメージ 40 12
-＞吹きとばす 12 3
-＞粒 大爆発 3 2
-＞待ち時間 45`;
-
-// ================= 画面のテーマ（明るい・暗い） =================
-/** 今の画面が暗いテーマか */
-function isDark() {
-  const chosen = document.documentElement.getAttribute("data-theme");
-  if (chosen) return chosen === "dark";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+/** ピースの見出しの文字 */
+function titleSpan(text) {
+  const span = document.createElement("span");
+  span.className = "title";
+  span.textContent = text;
+  return span;
 }
 
-/** 机の色をテーマに合わせる */
-function makeTheme() {
-  const dark = isDark();
-  return Blockly.Theme.defineTheme(dark ? "mahouDark" : "mahouLight", {
-    base: Blockly.Themes.Classic,
-    componentStyles: dark
-      ? { workspaceBackgroundColour: "#1a1627", toolboxBackgroundColour: "#241e36", toolboxForegroundColour: "#ece8f7",
-          flyoutBackgroundColour: "#2b2440", flyoutForegroundColour: "#ece8f7", flyoutOpacity: 0.95, scrollbarColour: "#5a4f78", insertionMarkerColour: "#ffffff" }
-      : { workspaceBackgroundColour: "#ffffff", toolboxBackgroundColour: "#f3f0fa", toolboxForegroundColour: "#221d33",
-          flyoutBackgroundColour: "#ebe6f7", flyoutForegroundColour: "#221d33", flyoutOpacity: 0.95, scrollbarColour: "#c9c0de", insertionMarkerColour: "#000000" },
-    fontStyle: { family: "'Zen Maru Gothic', 'Yu Gothic', sans-serif", weight: "700", size: 11 }
+/** ピースの右上の ✕ ボタン */
+function closeButton(label, action) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "x";
+  button.textContent = "✕";
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", event => { event.stopPropagation(); action(); });
+  return button;
+}
+
+/** ドラッグできるようにする（data は運ぶもの、onDrop は ここに落とされたとき） */
+function dragSetup(element, data, onDrop) {
+  element.draggable = true;
+  element.addEventListener("dragstart", event => { event.dataTransfer.setData("text/plain", data); element.classList.add("dragging"); });
+  element.addEventListener("dragend", () => element.classList.remove("dragging"));
+  element.addEventListener("dragover", event => { event.preventDefault(); element.classList.add("drop-here"); });
+  element.addEventListener("dragleave", () => element.classList.remove("drop-here"));
+  element.addEventListener("drop", event => { event.preventDefault(); event.stopPropagation(); onDrop(event.dataTransfer.getData("text/plain")); });
+}
+
+/** 詠唱ピースを index の前へ動かす */
+function dropChant(data, index) {
+  if (!data.startsWith("chant:")) return;
+  const chants = spells[current].chants;
+  const from = Number(data.slice(6));
+  const [line] = chants.splice(from, 1);
+  chants.splice(from < index ? index - 1 : index, 0, line);
+  drawPuzzle(); save();
+}
+
+/** ドラッグした効果ピースを index の前に入れる */
+function dropAtData(data, index) {
+  const pieces = spells[current].pieces;
+  if (data.startsWith("move:")) {
+    const from = Number(data.slice(5));
+    const [piece] = pieces.splice(from, 1);
+    const to = from < index ? index - 1 : index;
+    pieces.splice(to, 0, piece);
+    selected = to;
+  } else if (data.startsWith("new:")) {
+    pieces.splice(index, 0, newPiece(data.slice(4)));
+    selected = index;
+  }
+  drawPuzzle(); drawDetail(); save();
+}
+
+/** えらんだピースの 数字を変えるところ を描く */
+function drawDetail() {
+  const detail = $("detail");
+  detail.replaceChildren();
+  const spell = spells[current];
+  const piece = spell.pieces[selected];
+  if (!piece) {
+    detail.style.removeProperty("--c");
+    const title = document.createElement("h2");
+    title.textContent = "ピースをえらんでね";
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "上の列のピースを押すと、ここで数字や種類を変えられます。";
+    detail.append(title, hint);
+    return;
+  }
+  const spec = SPEC[piece.part];
+  detail.style.setProperty("--c", `var(--c-${spec.cat})`);
+  const head = document.createElement("div");
+  head.className = "row";
+  head.style.justifyContent = "space-between";
+  const title = document.createElement("h2");
+  title.textContent = `${selected + 1}こ目：${piece.part}`;
+  const tools = document.createElement("div");
+  tools.className = "row";
+  const tool = (label, action) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "small quiet";
+    button.textContent = label;
+    button.addEventListener("click", action);
+    tools.append(button);
+  };
+  tool("▲ 上へ", () => move(-1));
+  tool("下へ ▼", () => move(1));
+  tool("ふやす", () => { spell.pieces.splice(selected + 1, 0, structuredClone(piece)); selected++; drawPuzzle(); drawDetail(); save(); });
+  tool("消す", () => { spell.pieces.splice(selected, 1); selected = Math.min(selected, spell.pieces.length - 1); drawPuzzle(); drawDetail(); save(); });
+  head.append(title, tools);
+  detail.append(head);
+
+  if (!spec.args.length) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = piece.part === "ここまで" ? "「くりかえす」から ここまでのピースを くりかえします。" : "このピースは数字がありません。";
+    detail.append(hint);
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.className = "args";
+  spec.args.forEach((arg, index) => {
+    const box = document.createElement("div");
+    box.className = "arg";
+    const label = document.createElement("label");
+    const id = `arg-${index}`;
+    label.htmlFor = id;
+    label.textContent = arg.name;
+    box.append(label);
+    if (arg.kind === "text") {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.id = id;
+      input.value = piece.args[arg.name];
+      input.addEventListener("input", () => { piece.args[arg.name] = input.value; const vals = $("puzzle").querySelector(".jig.selected .vals"); if (vals) vals.textContent = valueText(piece); save(); });
+      box.append(input);
+    } else if (arg.kind === "word") {
+      const select = document.createElement("select");
+      select.id = id;
+      for (const option of arg.list) select.append(new Option(option, option));
+      select.value = piece.args[arg.name];
+      select.addEventListener("change", () => { piece.args[arg.name] = select.value; drawPuzzle(); save(); });
+      box.append(select);
+    } else {
+      const pair = document.createElement("div");
+      pair.className = "pair";
+      const range = document.createElement("input");
+      range.type = "range";
+      range.min = arg.min; range.max = arg.max; range.step = arg.step;
+      range.value = piece.args[arg.name];
+      range.setAttribute("aria-label", `${arg.name}（スライダー）`);
+      const number = document.createElement("input");
+      number.type = "number";
+      number.id = id;
+      number.step = arg.step;
+      number.value = piece.args[arg.name];
+      const set = value => {
+        piece.args[arg.name] = Number(value);
+        range.value = value; number.value = value;
+        const vals = $("puzzle").querySelector(".jig.selected .vals");
+        if (vals) vals.textContent = valueText(piece);
+        save();
+      };
+      range.addEventListener("input", () => set(range.value));
+      number.addEventListener("input", () => { if (number.value !== "" && Number.isFinite(Number(number.value))) set(number.value); });
+      pair.append(range, number);
+      box.append(pair);
+    }
+    if (arg.help) {
+      const help = document.createElement("span");
+      help.className = "help";
+      help.textContent = arg.help;
+      box.append(help);
+    }
+    grid.append(box);
   });
+  detail.append(grid);
 }
+
+/** えらんだピースを 左右に動かす */
+function move(step) {
+  const pieces = spells[current].pieces;
+  const to = selected + step;
+  if (to < 0 || to >= pieces.length) return;
+  [pieces[selected], pieces[to]] = [pieces[to], pieces[selected]];
+  selected = to;
+  drawPuzzle(); drawDetail(); save();
+}
+
+/** ピース箱を描く */
+function drawShelf() {
+  const shelf = $("shelf");
+  const groups = [...new Set(PIECES.map(piece => piece.group))];
+  for (const group of groups) {
+    const title = document.createElement("h3");
+    title.textContent = group;
+    const row = document.createElement("div");
+    row.className = "row";
+    for (const spec of PIECES.filter(piece => piece.group === group)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "shelf-piece";
+      button.style.setProperty("--c", `var(--c-${spec.cat})`);
+      const label = document.createElement("span");
+      label.textContent = spec.part;
+      button.append(label);
+      // 文字の大きさが決まってから、形を描く
+      const drawShape = () => { button.querySelector("svg")?.remove(); button.prepend(shapeSvg(button.offsetWidth, button.offsetHeight, ["flat", "tab", "flat", "hole"])); };
+      (document.fonts?.ready ?? Promise.resolve()).then(() => requestAnimationFrame(drawShape));
+      button.title = spec.args.length ? spec.args.map(arg => arg.name).join("・") : "";
+      button.draggable = true;
+      button.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", `new:${spec.part}`));
+      button.addEventListener("click", () => addPiece(spec.part));
+      row.append(button);
+    }
+    shelf.append(title, row);
+  }
+}
+
+/** ピースを、えらんだピースのすぐ右（なければさいご）に足す。くりかえすなら ここまで もいっしょに */
+function addPiece(part) {
+  const pieces = spells[current].pieces;
+  const at = selected >= 0 ? selected + 1 : pieces.length;
+  if (part === "くりかえす") {
+    pieces.splice(at, 0, newPiece("くりかえす"), newPiece("ここまで"));
+  } else {
+    pieces.splice(at, 0, newPiece(part));
+  }
+  selected = at;
+  drawPuzzle(); drawDetail(); save();
+}
+
+/** 全部 描きなおす */
+function drawAll() {
+  if (!spells.length) spells.push({ name: "新しい魔法", chants: [""], pieces: [] });
+  current = Math.min(current, spells.length - 1);
+  drawBook(); drawPuzzle(); drawDetail(); refreshText();
+}
+
+/** 右の文を作りなおす */
+function refreshText() {
+  $("output").value = makeText();
+}
+
+/** 変わったら、文を作りなおして このブラウザにとっておく */
+function save() {
+  refreshText();
+  try { localStorage.setItem("koemahou-puzzle", JSON.stringify(spells)); } catch (error) { /* とっておけなくても動く */ }
+}
+
+// ================= ボタン =================
+$("addSpell").addEventListener("click", () => { spells.push({ name: `魔法${spells.length + 1}`, chants: ["", ""], pieces: [] }); current = spells.length - 1; selected = -1; drawAll(); save(); });
+$("delSpell").addEventListener("click", () => {
+  const button = $("delSpell");
+  // 1回目は確認、2回目で消す
+  if (button.dataset.sure !== "1") { button.dataset.sure = "1"; button.textContent = "もう一度押すと消えます"; setTimeout(() => { button.dataset.sure = ""; button.textContent = "この魔法を消す"; }, 3000); return; }
+  spells.splice(current, 1); current = Math.max(0, current - 1); selected = -1;
+  button.dataset.sure = ""; button.textContent = "この魔法を消す";
+  drawAll(); save();
+});
+$("addChant").addEventListener("click", () => { spells[current].chants.push(""); drawPuzzle(); save(); $(`chant-${spells[current].chants.length - 1}`)?.focus(); });
+$("copy").addEventListener("click", () => {
+  navigator.clipboard.writeText($("output").value).then(
+    () => { $("status").textContent = "コピーしました！"; },
+    () => { $("output").select(); $("status").textContent = "選んだので Ctrl+C でコピーしてね"; });
+});
+$("importBtn").addEventListener("click", () => {
+  const read = readText($("importText").value);
+  if (!read.length) { $("status").textContent = "魔法が見つかりませんでした（[名前] の行がいります）"; return; }
+  spells = read; current = 0; selected = -1;
+  drawAll(); save();
+  $("status").textContent = `魔法を ${read.length} こ 読みこみました`;
+});
 
 // ================= はじめる =================
-/** 机を作って、見本か前回の続きを置く */
-function start() {
-  defineBlocks();
-  const workspace = Blockly.inject("desk", {
-    toolbox: makeToolbox(), renderer: "zelos", theme: makeTheme(), trashcan: false, move: { scrollbars: true, drag: true, wheel: true },
-    zoom: { controls: false, wheel: false, pinch: true, startScale: 0.8, maxScale: 2, minScale: 0.4 }
-  });
-
-  // 前回の続き（このブラウザだけ）か、見本を置く
-  let loaded = false;
-  try {
-    const saved = localStorage.getItem("koemahou-desk");
-    if (saved) { Blockly.serialization.workspaces.load(JSON.parse(saved), workspace); loaded = true; }
-  } catch (error) { loaded = false; }
-  if (!loaded) importText(workspace, SAMPLE);
-
-  // ブロックが変わるたびに、文を作りなおして、とっておく
-  const output = document.getElementById("output");
-  const refresh = () => {
-    output.value = makeText(workspace);
-    try { localStorage.setItem("koemahou-desk", JSON.stringify(Blockly.serialization.workspaces.save(workspace))); } catch (error) { /* とっておけなくても動く */ }
-  };
-  workspace.addChangeListener(event => { if (!event.isUiEvent) refresh(); });
-  refresh();
-
-  // ぜんぶコピー
-  const status = document.getElementById("status");
-  document.getElementById("copy").addEventListener("click", () => {
-    navigator.clipboard.writeText(output.value).then(
-      () => { status.textContent = "コピーしました！"; },
-      () => { output.select(); status.textContent = "選んだので Ctrl+C でコピーしてね"; });
-  });
-
-  // じゅもん.txt をブロックにもどす
-  document.getElementById("importBtn").addEventListener("click", () => {
-    const text = document.getElementById("importText").value;
-    workspace.clear();
-    const count = importText(workspace, text);
-    status.textContent = `魔法を ${count} こ ブロックにしました`;
-  });
-  document.getElementById("clearBtn").addEventListener("click", () => {
-    workspace.clear();
-    status.textContent = "からっぽにしました（「魔法」の中から 魔法ブロックを出してね）";
-  });
-
-  // テーマが変わったら、机の色も変える
-  const retheme = () => workspace.setTheme(makeTheme());
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
-  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  window.addEventListener("resize", () => Blockly.svgResize(workspace));
-}
-
-if (window.Blockly) {
-  start();
-} else {
-  document.getElementById("desk").textContent = "ブロックの部品が読みこめませんでした。ページを開きなおしてね";
-}
+try { const saved = JSON.parse(localStorage.getItem("koemahou-puzzle") || "null"); if (Array.isArray(saved) && saved.length) spells = saved; } catch (error) { spells = []; }
+if (!spells.length) spells = readText(SAMPLE_TEXT);
+drawShelf();
+drawAll();
 </script>

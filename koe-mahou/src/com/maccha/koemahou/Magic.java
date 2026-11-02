@@ -1,6 +1,7 @@
 package com.maccha.koemahou;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,7 +15,7 @@ public class Magic {
     public record Part(String name, List<String> args, int lineNumber) {
         /** index 番目の数字（書いていなければ fallback） */
         public double number(int index, double fallback) {
-            if (index >= args.size()) return fallback;
+            if (index >= args.size() || args.get(index) == null) return fallback;
             try {
                 return Double.parseDouble(cleanNumber(args.get(index)));
             } catch (NumberFormatException error) {
@@ -24,64 +25,88 @@ public class Magic {
 
         /** index 番目の言葉（書いていなければ fallback） */
         public String word(int index, String fallback) {
-            return index < args.size() ? args.get(index) : fallback;
+            return index < args.size() && args.get(index) != null ? args.get(index) : fallback;
         }
     }
 
     /** 部品の並び。くりかえし は children に中身が入る */
     public record Node(Part part, List<Node> children) {}
 
-    // 部品の名前と、何こ数字や言葉を書けるか（いちばん少ない数, いちばん多い数）
-    static final Map<String, int[]> PARTS = Map.ofEntries(
-            Map.entry("場所", new int[]{1, 2}),
-            Map.entry("待つ", new int[]{1, 1}),
-            Map.entry("くりかえす", new int[]{1, 2}),
-            Map.entry("ここまで", new int[]{0, 0}),
-            Map.entry("爆発", new int[]{0, 1}),
-            Map.entry("ダメージ", new int[]{1, 2}),
-            Map.entry("燃やす", new int[]{1, 2}),
-            Map.entry("雷", new int[]{0, 2}),
-            Map.entry("吸いこむ", new int[]{2, 3}),
-            Map.entry("吹きとばす", new int[]{1, 2}),
-            Map.entry("うかせる", new int[]{2, 3}),
-            Map.entry("止める", new int[]{2, 2}),
-            Map.entry("回復", new int[]{1, 2}),
-            Map.entry("効果", new int[]{2, 5}),
-            Map.entry("ワープ", new int[]{0, 1}),
-            Map.entry("撃つ", new int[]{1, 4}),
-            Map.entry("よぶ", new int[]{1, 2}),
-            Map.entry("粒", new int[]{1, 3}),
-            Map.entry("輪", new int[]{1, 2}),
-            Map.entry("柱", new int[]{1, 2}),
-            Map.entry("球", new int[]{1, 2}),
-            Map.entry("魔法陣", new int[]{1, 2}),
-            Map.entry("線", new int[]{1, 1}),
-            Map.entry("音", new int[]{1, 3}),
-            Map.entry("待ち時間", new int[]{1, 1}),
-            Map.entry("ファイアボール", new int[]{0, 0}),
-            Map.entry("ヒール", new int[]{0, 0}),
-            Map.entry("ブラックホール", new int[]{0, 0}),
-            Map.entry("メテオ", new int[]{0, 0}),
-            Map.entry("ジャッジメント", new int[]{0, 0}),
-            Map.entry("サンクチュアリ", new int[]{0, 0}),
-            Map.entry("クロノスタシス", new int[]{0, 0}));
+    // 部品の名前と、うしろに書くものの名前（順番）。「名前=数字」でも、順番どおりに数字だけでも書ける
+    // さいごの数字は「書かないといけない数」
+    static final Map<String, Object[]> PARTS = Map.ofEntries(
+            spec("場所", 1, "どこ", "距離"),
+            spec("向き", 1, "どっち", "角度"),
+            spec("待つ", 1, "秒"),
+            spec("くりかえす", 1, "回数", "間隔"),
+            spec("ここまで", 0),
+            spec("爆発", 0, "大きさ"),
+            spec("ダメージ", 1, "量", "半径"),
+            spec("燃やす", 1, "秒", "半径"),
+            spec("雷", 0, "本数", "半径"),
+            spec("吸いこむ", 2, "半径", "秒", "強さ"),
+            spec("吹きとばす", 1, "半径", "強さ"),
+            spec("押す", 1, "半径", "強さ"),
+            spec("うかせる", 2, "半径", "秒", "高さ"),
+            spec("止める", 2, "半径", "秒"),
+            spec("回復", 1, "量", "半径"),
+            spec("効果", 2, "名前", "秒", "レベル", "だれ", "半径"),
+            spec("ワープ", 0, "距離"),
+            spec("撃つ", 1, "なに", "数", "速さ", "ひろがり"),
+            spec("ビーム", 1, "種類", "長さ", "ダメージ"),
+            spec("よぶ", 1, "なに", "数"),
+            spec("粒", 1, "種類", "数", "広がり"),
+            spec("輪", 1, "種類", "半径"),
+            spec("柱", 1, "種類", "高さ"),
+            spec("球", 1, "種類", "大きさ"),
+            spec("魔法陣", 1, "種類", "半径"),
+            spec("線", 1, "種類"),
+            spec("音", 1, "種類", "大きさ", "高さ"),
+            spec("待ち時間", 1, "秒"),
+            spec("確率", 1, "パーセント"),
+            spec("凍らせる", 1, "半径", "秒"),
+            spec("引きよせる", 1, "半径", "強さ"),
+            spec("うず", 2, "半径", "秒", "速さ"),
+            spec("竜巻", 2, "半径", "秒", "高さ"),
+            spec("衝撃波", 1, "半径", "ダメージ"),
+            spec("たたきつける", 1, "半径", "ダメージ"),
+            spec("連鎖雷", 1, "本数", "ダメージ"),
+            spec("隕石", 0, "大きさ", "ダメージ"),
+            spec("牙", 0, "数"),
+            spec("雨", 1, "なに", "数", "半径", "高さ"),
+            spec("ダッシュ", 0, "強さ"),
+            spec("飛ぶ", 0, "高さ"),
+            spec("壁", 1, "ブロック", "幅", "高さ", "秒"),
+            spec("ドーム", 1, "ブロック", "半径", "秒"),
+            spec("足場", 1, "ブロック", "半径", "秒"),
+            spec("らせん", 1, "種類", "半径", "高さ"),
+            spec("文字", 1, "文"),
+            spec("ファイアボール", 0),
+            spec("ヒール", 0),
+            spec("ブラックホール", 0),
+            spec("メテオ", 0),
+            spec("ジャッジメント", 0),
+            spec("サンクチュアリ", 0),
+            spec("クロノスタシス", 0));
 
-    // 言葉で書くところ（数字でなくてよい場所）: 部品の名前 → 何番目
-    static final Map<String, Set<Integer>> WORD_ARGS = Map.ofEntries(
-            Map.entry("場所", Set.of(0)),
-            Map.entry("効果", Set.of(0, 3)),
-            Map.entry("撃つ", Set.of(0)),
-            Map.entry("よぶ", Set.of(0)),
-            Map.entry("粒", Set.of(0)),
-            Map.entry("輪", Set.of(0)),
-            Map.entry("柱", Set.of(0)),
-            Map.entry("球", Set.of(0)),
-            Map.entry("魔法陣", Set.of(0)),
-            Map.entry("線", Set.of(0)),
-            Map.entry("音", Set.of(0)));
+    // 数字でなく言葉を書くところ
+    static final Set<String> WORD_NAMES = Set.of("どこ", "どっち", "名前", "だれ", "なに", "種類", "ブロック", "文");
 
-    // 場所の書きかた
-    static final Set<String> PLACES = Set.of("自分", "見ている所", "上", "前", "まわり", "もどる");
+    // 場所と向きの書きかた
+    static final Set<String> PLACES = Set.of("自分", "見ている所", "上", "前", "まわり", "もどる", "近くのモブ", "ランダムなモブ");
+    static final Set<String> DIRECTIONS = Set.of("見ている方", "上", "下", "前", "うしろ", "右", "左", "ランダム",
+            "場所の方", "自分の方", "近くのモブの方", "横にまわす", "縦にまわす");
+
+    /** PARTS の1行を作る（部品の名前, 書かないといけない数, うしろに書くものの名前…） */
+    static Map.Entry<String, Object[]> spec(String name, int required, String... argNames) {
+        return Map.entry(name, new Object[]{required, argNames});
+    }
+
+    /** 部品の、うしろに書くものの名前（知らない部品なら null） */
+    public static String[] argNames(String partName) {
+        Object[] spec = PARTS.get(partName);
+        return spec == null ? null : (String[]) spec[1];
+    }
 
     /** 「＞」の行をまとめて読む（まちがいは problems に足す。spellName は知らせる用） */
     public static List<Node> parse(List<String> lines, List<Integer> lineNumbers, String spellName, List<String> problems) {
@@ -96,30 +121,44 @@ public class Magic {
             String where = "[" + spellName + "] " + lineNumber + "行目「" + lines.get(index).strip() + "」: ";
 
             // 知らない部品
-            int[] counts = PARTS.get(part.name());
-            if (counts == null) {
+            Object[] spec = PARTS.get(part.name());
+            if (spec == null) {
                 problems.add(where + "「" + part.name() + "」という部品はありません");
                 continue;
             }
-            if (part.args().size() < counts[0] || part.args().size() > counts[1]) {
-                problems.add(where + "数字や言葉の数がちがいます（" + counts[0] + "〜" + counts[1] + "こ）");
+            String[] names = (String[]) spec[1];
+            int required = (Integer) spec[0];
+            if (part.args().size() > names.length || part.args().contains(UNKNOWN_NAME)) {
+                problems.add(where + "書けるのは " + (names.length == 0 ? "なし" : String.join("・", names)) + " です");
+                continue;
+            }
+            int given = 0;
+            for (int argIndex = 0; argIndex < required && argIndex < part.args().size(); argIndex++) {
+                if (part.args().get(argIndex) != null) given++;
+            }
+            if (given < required) {
+                problems.add(where + String.join("・", Arrays.copyOf(names, required)) + " を書いてね");
                 continue;
             }
             // 数字のところに数字が書いてあるか
-            Set<Integer> words = WORD_ARGS.getOrDefault(part.name(), Set.of());
             boolean bad = false;
             for (int argIndex = 0; argIndex < part.args().size(); argIndex++) {
-                if (words.contains(argIndex)) continue;
+                String value = part.args().get(argIndex);
+                if (value == null || WORD_NAMES.contains(names[argIndex])) continue;
                 try {
-                    Double.parseDouble(cleanNumber(part.args().get(argIndex)));
+                    Double.parseDouble(cleanNumber(value));
                 } catch (NumberFormatException error) {
-                    problems.add(where + "「" + part.args().get(argIndex) + "」は数字にしてね");
+                    problems.add(where + names[argIndex] + "「" + value + "」は数字にしてね");
                     bad = true;
                 }
             }
             if (bad) continue;
             if (part.name().equals("場所") && !PLACES.contains(part.word(0, ""))) {
-                problems.add(where + "場所は 自分・見ている所・上・前・まわり・もどる のどれかにしてね");
+                problems.add(where + "場所は " + String.join("・", PLACES) + " のどれかにしてね");
+                continue;
+            }
+            if (part.name().equals("向き") && !DIRECTIONS.contains(part.word(0, ""))) {
+                problems.add(where + "向きは " + String.join("・", DIRECTIONS) + " のどれかにしてね");
                 continue;
             }
 
@@ -143,15 +182,41 @@ public class Magic {
         return root;
     }
 
-    /** 1行を部品にする（「＞」のあとを空白で区切る。空なら null） */
+    // 「名前=数字」の名前がまちがっているときの しるし
+    static final String UNKNOWN_NAME = "\u0000";
+
+    /** 1行を部品にする（「＞」のあとを空白で区切る。「名前=数字」は その名前の場所へ。空なら null） */
     static Part readPart(String line, int lineNumber) {
         String text = line.strip();
         if (text.startsWith("＞") || text.startsWith(">")) text = text.substring(1);
-        text = text.replace('　', ' ').strip();
+        text = text.replace('　', ' ').replace('＝', '=').strip();
         if (text.isEmpty()) return null;
         String[] pieces = text.split("\\s+");
+        String[] names = argNames(pieces[0]);
         List<String> args = new ArrayList<>();
-        for (int index = 1; index < pieces.length; index++) args.add(pieces[index]);
+        int next = 0;
+        for (int index = 1; index < pieces.length; index++) {
+            String piece = pieces[index];
+            int equal = piece.indexOf('=');
+            if (equal > 0 && names != null) {
+                // 名前=数字
+                int slot = Arrays.asList(names).indexOf(piece.substring(0, equal));
+                if (slot < 0) {
+                    args.add(UNKNOWN_NAME);
+                    continue;
+                }
+                while (args.size() <= slot) args.add(null);
+                args.set(slot, piece.substring(equal + 1));
+            } else {
+                // 順番どおり：まだ うまっていない いちばん前へ
+                while (next < args.size() && args.get(next) != null) next++;
+                while (args.size() <= next) args.add(null);
+                args.set(next, piece);
+                next++;
+            }
+        }
+        // うしろの空きは けずる
+        while (!args.isEmpty() && args.get(args.size() - 1) == null) args.remove(args.size() - 1);
         return new Part(pieces[0], args, lineNumber);
     }
 
