@@ -167,7 +167,6 @@
         <div class="row">
           <span class="zoom" id="zoomText">100%</span>
           <span class="hint">Ctrl＋ホイールで大きさ・ホイールを押してドラッグで移動</span>
-          <button id="resetView" type="button" class="small quiet">表示を100%に</button>
           <button id="clearAll" type="button" class="small quiet">全部消す</button>
           <button id="undo" type="button" class="small" title="ひとつ前の操作にもどす（Ctrl+Z）">↶ もとにもどす</button>
         </div>
@@ -1084,7 +1083,6 @@ function setupView() {
     event.preventDefault();
     dropOnEmpty(event.dataTransfer.getData("text/plain"), toBoard(event.clientX, event.clientY));
   });
-  $("resetView").addEventListener("click", () => { view.x = 0; view.y = 0; view.zoom = 1; applyView(); });
 }
 
 // ================= ピース箱 =================
