@@ -20,7 +20,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -317,6 +319,7 @@ public class MagicRunner {
                 Vec3 direction = state.direction;
                 later(time, () -> shoot(level, player, type.get(), count, speed, spread, from == null ? player.getEyePosition() : from, direction));
             }
+            case "飛ばす" -> fly(part, state);
             case "ビーム" -> {
                 ParticleOptions particle = particle(player, part);
                 if (particle == null) return;
@@ -703,6 +706,47 @@ public class MagicRunner {
             double along = Math.max(0, Math.min(length, toMob.dot(direction)));
             if (toMob.subtract(direction.scale(along)).length() <= 1.5) hurt(level, player, mob, damage);
         }
+    }
+
+    /** 飛ばす：粒の玉が 今の向きへ飛んでいき、壁かモブに当たった所が 次の場所になる（そのあとのピースは 当たってから動く） */
+    static void fly(Magic.Part part, State state) {
+        ServerLevel level = state.level;
+        ServerPlayer player = state.player;
+        ParticleOptions particle = particle(player, part);
+        if (particle == null) return;
+        double speed = clamp(part.number(1, 20), 2, 80) / 20.0;
+        double maxDistance = clamp(part.number(2, 40), 2, 64);
+        Vec3 from = state.pointMoved ? state.point.add(0, 1, 0) : player.getEyePosition();
+        Vec3 direction = state.direction.normalize();
+
+        // 壁に当たるところ
+        Vec3 end = from.add(direction.scale(maxDistance));
+        HitResult wall = level.clip(new ClipContext(from, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        double distance = wall.getType() == HitResult.Type.MISS ? maxDistance : wall.getLocation().distanceTo(from);
+
+        // それより手前のモブに当たるところ（いちばん近いもの）
+        AABB box = new AABB(from, end).inflate(1.5);
+        for (LivingEntity mob : level.getEntitiesOfClass(LivingEntity.class, box, entity -> !(entity instanceof Player) && entity.isAlive())) {
+            Vec3 toMob = mob.position().add(0, mob.getBbHeight() / 2, 0).subtract(from);
+            double along = toMob.dot(direction);
+            if (along < 0 || along > distance) continue;
+            if (toMob.subtract(direction.scale(along)).length() <= 1.2) distance = along;
+        }
+
+        // 玉が飛んでいく見た目（1tick ごとに すすむ）
+        int flight = Math.max(1, (int) Math.ceil(distance / speed));
+        double totalDistance = distance;
+        for (int tick = 0; tick <= flight; tick++) {
+            double travelled = Math.min(totalDistance, tick * speed);
+            Vec3 ball = from.add(direction.scale(travelled));
+            later(state.time + tick, () -> level.sendParticles(particle, ball.x, ball.y, ball.z, 6, 0.12, 0.12, 0.12, 0.01));
+        }
+
+        // 当たった所（少し手前）が 次の場所。そのあとのピースは 当たってから
+        Vec3 hit = from.add(direction.scale(Math.max(0, distance - 0.4)));
+        state.point = hit.add(0, -1, 0);
+        state.pointMoved = true;
+        state.time += flight;
     }
 
     /** ワープ：向きの方へ、壁の手前まで */
