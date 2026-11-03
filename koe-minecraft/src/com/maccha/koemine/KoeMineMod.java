@@ -339,6 +339,8 @@ public class KoeMineMod implements ClientModInitializer {
     /** キーをおす（声でおしていたキーだけを はなす。手でおしているキーはじゃましない） */
     void setKey(KeyMapping key, boolean down) {
         if (down) {
+            // 壊しはじめるときは、攻撃の待ち時間を消す
+            if (key == Minecraft.getInstance().options.keyAttack && !key.isDown()) allowAttack();
             key.setDown(true);
             pressedByVoice.add(key);
         } else if (pressedByVoice.remove(key)) {
@@ -355,7 +357,30 @@ public class KoeMineMod implements ClientModInitializer {
     /** キーを1回クリックしたことにする */
     void click(KeyMapping key) {
         if (key.isUnbound()) return;
+        if (key == Minecraft.getInstance().options.keyAttack) allowAttack();
         KeyMapping.click(InputConstants.getKey(key.saveString()));
+    }
+
+    // マイクラの「攻撃できない待ち時間」（Minecraft.missTime）
+    static java.lang.reflect.Field missTimeField;
+    static boolean missTimeSearched = false;
+
+    /**
+     * 攻撃の待ち時間を 0 にする。
+     * チャットやインベントリを閉じた直後は、マイクラが 10000tick（約8分）攻撃できなくする。
+     * ふつうは次の tick で 0 にもどるが、閉じたすぐあとに声やチャットで攻撃・壊すをすると、ずっと動かなくなるため
+     */
+    static void allowAttack() {
+        try {
+            if (!missTimeSearched) {
+                missTimeSearched = true;
+                missTimeField = Minecraft.class.getDeclaredField("missTime");
+                missTimeField.setAccessible(true);
+            }
+            if (missTimeField != null) missTimeField.setInt(Minecraft.getInstance(), 0);
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            LOG.warn("こえマイクラ: 攻撃の待ち時間を消せませんでした", error);
+        }
     }
 
     /** 体のむきを、少しずつ回す */
