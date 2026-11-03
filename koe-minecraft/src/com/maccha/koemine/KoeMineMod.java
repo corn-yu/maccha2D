@@ -120,6 +120,7 @@ public class KoeMineMod implements ClientModInitializer {
             return;
         }
         pressKeys(minecraft.options, player);
+        keepDigging(minecraft);
         turnSmoothly(player);
     }
 
@@ -240,7 +241,14 @@ public class KoeMineMod implements ClientModInitializer {
             case "look_down" -> pendingPitch += LOOK_STEP;
             case "look_front" -> pendingPitch = -player.getXRot();
             // こわす・こうげき
-            case "dig" -> { holdAttack = true; repeatAttack = false; }
+            case "dig" -> {
+                holdAttack = true;
+                repeatAttack = false;
+                // 手がとどくところにブロックがないときは、どうすればいいか出す（自動では向かない）
+                if (minecraft.hitResult == null || minecraft.hitResult.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                    player.sendSystemMessage(Component.literal("§eこえマイクラ：手がとどくところにブロックがないよ。「下」や「ちょっと下」でブロックの方を向いてね（壊すのはそのまま続きます）"));
+                }
+            }
             case "attack" -> { holdAttack = false; click(options.keyAttack); }
             case "attack_repeat" -> { repeatAttack = true; holdAttack = false; }
             // つかう・おく
@@ -259,7 +267,7 @@ public class KoeMineMod implements ClientModInitializer {
             case "slot_next" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 1) % 9);
             case "slot_prev" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 8) % 9);
             // マイク
-            case "mute" -> { muted = true; stopMoving(); survival.cancel(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「マイクオン」でもどります")); }
+            case "mute" -> { muted = true; stopMoving(); survival.cancel(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「マイクをオンにして」でもどります")); }
             case "unmute" -> { muted = false; player.sendSystemMessage(Component.literal("§aこえマイクラ：また聞いています")); }
             case "reload" -> reloadWords(player);
             default -> {
@@ -359,6 +367,54 @@ public class KoeMineMod implements ClientModInitializer {
         if (key.isUnbound()) return;
         if (key == Minecraft.getInstance().options.keyAttack) allowAttack();
         KeyMapping.click(InputConstants.getKey(key.saveString()));
+    }
+
+    // 壊しているあいだに、こえマイクラがマウスを「つかんでいる」ことにしたか
+    boolean grabbedByVoice = false;
+    int digLogTimer = 0;
+    static java.lang.reflect.Field mouseGrabbedField;
+
+    /**
+     * 「壊して」のあいだ、マイクラが壊すのをやめてしまう条件を毎tick消す。
+     * マイクラは「待ち時間がある」「マウスをつかんでいない」と、左ボタンがおされていても壊さないため
+     */
+    void keepDigging(Minecraft minecraft) {
+        if (!holdAttack) {
+            // 壊すのをやめたら、マウスの状態を もとにもどす
+            if (grabbedByVoice) {
+                setMouseGrabbed(minecraft, false);
+                grabbedByVoice = false;
+            }
+            return;
+        }
+        allowAttack();
+        boolean grabbed = minecraft.mouseHandler.isMouseGrabbed();
+        if (!grabbed) {
+            setMouseGrabbed(minecraft, true);
+            grabbedByVoice = true;
+        }
+        // 1秒ごとに、壊せているかを記録する（うまくいかないときの手がかり）
+        if (++digLogTimer >= 20) {
+            digLogTimer = 0;
+            LOG.info("こえマイクラ: 壊し中 ボタン={} マウス={} 的={} 壊している={} 段階={}",
+                    minecraft.options.keyAttack.isDown(), grabbed,
+                    minecraft.hitResult == null ? "なし" : minecraft.hitResult.getType(),
+                    minecraft.gameMode != null && minecraft.gameMode.isDestroying(),
+                    minecraft.gameMode == null ? -1 : minecraft.gameMode.getDestroyStage());
+        }
+    }
+
+    /** マイクラの「マウスをつかんでいる」フラグを変える */
+    static void setMouseGrabbed(Minecraft minecraft, boolean value) {
+        try {
+            if (mouseGrabbedField == null) {
+                mouseGrabbedField = net.minecraft.client.MouseHandler.class.getDeclaredField("mouseGrabbed");
+                mouseGrabbedField.setAccessible(true);
+            }
+            mouseGrabbedField.setBoolean(minecraft.mouseHandler, value);
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            LOG.warn("こえマイクラ: マウスの状態を変えられませんでした", error);
+        }
     }
 
     // マイクラの「攻撃できない待ち時間」（Minecraft.missTime）

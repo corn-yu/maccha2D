@@ -168,6 +168,44 @@ public class Yomi {
         return result;
     }
 
+    /** 文のありえる読みを、多くても limit こまで全部つくる（木ざー → きざー、もくざー …） */
+    public List<String> readings(String text, int limit) {
+        List<String> results = new ArrayList<>();
+        expand(text, 0, new StringBuilder(), results, limit);
+        return results;
+    }
+
+    /** readings の中身：i 文字目から先の読みを足していく */
+    void expand(String text, int i, StringBuilder sofar, List<String> results, int limit) {
+        if (results.size() >= limit) return;
+        if (i >= text.length()) {
+            results.add(sofar.toString());
+            return;
+        }
+        char letter = text.charAt(i);
+        int mark = sofar.length();
+        if (!isKanji(letter)) {
+            sofar.append(letter);
+            expand(text, i + 1, sofar, results, limit);
+            sofar.setLength(mark);
+            return;
+        }
+        for (int length = Math.min(longestWord, text.length() - i); length >= 2; length--) {
+            String[] found = words.get(text.substring(i, i + length));
+            if (found == null) continue;
+            for (String reading : found) {
+                sofar.append(reading);
+                expand(text, i + length, sofar, results, limit);
+                sofar.setLength(mark);
+            }
+        }
+        for (String reading : singleReadings(letter)) {
+            sofar.append(reading);
+            expand(text, i + 1, sofar, results, limit);
+            sofar.setLength(mark);
+        }
+    }
+
     /** 2つの読みが何文字ちがうか（編集距離） */
     public static int distance(String a, String b) {
         int[] previous = new int[b.length() + 1];
