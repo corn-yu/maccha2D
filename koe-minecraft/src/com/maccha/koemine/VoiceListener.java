@@ -1,5 +1,9 @@
 package com.maccha.koemine;
 
+import com.maccha.koeshared.MicHub;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.vosk.LibVosk;
@@ -7,9 +11,6 @@ import org.vosk.LogLevel;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.TargetDataLine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -146,30 +147,28 @@ public class VoiceListener implements Runnable {
         return json;
     }
 
-    /** マイクを開いて、音を Vosk にわたしつづける */
+    /** マイクの音を（こえまほうと分けあって）受けとり、Vosk にわたしつづける */
     void listen(Recognizer recognizer) throws Exception {
-        // 16kHz・16bit・モノラルでマイクを開く
-        AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
-        TargetDataLine microphone = AudioSystem.getTargetDataLine(format);
-        microphone.open(format, 4096);
-        microphone.start();
+        BlockingQueue<byte[]> sound = MicHub.listen();
         status = "聞いています";
         queue.add(new Heard("", "ready", true));
-        KoeMineMod.LOG.info("こえマイクラ: マイクを開きました ({})", microphone.getLineInfo());
-
-        // 0.05秒ぶんずつ読んで、文字にする
-        byte[] buffer = new byte[1600];
-        while (running) {
-            // 言葉表やゲームの名前が変わったら、文法を入れかえる
-            if (grammarDirty && table.isOn("ことばだけ聞く") && !vocabulary.isEmpty() && VoskText.grammarFunction != null) {
-                grammarDirty = false;
-                VoskText.setGrammar(recognizer, makeGrammar());
+        KoeMineMod.LOG.info("こえマイクラ: マイクを聞きはじめました（MicHub v{}）", MicHub.VERSION);
+        try {
+            while (running) {
+                // 言葉表やゲームの名前が変わったら、文法を入れかえる
+                if (grammarDirty && table.isOn("ことばだけ聞く") && !vocabulary.isEmpty() && VoskText.grammarFunction != null) {
+                    grammarDirty = false;
+                    VoskText.setGrammar(recognizer, makeGrammar());
+                }
+                byte[] buffer = sound.poll(1, TimeUnit.SECONDS);
+                if (buffer == null) continue;
+                // 空の音は「マイクがだめになった」のしるし
+                if (buffer.length == 0) throw new IllegalStateException("マイクが開けません: " + MicHub.error);
+                process(recognizer, buffer, buffer.length, System.currentTimeMillis());
             }
-            int count = microphone.read(buffer, 0, buffer.length);
-            if (count > 0) process(recognizer, buffer, count, System.currentTimeMillis());
+        } finally {
+            MicHub.stop(sound);
         }
-        microphone.stop();
-        microphone.close();
     }
 
     /** 音を少しわたして、文字になったところまで言葉をさがす（now は今の時刻ミリ秒） */
