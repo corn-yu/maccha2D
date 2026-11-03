@@ -1,5 +1,8 @@
 package com.maccha.koemine;
 
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.world.inventory.CraftingMenu;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -98,12 +101,29 @@ public class Survival {
         return best == null ? null : best.thing();
     }
 
-    /** あだ名（*木 = _log など）なら、英語の名前の一部を返す */
+    /** あだ名（*木 = _log など）なら、英語の名前の一部を返す。聞きまちがい（木ざー → 木材）も読みでさがす */
     String nickname(String heard) {
         for (var entry : mod.table.nicknames.entrySet()) {
             if (CommandTable.normalize(entry.getKey()).equals(heard)) return entry.getValue();
         }
-        return null;
+        if (heard.length() < 2 || findByName(items, heard) != null) return null;
+        // 読みが1文字ちがいまでの あだ名をさがす
+        Yomi yomi = Yomi.get();
+        List<String> heardReadings = yomi.readings(heard, 64);
+        String best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (var entry : mod.table.nicknames.entrySet()) {
+            String target = yomi.reading(CommandTable.normalize(entry.getKey()));
+            if (target.length() < 3) continue;
+            for (String reading : heardReadings) {
+                int distance = Yomi.distance(reading, target);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = entry.getValue();
+                }
+            }
+        }
+        return bestDistance <= 1 ? best : null;
     }
 
     /** 英語の名前（minecraft:oak_log の oak_log）を返す */
@@ -115,15 +135,22 @@ public class Survival {
 
     /** 「〇〇つくって」：レシピ本を使ってクラフトする（かまどが開いていれば焼く） */
     void startCraft(Minecraft minecraft, LocalPlayer player, String heard, boolean smelt) {
-        Item item = findItem(heard);
-        if (item == null) {
+        // あだ名（「木材」→ 〜_planks など）なら、その仲間のどれか（今の材料で作れるもの）を作る
+        String nick = nickname(heard);
+        Item item = nick == null ? findItem(heard) : null;
+        if (item == null && nick == null) {
             say(player, "「" + heard + "」というアイテムが見つからないよ");
             return;
         }
-        String name = new ItemStack(item).getHoverName().getString();
         // かまどが開いていたら、焼くレシピにする
         boolean furnaceOpen = player.containerMenu instanceof AbstractFurnaceMenu;
-        RecipeDisplayEntry recipe = findRecipe(minecraft, player, item, smelt || furnaceOpen);
+        java.util.function.Predicate<Item> wanted = item != null ? (made -> made == item) : (made -> idOf(made).contains(nick));
+        RecipeDisplayEntry recipe = findRecipe(minecraft, player, wanted, smelt || furnaceOpen);
+        String name = item != null ? new ItemStack(item).getHoverName().getString() : heard;
+        if (item == null && recipe != null) {
+            ContextMap context = SlotDisplayContext.fromLevel(minecraft.level);
+            for (ItemStack stack : recipe.resultItems(context)) if (!stack.isEmpty()) name = stack.getHoverName().getString();
+        }
         if (recipe == null) {
             say(player, name + "のレシピをまだ知らないよ（材料を一度手に入れると おぼえるよ）");
             return;
@@ -137,10 +164,15 @@ public class Survival {
         if (craftSmelt && !furnaceOpen) {
             say(player, "かまどの前で「開けて」と言って、かまどを開いてから言ってね");
             job = null;
-        } else if (craftSmelt || (player.containerMenu instanceof AbstractCraftingMenu menu && menu.getGridWidth() >= gridNeed(recipe.display()))) {
+        } else if (craftSmelt) {
             job = "craft_place";
-        } else if (gridNeed(recipe.display()) > 2) {
+        } else if (gridNeed(recipe.display()) > 2 && !(player.containerMenu instanceof CraftingMenu)) {
+            // 3x3 は作業台だけ
             say(player, name + "は作業台がいるよ。作業台の前で「開けて」と言って、開いてから言ってね");
+            job = null;
+        } else if (!(player.containerMenu instanceof CraftingMenu) && !(minecraft.gui.screen() instanceof InventoryScreen)) {
+            // 2x2 は、インベントリか作業台を開いているときだけ（何も開いていないと作れない）
+            say(player, name + "を作るときは、「インベントリ」で開くか、作業台を「開けて」から言ってね");
             job = null;
         } else {
             job = "craft_place";
@@ -349,7 +381,7 @@ public class Survival {
     }
 
     /** そのアイテムができるレシピを、知っているレシピからさがす（作れるものを先に） */
-    RecipeDisplayEntry findRecipe(Minecraft minecraft, LocalPlayer player, Item item, boolean smelt) {
+    RecipeDisplayEntry findRecipe(Minecraft minecraft, LocalPlayer player, java.util.function.Predicate<Item> wanted, boolean smelt) {
         ContextMap context = SlotDisplayContext.fromLevel(minecraft.level);
         StackedItemContents contents = new StackedItemContents();
         player.getInventory().fillStackedContents(contents);
@@ -361,7 +393,7 @@ public class Survival {
                 boolean isCraft = display instanceof ShapedCraftingRecipeDisplay || display instanceof ShapelessCraftingRecipeDisplay;
                 if (smelt ? !isSmelt : !isCraft) continue;
                 boolean makesItem = false;
-                for (ItemStack stack : entry.resultItems(context)) if (stack.getItem() == item) makesItem = true;
+                for (ItemStack stack : entry.resultItems(context)) if (!stack.isEmpty() && wanted.test(stack.getItem())) makesItem = true;
                 if (!makesItem) continue;
                 if (entry.canCraft(contents)) return entry;
                 if (fallback == null) fallback = entry;

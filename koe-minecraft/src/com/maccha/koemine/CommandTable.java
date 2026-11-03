@@ -25,11 +25,11 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v11";
+    static final String VERSION_MARK = "ことば表 v12";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v11
+            # こえマイクラ ことば表 v12
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
             # アクションは + でつなぐと、順番にします（例: 下を壊して = look_bottom+dig）
@@ -274,6 +274,10 @@ public class CommandTable {
             *石 = stone
             *土 = dirt
             *砂 = sand
+            *木材 = _planks
+            *もくざい = _planks
+            *板 = _planks
+            *板材 = _planks
 
             # 作業台・チェスト・かまど
             ぜんぶいれて = put_all
@@ -559,6 +563,12 @@ public class CommandTable {
         List<String> words = new ArrayList<>();
         for (Entry entry : entries) words.add(entry.raw());
         words.addAll(nicknames.keySet());
+        // あだ名は「木材つくって」のように つなげた形も入れる（つづけて言ったときに聞きとりやすくなる）
+        for (String nick : nicknames.keySet()) {
+            for (Entry entry : entries) {
+                if (entry.action().startsWith("name:") && !entry.raw().startsWith("を")) words.add(nick + entry.raw());
+            }
+        }
         words.addAll(extraWords);
         Set<String> phrases = new LinkedHashSet<>();
         for (String word : words) {
