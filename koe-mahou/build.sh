@@ -18,6 +18,8 @@ VERSION=$(grep -o '"version": *"[^"]*"' "$HERE/resources/fabric.mod.json" | cut 
 mkdir -p "$WORK/fapi"
 (cd "$WORK/fapi" && unzip -q -o "$LIB/fapi.jar" 'META-INF/jars/fabric-lifecycle-events-v1*' 'META-INF/jars/fabric-api-base*' 'META-INF/jars/fabric-networking-api-v1*' 'META-INF/jars/fabric-command-api-v2*' 'META-INF/jars/fabric-events-interaction-v0*' 'META-INF/jars/fabric-loot-api-v3*' 'META-INF/jars/fabric-message-api-v1*')
 CP="$LIB/mc.jar:$LIB/loader.jar:$LIB/jna.jar:$LIB/vosk.jar"
+# Kuromoji（漢字の読みがな。kuro/ に kuromoji-core と kuromoji-ipadic の 0.9.0 を入れておく。MOD の中に入れる）
+for jar in "$LIB"/kuro/*.jar; do CP="$CP:$jar"; done
 for jar in "$WORK"/fapi/META-INF/jars/*.jar; do CP="$CP:$jar"; done
 # slf4j と gson（マイクラのライブラリ）
 for jar in "$LIB"/extra/*.jar; do [ -f "$jar" ] && CP="$CP:$jar"; done
@@ -28,6 +30,7 @@ mkdir -p "$WORK/classes"
 
 # vosk（日本語を文字にする部分。Windows・Mac・Linux 用が入っている）を MOD の中に入れる
 (cd "$WORK/classes" && unzip -q -o "$LIB/vosk.jar" -x 'META-INF/*')
+for jar in "$LIB"/kuro/*.jar; do (cd "$WORK/classes" && unzip -q -o "$jar" -x 'META-INF/*'); done
 cp -r "$HERE/resources/." "$WORK/classes/"
 
 # jar にまとめる

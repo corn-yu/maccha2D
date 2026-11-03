@@ -159,6 +159,12 @@ public class VoiceListener implements Runnable {
             match = book.findFirst(text, foundUntil);
         }
 
+        // 話し終わったのに 何も見つからなかったら、少しちがっていても いちばん近い行をさがす
+        if (isFinal && foundUntil <= from && text.length() - from >= 3) {
+            SpellBook.Match closest = book.findClosest(text.substring(from));
+            if (closest != null) queue.add(new Heard(rawText, closest, "line"));
+        }
+
         // 話し終わったら、次の話のために最初にもどす
         if (isFinal) foundUntil = 0;
     }

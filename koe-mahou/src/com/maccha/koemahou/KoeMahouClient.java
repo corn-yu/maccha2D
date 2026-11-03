@@ -49,6 +49,8 @@ public class KoeMahouClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Path folder = FabricLoader.getInstance().getConfigDir().resolve("koemahou");
+        // 誤変換を読みがなでくらべるための辞書を 先に読みこんでおく
+        Reading.prepare();
         chatModeFile = folder.resolve("チャット.txt");
         chatMode = loadChatMode();
 
@@ -77,13 +79,35 @@ public class KoeMahouClient implements ClientModInitializer {
     /** チャットを送る前：チャットモードで詠唱の行が入っていたら、魔法に使ってチャットには出さない */
     boolean onChat(String message) {
         if (!chatMode) return true;
-        String text = SpellBook.normalize(message);
-        SpellBook.Match match = book.findFirst(text, 0);
+        // 空白や「、」で区切ってあったら、1つずつ 詠唱の行としてしらべる
+        boolean found = false;
+        for (String piece : message.split("[\\s　、。,，]+")) {
+            String text = SpellBook.normalize(piece);
+            if (text.isEmpty()) continue;
+            // まずは ぴったりの行をさがす（1つに何行か続けて書いてあっても、前から順に進める）
+            SpellBook.Match exact = book.findFirst(text, 0);
+            if (exact != null) {
+                found = true;
+                for (; exact != null; exact = book.findFirst(text, exact.end())) {
+                    queue.add(new VoiceListener.Heard(message, exact, "line"));
+                }
+                continue;
+            }
+            // ぴったりがなければ、誤変換や 少しのまちがいを ゆるして いちばん近い行
+            SpellBook.Match closest = book.findClosest(text);
+            if (closest != null) {
+                found = true;
+                queue.add(new VoiceListener.Heard(message, closest, "line"));
+            }
+        }
+        if (found) return false;
+        // 区切ると見つからないとき（詠唱の行に空白が入っているなど）は、チャットぜんたいでしらべる
+        String whole = SpellBook.normalize(message);
+        SpellBook.Match match = book.findFirst(whole, 0);
+        if (match == null) match = book.findClosest(whole);
         if (match == null) return true;
-        // 1つのチャットに何行か書いてあっても、前から順に進める
-        while (match != null) {
+        for (; match != null; match = match.end() >= whole.length() ? null : book.findFirst(whole, match.end())) {
             queue.add(new VoiceListener.Heard(message, match, "line"));
-            match = book.findFirst(text, match.end());
         }
         return false;
     }

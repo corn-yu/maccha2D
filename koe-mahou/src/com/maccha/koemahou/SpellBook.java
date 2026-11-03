@@ -173,6 +173,54 @@ public class SpellBook {
         return best;
     }
 
+    /** 文ぜんたいが どの詠唱の行に いちばん近いかを「読みがな」でさがす（誤変換や 少しの言いまちがいを ゆるす。なければ null） */
+    public Match findClosest(String text) {
+        if (text.isEmpty()) return null;
+        String sound = Reading.of(text);
+        Match best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        int bestLength = 0;
+        for (Spell spell : spells.values()) {
+            for (int index = 0; index < spell.lines().size(); index++) {
+                String line = Reading.of(spell.lines().get(index));
+                if (line.isEmpty()) continue;
+                int distance = distance(sound, line);
+                if (distance > allowedMistakes(line.length())) continue;
+                // ちがいが少ないほうを選ぶ（同じなら長い行）
+                if (distance < bestDistance || (distance == bestDistance && line.length() > bestLength)) {
+                    best = new Match(spell, index, 0, text.length());
+                    bestDistance = distance;
+                    bestLength = line.length();
+                }
+            }
+        }
+        return best;
+    }
+
+    /** 行の長さごとに、何文字までちがっていてもいいか（3文字以下は ぴったりだけ、あとは 6文字に1つくらい） */
+    static int allowedMistakes(int length) {
+        if (length <= 3) return 0;
+        return Math.max(1, length / 6);
+    }
+
+    /** 2つの文が 何文字ちがうか（1文字の 入れかえ・たりない・よけい を1つと数える） */
+    static int distance(String first, String second) {
+        int[] previous = new int[second.length() + 1];
+        int[] current = new int[second.length() + 1];
+        for (int column = 0; column <= second.length(); column++) previous[column] = column;
+        for (int row = 1; row <= first.length(); row++) {
+            current[0] = row;
+            for (int column = 1; column <= second.length(); column++) {
+                int change = first.charAt(row - 1) == second.charAt(column - 1) ? 0 : 1;
+                current[column] = Math.min(Math.min(current[column - 1] + 1, previous[column] + 1), previous[column - 1] + change);
+            }
+            int[] swap = previous;
+            previous = current;
+            current = swap;
+        }
+        return previous[second.length()];
+    }
+
     /** 文字をそろえる（空白をとる・カタカナをひらがなに・全角数字を半角に） */
     public static String normalize(String text) {
         StringBuilder result = new StringBuilder();
