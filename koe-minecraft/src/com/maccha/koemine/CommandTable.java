@@ -25,11 +25,11 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v9";
+    static final String VERSION_MARK = "ことば表 v10";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v9
+            # こえマイクラ ことば表 v10
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
             # アクションは + でつなぐと、順番にします（例: 下を壊して = look_bottom+dig）
@@ -301,6 +301,99 @@ public class CommandTable {
             メニュー = pause
             ねて = use
             寝て = use
+
+            # 似た意味の言葉（「停止」「ほれ」など。言いかたがちがっても同じ動きにする）
+            停止 = stop
+            ていし = stop
+            止まる = stop
+            とまる = stop
+            待て = stop
+            まて = stop
+            止めて = stop
+            とめて = stop
+            やめて = stop
+            ほれ = dig
+            掘れ = dig
+            ほって = dig
+            掘って = dig
+            ほる = dig
+            掘る = dig
+            壊せ = dig
+            こわせ = dig
+            壊す = dig
+            こわす = dig
+            破壊 = dig
+            はかい = dig
+            破壊して = dig
+            はかいして = dig
+            割って = dig
+            わって = dig
+            砕いて = dig
+            くだいて = dig
+            採掘 = dig
+            たたけ = attack
+            叩け = attack
+            叩いて = attack
+            殴れ = attack
+            なぐれ = attack
+            斬って = attack
+            斬れ = attack
+            アタック = attack
+            攻撃して = attack
+            こうげきして = attack
+            攻撃しろ = attack
+            こうげきしろ = attack
+            連続攻撃 = attack_repeat
+            れんぞくこうげき = attack_repeat
+            前進 = forward
+            ぜんしん = forward
+            行け = forward
+            いけ = forward
+            進む = forward
+            すすむ = forward
+            前へ = forward
+            まえへ = forward
+            前に進んで = forward
+            まえにすすんで = forward
+            後退 = back
+            こうたい = back
+            下がれ = back
+            さがれ = back
+            戻って = back
+            もどって = back
+            跳べ = jump
+            とべ = jump
+            飛べ = jump
+            ジャンプして = jump
+            かがんで = sneak
+            かがめ = sneak
+            しゃがむ = sneak
+            スニーク = sneak
+            立て = stand
+            たて = stand
+            立つ = stand
+            たつ = stand
+            走る = sprint
+            はしる = sprint
+            ダッシュして = sprint
+            全力 = sprint
+            ぜんりょく = sprint
+            振り返って = turn_around
+            ふりかえって = turn_around
+            後ろを向いて = turn_around
+            うしろをむいて = turn_around
+            使え = use
+            つかえ = use
+            設置 = use
+            せっち = use
+            開いて = use
+            ひらいて = use
+            閉めて = close
+            しめて = close
+            捨てろ = drop
+            すてろ = drop
+            落として = drop
+            おとして = drop
 
             # マイク（友だちとしゃべるときは「マイクオフ」）
             マイクオフ = mute

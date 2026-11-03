@@ -137,8 +137,8 @@ public class ChatInput {
         // 3. 言葉でない所が多い文（ふつうのおしゃべり）なら、ぴったりの言葉以外はつかわない
         boolean allExact = hits.stream().allMatch(Hit::exact);
         if (!allExact && coverage(text, hits) < 0.6) hits.removeIf(hit -> !hit.exact());
-        // 半分以上が言葉でない文は、おしゃべりとみなして ふつうに送る（「前回のボス…」で歩かないように）
-        if (coverage(text, hits) < 0.5) hits.clear();
+        // 4わり以上が言葉でない文は、おしゃべりとみなして ふつうに送る（「前回のボス…」で歩かないように）
+        if (coverage(text, hits) < 0.6) hits.clear();
         return hits;
     }
 
@@ -150,7 +150,10 @@ public class ChatInput {
         int bestDistance = Integer.MAX_VALUE;
         for (int start = from; start < to; start++) {
             for (int end = start + 2; end <= to; end++) {
-                String reading = yomi.reading(text.substring(start, end));
+                String piece = text.substring(start, end);
+                // 「してね」のような、つなぎの文字だけの所は 言葉にしない
+                if (piece.chars().allMatch(letter -> NEUTRAL.indexOf(letter) >= 0)) continue;
+                String reading = yomi.reading(piece);
                 for (CommandTable.Entry entry : mod.table.entries) {
                     if (entry.action().contains("name:")) continue;
                     String target = readingOf(entry);
@@ -160,6 +163,8 @@ public class ChatInput {
                     boolean sameVerb = stem != null && stem.length() >= 2 && stem.equals(verbStem(target));
                     int distance = sameVerb ? 0 : Yomi.distance(reading, target);
                     int allowed = target.length() >= 6 ? 2 : 1;
+                    // 「こわい」「すごい」のような「〜い」の言葉は、動きの言葉にしない
+                    if (!sameVerb && reading.endsWith("い") && !target.endsWith("い")) continue;
                     // 3文字以下の短い言葉は、同じ長さで1文字ちがいだけ（「しろ」が「うしろ」にならないように）
                     if (!sameVerb && target.length() <= 3 && reading.length() != target.length()) continue;
                     if (distance > allowed) continue;
@@ -191,18 +196,25 @@ public class ChatInput {
         return null;
     }
 
+    // 言葉のあいだにあっても気にしない文字（「破壊しろ」の しろ、「まえ！」の ！ など）
+    static final String NEUTRAL = "しろてでよねをにへのとーー〜!！?？。、,.";
+
     /** 文のうち、言葉（と名前）になった文字のわりあい */
     static double coverage(String text, List<Hit> hits) {
         if (text.isEmpty()) return 0;
-        int covered = 0;
+        boolean[] covered = new boolean[text.length()];
         int previousEnd = 0;
         for (Hit hit : hits) {
             // 「〇〇つくって」の〇〇も言葉の一部とみなす
             int start = hit.entry().action().contains("name:") ? previousEnd : hit.start();
-            covered += hit.end() - Math.max(start, previousEnd);
+            for (int i = Math.max(0, start); i < hit.end(); i++) covered[i] = true;
             previousEnd = Math.max(previousEnd, hit.end());
         }
-        return (double) covered / text.length();
+        int count = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (covered[i] || NEUTRAL.indexOf(text.charAt(i)) >= 0) count++;
+        }
+        return (double) count / text.length();
     }
 
     /** ことば表の言葉の読み（ひらがな） */
