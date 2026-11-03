@@ -105,9 +105,8 @@ public class VoiceListener implements Runnable {
                 KoeMineMod.LOG.warn("こえマイクラ: UTF-8 で読めないので、ふつうに読みます: {}", error.toString());
             }
             loadVocabulary(modelPath.resolve("graph").resolve("words.txt"));
-            try (Model model = new Model(modelPath.toString());
-                 Recognizer recognizer = makeRecognizer(model)) {
-                listen(recognizer);
+            try (Model model = new Model(modelPath.toString())) {
+                listen(model);
             }
         } catch (Throwable error) {
             status = "うごかせませんでした: " + error.getMessage();
@@ -148,7 +147,8 @@ public class VoiceListener implements Runnable {
     }
 
     /** マイクの音を（こえまほうと分けあって）受けとり、Vosk にわたしつづける */
-    void listen(Recognizer recognizer) throws Exception {
+    void listen(Model model) throws Exception {
+        Recognizer recognizer = makeRecognizer(model);
         BlockingQueue<byte[]> sound = MicHub.listen();
         status = "聞いています";
         queue.add(new Heard("", "ready", true));
@@ -156,9 +156,15 @@ public class VoiceListener implements Runnable {
         try {
             while (running) {
                 // 言葉表やゲームの名前が変わったら、文法を入れかえる
-                if (grammarDirty && table.isOn("ことばだけ聞く") && !vocabulary.isEmpty() && VoskText.grammarFunction != null) {
-                    grammarDirty = false;
-                    VoskText.setGrammar(recognizer, makeGrammar());
+                // （使いかけの Recognizer に文法を入れなおすと Vosk が落ちるので、Recognizer ごと作りなおす）
+                if (grammarDirty) {
+                    recognizer.close();
+                    recognizer = makeRecognizer(model);
+                    lastPartial = "";
+                    firedUntil = 0;
+                    nameFrom = 0;
+                    firedAny = false;
+                    jumpFiredAt = -1;
                 }
                 byte[] buffer = sound.poll(1, TimeUnit.SECONDS);
                 if (buffer == null) continue;
@@ -168,6 +174,7 @@ public class VoiceListener implements Runnable {
             }
         } finally {
             MicHub.stop(sound);
+            recognizer.close();
         }
     }
 
