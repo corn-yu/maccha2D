@@ -58,6 +58,8 @@ public class ModFiles {
     // ゲームを閉じたらオフにする jar（ゲームを閉じるときに まとめて名前を変える）
     static final Set<Path> pendingOff = new LinkedHashSet<>();
     static boolean hookAdded = false;
+    // ゲームを閉じたあと、もう一度 Minecraft を起動するか（「今すぐ反映」ボタン）
+    static boolean restartAfterExit = false;
 
     /** mods フォルダの場所 */
     static Path modsFolder() {
@@ -145,9 +147,70 @@ public class ModFiles {
         Runtime.getRuntime().addShutdownHook(new Thread(ModFiles::renameAfterExit, "modswitch-close"));
     }
 
-    /** ゲームが終わるのを待ってから名前を変える PowerShell を、見えないように動かす（Windows 用） */
+    /** 今すぐ反映：Minecraft を閉じて、名前を変えてから、もう一度起動する */
+    public static void restartNow(net.minecraft.client.Minecraft minecraft) {
+        restartAfterExit = true;
+        addCloseHook();
+        // ワールドに入っていたら保存してから閉じる（stop が ふつうの「ゲームを終了」と同じ流れ）
+        minecraft.stop();
+    }
+
+    /** 今のゲームを起動したときと同じコマンド（作れなければ null） */
+    static List<String> relaunchCommand() {
+        try {
+            String javaPath = ProcessHandle.current().info().command()
+                    .orElse(Path.of(System.getProperty("java.home"), "bin", isWindows() ? "javaw.exe" : "java").toString());
+            List<String> command = new ArrayList<>();
+            command.add(javaPath);
+            // JVM の設定（メモリ・ネイティブの場所・Fabric の設定など）
+            command.addAll(java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments());
+            command.add("-cp");
+            command.add(System.getProperty("java.class.path"));
+            // メインクラスと、ゲームの引数（ユーザー名・ゲームフォルダなど）
+            String main = System.getProperty("sun.java.command");
+            if (main == null || main.isBlank()) return null;
+            command.addAll(List.of(main.trim().split(" ")));
+            return command;
+        } catch (Throwable problem) {
+            ModSwitchClient.LOG.warn("MODスイッチ: 起動コマンドを作れませんでした", problem);
+            return null;
+        }
+    }
+
+    /** Windows かどうか */
+    static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().contains("win");
+    }
+
+    /** Windows のコマンドライン用に、空白や " がある引数を " でかこむ */
+    static String quoteArg(String arg) {
+        if (!arg.isEmpty() && arg.chars().noneMatch(c -> c == ' ' || c == '\t' || c == '"')) return arg;
+        // 最後が \ だと閉じる " とくっついてしまうので、\ を2つにする
+        String inner = arg.replace("\"", "\\\"");
+        if (inner.endsWith("\\")) inner += "\\";
+        return "\"" + inner + "\"";
+    }
+
+    /** PowerShell の '...' の中に入れられるようにする */
+    static String ps(String text) {
+        return "'" + text.replace("'", "''") + "'";
+    }
+
+    /** ゲームが終わるのを待ってから名前を変え（Windows）、たのまれていたら もう一度起動する */
     static void renameAfterExit() {
-        if (pendingOff.isEmpty()) return;
+        List<String> relaunch = restartAfterExit ? relaunchCommand() : null;
+        if (!isWindows()) {
+            // Windows 以外は もう名前を変えてあるので、起動しなおすだけ
+            if (relaunch != null) {
+                try {
+                    new ProcessBuilder(relaunch).directory(new java.io.File(System.getProperty("user.dir"))).inheritIO().start();
+                } catch (Exception problem) {
+                    ModSwitchClient.LOG.warn("MODスイッチ: 起動しなおせませんでした", problem);
+                }
+            }
+            return;
+        }
+        if (pendingOff.isEmpty() && relaunch == null) return;
         long pid = ProcessHandle.current().pid();
         StringBuilder script = new StringBuilder();
         script.append("Wait-Process -Id ").append(pid).append(" -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; ");
@@ -157,6 +220,17 @@ public class ModFiles {
             // 念のため 何回か ためす（ファイルがまだ使われていることがあるので）
             script.append("for($i=0;$i -lt 10;$i++){ try { Rename-Item -LiteralPath '").append(path)
                     .append("' -NewName '").append(newName).append("' -ErrorAction Stop; break } catch { Start-Sleep -Seconds 1 } }; ");
+        }
+        if (relaunch != null) {
+            // 同じコマンドで Minecraft をもう一度起動する
+            StringBuilder args = new StringBuilder();
+            for (String arg : relaunch.subList(1, relaunch.size())) {
+                if (args.length() > 0) args.append(' ');
+                args.append(quoteArg(arg));
+            }
+            script.append("Start-Process -FilePath ").append(ps(relaunch.get(0)))
+                    .append(" -ArgumentList ").append(ps(args.toString()))
+                    .append(" -WorkingDirectory ").append(ps(System.getProperty("user.dir"))).append("; ");
         }
         // 日本語のパスでも こわれないように、UTF-16 の Base64 でわたす
         String encoded = Base64.getEncoder().encodeToString(script.toString().getBytes(StandardCharsets.UTF_16LE));

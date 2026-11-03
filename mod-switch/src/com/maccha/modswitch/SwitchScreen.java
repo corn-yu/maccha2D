@@ -37,12 +37,12 @@ public class SwitchScreen extends Screen {
         addRenderableWidget(new StringWidget(0, 8, width, 12, Component.literal("§lMODスイッチ"), font));
         long changed = entries.stream().filter(ModFiles.Entry::changed).count();
         String note = changed > 0
-                ? "§e" + changed + " こ変えました。Minecraft を再起動すると反映されます"
+                ? "§e" + changed + " こ変えました。下の「今すぐ反映」で 自動で再起動します"
                 : "§7押すとオン・オフが切りかわります（次の起動から）";
         addRenderableWidget(new StringWidget(0, 22, width, 12, Component.literal(note), font));
 
         // MOD のボタン（入るぶんだけ、ページに分ける）
-        int perPage = Math.max(1, (height - 40 - 40) / ROW);
+        int perPage = Math.max(1, (height - 40 - 64) / ROW);
         int pages = Math.max(1, (entries.size() + perPage - 1) / perPage);
         page = Math.min(page, pages - 1);
         for (int row = 0; row < perPage; row++) {
@@ -61,6 +61,14 @@ public class SwitchScreen extends Screen {
         }
 
         // 下のボタン：まえ・つぎ・もどる
+        // 変えた MOD があるときだけ「今すぐ反映」（Minecraft を閉じて、自動でもう一度起動する）
+        if (changed > 0) {
+            Button apply = Button.builder(Component.literal("§e今すぐ反映（自動で再起動）"),
+                            press -> ModFiles.restartNow(minecraft))
+                    .pos(width / 2 - 100, height - 52).size(200, 20).build();
+            apply.setTooltip(Tooltip.create(Component.literal("Minecraft を閉じて、MOD を入れかえてから、自動でもう一度起動します\nワールドに入っているときは 保存してから閉じます")));
+            addRenderableWidget(apply);
+        }
         Button back = Button.builder(Component.literal("◀"), press -> { page--; rebuildWidgets(); })
                 .pos(width / 2 - 154, height - 28).size(36, 20).build();
         back.active = page > 0;
