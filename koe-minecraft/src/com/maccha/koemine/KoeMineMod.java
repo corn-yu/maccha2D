@@ -79,6 +79,9 @@ public class KoeMineMod implements ClientModInitializer {
 
         // 毎tickのはじめに、声のアクションをキー操作にする
         ClientTickEvents.START_CLIENT_TICK.register(this::onTick);
+
+        // チャットに打った言葉でも動けるようにする（/koemine chat on・off）
+        new ChatInput(this).register();
     }
 
     /** 毎tick：順番待ちのアクションを実行して、キーをおしつづける */
@@ -138,8 +141,9 @@ public class KoeMineMod implements ClientModInitializer {
             return;
         }
         // マイクを止めているときは「きいて」だけを聞く
-        if (muted && !action.equals("unmute")) return;
-        player.sendOverlayMessage(Component.literal("§b♪ " + heard.text() + " §f→ §e" + label(action)));
+        // （チャットで打った言葉は、マイクオフでも動く）
+        if (muted && !heard.fromChat() && !action.equals("unmute")) return;
+        player.sendOverlayMessage(Component.literal((heard.fromChat() ? "§bチャット：" : "§b♪ ") + heard.text() + " §f→ §e" + label(action)));
         LOG.info("こえマイクラ: 「{}」→ {}", heard.text(), action);
 
         // + でつながっていたら、順番にならべる（「とまれ」などは、ならんでいるものを消してすぐする）

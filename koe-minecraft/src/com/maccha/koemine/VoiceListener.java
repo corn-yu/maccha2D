@@ -39,7 +39,12 @@ public class VoiceListener implements Runnable {
     static final float SAMPLE_RATE = 16000f;
 
     /** 順番待ちに入れる1件（聞こえた文と、するアクション） */
-    public record Heard(String text, String action, boolean isFinal) {}
+    public record Heard(String text, String action, boolean isFinal, boolean fromChat) {
+        /** 声で聞こえた1件をつくる */
+        public Heard(String text, String action, boolean isFinal) {
+            this(text, action, isFinal, false);
+        }
+    }
 
     final Path folder;
     final ConcurrentLinkedQueue<Heard> queue;
