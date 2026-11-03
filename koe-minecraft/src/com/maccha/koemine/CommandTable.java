@@ -25,11 +25,11 @@ public class CommandTable {
     public record Match(Entry entry, int start, int end) {}
 
     // ことば表の版。これが入っていない古い ことば.txt は、ことば-old.txt にして新しくする
-    static final String VERSION_MARK = "ことば表 v10";
+    static final String VERSION_MARK = "ことば表 v11";
 
     // はじめて動かしたときに作る ことば.txt の中身
     static final String DEFAULT_TEXT = """
-            # こえマイクラ ことば表 v10
+            # こえマイクラ ことば表 v11
             # 「言葉 = アクション」の形で1行にひとつ書きます。ひらがな・漢字・カタカナどれでもOK。
             # 同じアクションに、言葉をいくつ書いてもいいです。# から後ろはメモです。
             # アクションは + でつなぐと、順番にします（例: 下を壊して = look_bottom+dig）
@@ -395,11 +395,14 @@ public class CommandTable {
             落として = drop
             おとして = drop
 
-            # マイク（友だちとしゃべるときは「マイクオフ」）
-            マイクオフ = mute
+            # マイク（友だちとしゃべるときは「マイクをオフにして」）
+            # （「マイクオン」は「まえ」とまちがえやすいので、長い言葉にしています）
+            マイクをオフにして = mute
+            マイクを切って = mute
             きかないで = mute
             聞かないで = mute
-            マイクオン = unmute
+            マイクをオンにして = unmute
+            マイクをつけて = unmute
             ことばよみこみ = reload
             言葉読み込み = reload
             """;
@@ -433,6 +436,9 @@ public class CommandTable {
     }
 
     /** 今のことば表に、まだない新しい言葉の行だけを下に足した文を返す */
+    // 前の版の表にあったけれど、消した行（まちがえやすい言葉など）
+    static final Set<String> REMOVED_LINES = Set.of("マイクオフ = mute", "マイクオン = unmute");
+
     static String mergeNewWords(String current) {
         // 今のファイルにある左がわ（言葉・設定・あだ名）をあつめる
         Set<String> known = new java.util.HashSet<>();
@@ -446,6 +452,12 @@ public class CommandTable {
             String left = leftSide(line);
             if (left != null && !known.contains(left)) added.append(line.trim()).append("\n");
         }
+        // 前の版にあって、今は消した行をとる（まっちゃが書いた行はそのまま）
+        StringBuilder kept = new StringBuilder();
+        for (String line : current.split("\n", -1)) {
+            if (!REMOVED_LINES.contains(line.trim())) kept.append(line).append("\n");
+        }
+        current = kept.toString();
         // 版の名前を新しくする
         String result = current.replaceAll("ことば表 v[0-9]+", VERSION_MARK);
         if (!result.contains(VERSION_MARK)) result = "# " + VERSION_MARK + "\n" + result;

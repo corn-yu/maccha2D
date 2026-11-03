@@ -240,7 +240,14 @@ public class KoeMineMod implements ClientModInitializer {
             case "look_down" -> pendingPitch += LOOK_STEP;
             case "look_front" -> pendingPitch = -player.getXRot();
             // こわす・こうげき
-            case "dig" -> { holdAttack = true; repeatAttack = false; }
+            case "dig" -> {
+                holdAttack = true;
+                repeatAttack = false;
+                // 手がとどくところにブロックがないときは、どうすればいいか出す（自動では向かない）
+                if (minecraft.hitResult == null || minecraft.hitResult.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                    player.sendSystemMessage(Component.literal("§eこえマイクラ：手がとどくところにブロックがないよ。「下」や「ちょっと下」でブロックの方を向いてね（壊すのはそのまま続きます）"));
+                }
+            }
             case "attack" -> { holdAttack = false; click(options.keyAttack); }
             case "attack_repeat" -> { repeatAttack = true; holdAttack = false; }
             // つかう・おく
@@ -259,7 +266,7 @@ public class KoeMineMod implements ClientModInitializer {
             case "slot_next" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 1) % 9);
             case "slot_prev" -> player.getInventory().setSelectedSlot((player.getInventory().getSelectedSlot() + 8) % 9);
             // マイク
-            case "mute" -> { muted = true; stopMoving(); survival.cancel(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「マイクオン」でもどります")); }
+            case "mute" -> { muted = true; stopMoving(); survival.cancel(); player.sendSystemMessage(Component.literal("§eこえマイクラ：お休み中。「マイクをオンにして」でもどります")); }
             case "unmute" -> { muted = false; player.sendSystemMessage(Component.literal("§aこえマイクラ：また聞いています")); }
             case "reload" -> reloadWords(player);
             default -> {
