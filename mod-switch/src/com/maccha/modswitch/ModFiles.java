@@ -58,6 +58,8 @@ public class ModFiles {
     // ゲームを閉じたらオフにする jar（ゲームを閉じるときに まとめて名前を変える）
     static final Set<Path> pendingOff = new LinkedHashSet<>();
     static boolean hookAdded = false;
+    // 名前を変える係を もう始めたか
+    static boolean helperStarted = false;
     // ゲームを閉じたあと、もう一度 Minecraft を起動するか（「今すぐ反映」ボタン）
     static boolean restartAfterExit = false;
 
@@ -150,6 +152,8 @@ public class ModFiles {
     /** 今すぐ反映：Minecraft を閉じて、名前を変えてから、もう一度起動する */
     public static void restartNow(net.minecraft.client.Minecraft minecraft) {
         restartAfterExit = true;
+        // 終わるのを待つ係を「いま」始めておく（閉じるときの処理に たよらない）
+        if (isWindows()) startHelper(true);
         addCloseHook();
         // ワールドに入っていたら保存してから閉じる（stop が ふつうの「ゲームを終了」と同じ流れ）
         minecraft.stop();
@@ -196,10 +200,11 @@ public class ModFiles {
         return "'" + text.replace("'", "''") + "'";
     }
 
-    /** ゲームが終わるのを待ってから名前を変え（Windows）、たのまれていたら もう一度起動する */
+    /** ゲームが終わるときの係：Windows 以外は 起動しなおすだけ、Windows は まだなら 名前を変える係を始める */
     static void renameAfterExit() {
-        List<String> relaunch = restartAfterExit ? relaunchCommand() : null;
+        writeLog("閉じるときの処理が動きました");
         if (!isWindows()) {
+            List<String> relaunch = restartAfterExit ? relaunchCommand() : null;
             // Windows 以外は もう名前を変えてあるので、起動しなおすだけ
             if (relaunch != null) {
                 try {
@@ -210,36 +215,102 @@ public class ModFiles {
             }
             return;
         }
-        if (pendingOff.isEmpty() && relaunch == null) return;
-        long pid = ProcessHandle.current().pid();
-        StringBuilder script = new StringBuilder();
-        script.append("Wait-Process -Id ").append(pid).append(" -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; ");
-        for (Path file : pendingOff) {
-            String path = file.toAbsolutePath().toString().replace("'", "''");
-            String newName = (file.getFileName().toString() + OFF).replace("'", "''");
-            // 念のため 何回か ためす（ファイルがまだ使われていることがあるので）
-            script.append("for($i=0;$i -lt 10;$i++){ try { Rename-Item -LiteralPath '").append(path)
-                    .append("' -NewName '").append(newName).append("' -ErrorAction Stop; break } catch { Start-Sleep -Seconds 1 } }; ");
-        }
-        if (relaunch != null) {
-            // 同じコマンドで Minecraft をもう一度起動する
-            StringBuilder args = new StringBuilder();
-            for (String arg : relaunch.subList(1, relaunch.size())) {
-                if (args.length() > 0) args.append(' ');
-                args.append(quoteArg(arg));
-            }
-            script.append("Start-Process -FilePath ").append(ps(relaunch.get(0)))
-                    .append(" -ArgumentList ").append(ps(args.toString()))
-                    .append(" -WorkingDirectory ").append(ps(System.getProperty("user.dir"))).append("; ");
-        }
-        // 日本語のパスでも こわれないように、UTF-16 の Base64 でわたす
-        String encoded = Base64.getEncoder().encodeToString(script.toString().getBytes(StandardCharsets.UTF_16LE));
+        startHelper(restartAfterExit);
+    }
+
+    /** ログ（ゲームの外に残す。なにが起きたか あとで見られるように） */
+    static void writeLog(String message) {
         try {
-            new ProcessBuilder("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-EncodedCommand", encoded)
-                    .redirectErrorStream(true)
-                    .start();
-        } catch (Exception problem) {
-            ModSwitchClient.LOG.warn("MODスイッチ: 閉じたあとの切りかえを始められませんでした", problem);
+            Path log = FabricLoader.getInstance().getGameDir().resolve("modswitch-apply.log");
+            Files.writeString(log, java.time.LocalTime.now().withNano(0) + " [ゲーム] " + message + "\n",
+                    StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (Exception ignored) {
+            // ログが書けなくても 動きは変えない
+        }
+    }
+
+    /**
+     * ゲームが終わるのを待って、名前を変えて（Windows）、たのまれていたら もう一度起動する係を始める
+     * 長いコマンドは入れられないので、やることを .ps1 のファイルに書いて、それを動かす
+     */
+    static synchronized void startHelper(boolean relaunchToo) {
+        if (helperStarted) return;
+        if (pendingOff.isEmpty() && !relaunchToo) return;
+        List<String> relaunch = relaunchToo ? relaunchCommand() : null;
+        helperStarted = true;
+        try {
+            Path folder = FabricLoader.getInstance().getGameDir();
+            Path script = folder.resolve("modswitch-apply.ps1");
+            Path log = folder.resolve("modswitch-apply.log");
+            StringBuilder text = new StringBuilder();
+            text.append("$log = ").append(ps(log.toAbsolutePath().toString())).append("\r\n");
+            text.append("function Log($m) { Add-Content -LiteralPath $log -Value ((Get-Date -Format 'HH:mm:ss') + ' [係] ' + $m) -Encoding UTF8 }\r\n");
+            text.append("try {\r\n");
+            text.append("Log '待っています'\r\n");
+            text.append("Wait-Process -Id ").append(ProcessHandle.current().pid()).append(" -ErrorAction SilentlyContinue\r\n");
+            text.append("Start-Sleep -Seconds 2\r\n");
+            text.append("Log 'ゲームが終わりました'\r\n");
+            for (Path file : pendingOff) {
+                String path = file.toAbsolutePath().toString();
+                String newName = file.getFileName().toString() + OFF;
+                text.append("$done = $false\r\n");
+                text.append("for ($i = 0; $i -lt 15 -and -not $done; $i++) { try { Rename-Item -LiteralPath ").append(ps(path))
+                        .append(" -NewName ").append(ps(newName)).append(" -ErrorAction Stop; $done = $true; Log ")
+                        .append(ps("オフにしました: " + newName)).append(" } catch { Start-Sleep -Seconds 1 } }\r\n");
+                text.append("if (-not $done) { Log ").append(ps("名前を変えられませんでした: " + file.getFileName())).append(" }\r\n");
+            }
+            if (relaunch != null) {
+                StringBuilder args = new StringBuilder();
+                for (String arg : relaunch.subList(1, relaunch.size())) {
+                    if (args.length() > 0) args.append(' ');
+                    args.append(quoteArg(arg));
+                }
+                text.append("Log '起動しなおします'\r\n");
+                text.append("Start-Process -FilePath ").append(ps(relaunch.get(0)))
+                        .append(" -ArgumentList ").append(ps(args.toString()))
+                        .append(" -WorkingDirectory ").append(ps(System.getProperty("user.dir"))).append("\r\n");
+            }
+            text.append("} catch { Log ('しっぱい: ' + $_) }\r\n");
+            // ゲームに入るための情報（ユーザー名やトークン）が ファイルに残らないよう、おわったら自分を消す
+            text.append("Remove-Item -LiteralPath $PSCommandPath -ErrorAction SilentlyContinue\r\n");
+            // PowerShell 5 が日本語を読めるように BOM つきの UTF-8 で書く
+            Files.writeString(script, "\uFEFF" + text, StandardCharsets.UTF_8);
+            writeLog("係のスクリプトを書きました（" + pendingOff.size() + " こ" + (relaunch != null ? "、起動しなおしあり" : "") + "）");
+            if (!launchDetached(script)) writeLog("係を始められませんでした");
+        } catch (Throwable problem) {
+            helperStarted = false;
+            ModSwitchClient.LOG.warn("MODスイッチ: 名前を変える係を始められませんでした", problem);
+            writeLog("しっぱい: " + problem);
+        }
+    }
+
+    /** スクリプトを、ゲームとは はなれた場所で動かす（ランチャーがゲームと一緒に子どもを終わらせても 生きのこれるように） */
+    static boolean launchDetached(Path script) {
+        String path = script.toAbsolutePath().toString();
+        // まず Windows の仕組み（WMI）で はなれたところから始める（パスに空白があるときは使えない）
+        if (!path.contains(" ")) {
+            try {
+                String command = "$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine='powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "
+                        + path.replace("'", "''") + "'}; if ($r.ReturnValue -ne 0) { exit 1 }";
+                Process process = new ProcessBuilder("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", command)
+                        .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+                if (process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS) && process.exitValue() == 0) {
+                    writeLog("係を はなれた場所で始めました");
+                    return true;
+                }
+            } catch (Throwable problem) {
+                writeLog("WMI で始められませんでした: " + problem);
+            }
+        }
+        // だめなら ふつうに始める
+        try {
+            new ProcessBuilder("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", path)
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            writeLog("係を ふつうに始めました");
+            return true;
+        } catch (Throwable problem) {
+            writeLog("係を始められませんでした: " + problem);
+            return false;
         }
     }
 }

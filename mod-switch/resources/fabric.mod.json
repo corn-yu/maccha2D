@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "modswitch",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "name": "MODスイッチ",
   "description": "Mod Menu の画面に「MODスイッチ」ボタンを足して、mods フォルダの MOD をオン・オフできるようにします（「今すぐ反映」で自動で再起動して反映）",
   "authors": ["まっちゃ"],
