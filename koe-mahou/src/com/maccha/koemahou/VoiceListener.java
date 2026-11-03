@@ -1,5 +1,6 @@
 package com.maccha.koemahou;
 
+import com.maccha.koeshared.MicHub;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.vosk.LibVosk;
@@ -7,9 +8,6 @@ import org.vosk.LogLevel;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.TargetDataLine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -22,6 +20,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -75,10 +75,8 @@ public class VoiceListener implements Runnable {
             // 日本語を UTF-8 で読むじゅんび（Windows の文字化け対策）
             VoskText.prepare();
             loadVocabulary(modelPath.resolve("graph").resolve("words.txt"));
-            try (Model model = new Model(modelPath.toString());
-                 Recognizer recognizer = new Recognizer(model, SAMPLE_RATE)) {
-                setGrammar(recognizer);
-                listen(recognizer);
+            try (Model model = new Model(modelPath.toString())) {
+                listen(model);
             }
         } catch (Throwable error) {
             status = "うごかせませんでした: " + error.getMessage();
@@ -108,25 +106,38 @@ public class VoiceListener implements Runnable {
         if (!book.problems.isEmpty()) queue.add(new Heard(String.join("\n", book.problems), null, "problems"));
     }
 
-    /** マイクを開いて、音を Vosk にわたしつづける */
-    void listen(Recognizer recognizer) throws Exception {
-        // 16kHz・16bit・モノラルでマイクを開く
-        AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
-        TargetDataLine microphone = AudioSystem.getTargetDataLine(format);
-        microphone.open(format, 4096);
-        microphone.start();
+    /** 詠唱の行だけを聞く Recognizer を新しく作る（文法の入れなおしは落ちることがあるので、毎回作りなおす） */
+    Recognizer newRecognizer(Model model) throws IOException {
+        Recognizer recognizer = new Recognizer(model, SAMPLE_RATE);
+        setGrammar(recognizer);
+        foundUntil = 0;
+        return recognizer;
+    }
+
+    /** マイクの音を（こえマイクラと分けあって）受けとり、Vosk にわたしつづける */
+    void listen(Model model) throws Exception {
+        BlockingQueue<byte[]> sound = MicHub.listen();
+        Recognizer recognizer = newRecognizer(model);
         status = "聞いています";
         queue.add(new Heard("", null, "ready"));
-
-        // 0.05秒ぶんずつ読んで、文字にする
-        byte[] buffer = new byte[1600];
-        while (running) {
-            if (grammarDirty) setGrammar(recognizer);
-            int count = microphone.read(buffer, 0, buffer.length);
-            if (count > 0) process(recognizer, buffer, count);
+        KoeMahouMod.LOG.info("こえまほう: マイクを聞きはじめました（MicHub v{}）", MicHub.VERSION);
+        try {
+            while (running) {
+                // 覚えている魔法が変わったら、Recognizer ごと作りなおす
+                if (grammarDirty) {
+                    recognizer.close();
+                    recognizer = newRecognizer(model);
+                }
+                byte[] buffer = sound.poll(1, TimeUnit.SECONDS);
+                if (buffer == null) continue;
+                // 空の音は「マイクがだめになった」のしるし
+                if (buffer.length == 0) throw new IllegalStateException("マイクが開けません: " + MicHub.error);
+                process(recognizer, buffer, buffer.length);
+            }
+        } finally {
+            MicHub.stop(sound);
+            recognizer.close();
         }
-        microphone.stop();
-        microphone.close();
     }
 
     /** 音を少しわたして、文字になったところまで行をさがす */
