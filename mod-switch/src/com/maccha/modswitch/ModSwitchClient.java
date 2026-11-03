@@ -2,7 +2,6 @@ package com.maccha.modswitch;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -41,6 +40,22 @@ public class ModSwitchClient implements ClientModInitializer {
         Button button = Button.builder(Component.literal("MODスイッチ"),
                         press -> minecraft.gui.setScreen(new SwitchScreen(screen)))
                 .pos(x, height - 28).size(buttonWidth, 20).build();
-        Screens.getWidgets(screen).add(button);
+        addToScreen(screen, button);
+    }
+
+    /**
+     * ボタンを画面に ほんとうに足す（見えて、押せるようにする）
+     * Screens.getWidgets の一覧に足すだけでは 描画も クリックもされないので、画面の addRenderableWidget をよぶ
+     */
+    void addToScreen(Screen screen, Button button) {
+        try {
+            java.lang.reflect.Method add = Screen.class.getDeclaredMethod("addRenderableWidget",
+                    net.minecraft.client.gui.components.events.GuiEventListener.class);
+            add.setAccessible(true);
+            add.invoke(screen, button);
+            LOG.info("MODスイッチ: Mod Menu にボタンを足しました ({}, {})", button.getX(), button.getY());
+        } catch (Throwable problem) {
+            LOG.warn("MODスイッチ: ボタンを足せませんでした", problem);
+        }
     }
 }
