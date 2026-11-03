@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "modswitch",
+  "version": "1.0.0",
+  "name": "MODスイッチ",
+  "description": "Mod Menu の画面に「MODスイッチ」ボタンを足して、mods フォルダの MOD をオン・オフできるようにします（次の起動から反映）",
+  "authors": ["まっちゃ"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.maccha.modswitch.ModSwitchClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": ">=26.3",
+    "java": ">=25",
+    "fabric-screen-api-v1": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
