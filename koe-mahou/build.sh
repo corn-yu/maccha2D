@@ -16,7 +16,7 @@ VERSION=$(grep -o '"version": *"[^"]*"' "$HERE/resources/fabric.mod.json" | cut 
 
 # Fabric API の中から、つかう部品の jar をとりだす
 mkdir -p "$WORK/fapi"
-(cd "$WORK/fapi" && unzip -q -o "$LIB/fapi.jar" 'META-INF/jars/fabric-lifecycle-events-v1*' 'META-INF/jars/fabric-api-base*' 'META-INF/jars/fabric-networking-api-v1*' 'META-INF/jars/fabric-command-api-v2*' 'META-INF/jars/fabric-events-interaction-v0*' 'META-INF/jars/fabric-loot-api-v3*')
+(cd "$WORK/fapi" && unzip -q -o "$LIB/fapi.jar" 'META-INF/jars/fabric-lifecycle-events-v1*' 'META-INF/jars/fabric-api-base*' 'META-INF/jars/fabric-networking-api-v1*' 'META-INF/jars/fabric-command-api-v2*' 'META-INF/jars/fabric-events-interaction-v0*' 'META-INF/jars/fabric-loot-api-v3*' 'META-INF/jars/fabric-message-api-v1*')
 CP="$LIB/mc.jar:$LIB/loader.jar:$LIB/jna.jar:$LIB/vosk.jar"
 for jar in "$WORK"/fapi/META-INF/jars/*.jar; do CP="$CP:$jar"; done
 # slf4j と gson（マイクラのライブラリ）

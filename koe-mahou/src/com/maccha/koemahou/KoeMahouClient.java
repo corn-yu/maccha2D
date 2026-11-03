@@ -1,6 +1,11 @@
 package com.maccha.koemahou;
 
+import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -8,6 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -20,6 +26,8 @@ public class KoeMahouClient implements ClientModInitializer {
 
     // この時間（ミリ秒）だまっていると詠唱失敗
     static final long CHANT_TIMEOUT_MS = 6000;
+    // チャットで唱えるときは 打つのに時間がかかるので、長めに待つ
+    static final long CHAT_TIMEOUT_MS = 20000;
 
     final ConcurrentLinkedQueue<VoiceListener.Heard> queue = new ConcurrentLinkedQueue<>();
     // 覚えている魔法（サーバーから来る。来るまでは からっぽ）
@@ -27,6 +35,9 @@ public class KoeMahouClient implements ClientModInitializer {
     // サーバーから 新しい「覚えている魔法」が来たら ここに入る（ゲームのスレッドで入れかえる）
     volatile String learnedText = null;
     VoiceListener listener;
+    // チャットで魔法を唱えるモード（/まほうチャット で切りかえ。config/koemahou/チャット.txt にとっておく）
+    boolean chatMode = false;
+    Path chatModeFile;
 
     // 今となえている魔法と、次に言う行（何も となえていないときは null）
     SpellBook.Spell chanting = null;
@@ -38,6 +49,8 @@ public class KoeMahouClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Path folder = FabricLoader.getInstance().getConfigDir().resolve("koemahou");
+        chatModeFile = folder.resolve("チャット.txt");
+        chatMode = loadChatMode();
 
         // 音声認識を別スレッドで始める（ゲームが止まらないように）
         listener = new VoiceListener(folder, book, queue);
@@ -50,6 +63,53 @@ public class KoeMahouClient implements ClientModInitializer {
 
         // 毎tick、聞こえた行を進める
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
+
+        // チャットモードのときは、チャットに打った詠唱で魔法を進める
+        ClientSendMessageEvents.ALLOW_CHAT.register(this::onChat);
+        // /まほうチャット [オン|オフ] でモードを切りかえる
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, buildContext) -> dispatcher.register(
+                ClientCommands.literal("まほうチャット")
+                        .executes(context -> setChatMode(context, !chatMode))
+                        .then(ClientCommands.literal("オン").executes(context -> setChatMode(context, true)))
+                        .then(ClientCommands.literal("オフ").executes(context -> setChatMode(context, false)))));
+    }
+
+    /** チャットを送る前：チャットモードで詠唱の行が入っていたら、魔法に使ってチャットには出さない */
+    boolean onChat(String message) {
+        if (!chatMode) return true;
+        String text = SpellBook.normalize(message);
+        SpellBook.Match match = book.findFirst(text, 0);
+        if (match == null) return true;
+        // 1つのチャットに何行か書いてあっても、前から順に進める
+        while (match != null) {
+            queue.add(new VoiceListener.Heard(message, match, "line"));
+            match = book.findFirst(text, match.end());
+        }
+        return false;
+    }
+
+    /** チャットモードを オン・オフして、とっておく */
+    int setChatMode(CommandContext<FabricClientCommandSource> context, boolean on) {
+        chatMode = on;
+        try {
+            Files.createDirectories(chatModeFile.getParent());
+            Files.writeString(chatModeFile, on ? "オン" : "オフ");
+        } catch (Exception problem) {
+            KoeMahouMod.LOG.warn("こえまほう: チャットモードを保存できませんでした", problem);
+        }
+        context.getSource().sendFeedback(Component.literal(on
+                ? "§dこえまほう：チャットモード オン！ チャットに詠唱を打つと魔法が出ます（1行ずつでも、まとめて1回でもOK）"
+                : "§dこえまほう：チャットモード オフ（声だけで唱えます）"));
+        return 1;
+    }
+
+    /** とっておいたチャットモードを読む（なければ オフ） */
+    boolean loadChatMode() {
+        try {
+            return Files.exists(chatModeFile) && Files.readString(chatModeFile).trim().equals("オン");
+        } catch (Exception problem) {
+            return false;
+        }
     }
 
     /** 毎tick：覚えている魔法が変わっていたら入れかえ、聞こえた行で詠唱を進めて、だまりすぎていたら失敗にする */
@@ -77,7 +137,8 @@ public class KoeMahouClient implements ClientModInitializer {
         }
 
         // だまりすぎたら詠唱失敗
-        if (chanting != null && System.currentTimeMillis() - lastLineTime > CHANT_TIMEOUT_MS) {
+        long timeout = chatMode ? CHAT_TIMEOUT_MS : CHANT_TIMEOUT_MS;
+        if (chanting != null && System.currentTimeMillis() - lastLineTime > timeout) {
             fail(player, "§7詠唱がとぎれた…");
         }
     }
