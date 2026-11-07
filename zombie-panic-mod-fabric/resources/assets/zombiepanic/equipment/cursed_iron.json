@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "zombiepanic:cursed_iron"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "zombiepanic:cursed_iron"
+      }
+    ]
+  }
+}
