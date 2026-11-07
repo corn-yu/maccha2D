@@ -30,4 +30,12 @@ public abstract class MinecraftMixin {
             callbackInfo.cancel();
         }
     }
+
+    /** 左手持ちの剣モード中は、ふつうの右クリック（使う・置く）を出さない。 */
+    @Inject(method = "startUseItem()V", at = @At("HEAD"), cancellable = true)
+    private void ikioiken$noStartUse(CallbackInfo callbackInfo) {
+        if (SwingClient.shouldBlockUse()) {
+            callbackInfo.cancel();
+        }
+    }
 }

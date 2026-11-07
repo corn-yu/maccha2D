@@ -17,6 +17,8 @@ public record MotionPayload(int entityId, int kind, float first, float second) i
     public static final int ENEMY_STRIKE = 1;
     public static final int PLAYER_BLADE = 2;
     public static final int PLAYER_BLADE_END = 3;
+    // 左腕で剣をにぎっているときの、プレイヤーの剣の向き
+    public static final int PLAYER_BLADE_LEFT = 4;
 
     // パケットの名前
     public static final Type<MotionPayload> TYPE =

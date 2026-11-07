@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import net.minecraft.world.entity.player.Inventory;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -164,8 +165,55 @@ public final class ServerSwing {
         onIncomingDamage(damage);
     }
 
-    /** 届いた剣の向きで、前の向きからの振りを調べる。 */
+    /** 届いた剣の向きで、前の向きからの振りを調べる（左手に持っているときは、そのあいだだけ左右の手を入れかえる）。 */
     private static void handleBlade(ServerPlayer player, BladePayload payload) {
+        if (!payload.offhand()) {
+            handleBladeInMainHand(player, payload);
+            return;
+        }
+
+        // 左手持ち：持ち物を入れかえて、メインの手に左手の武器があるようにして調べる（攻撃力などもそのまま使える）
+        Inventory inventory = player.getInventory();
+        int selectedSlot = inventory.getSelectedSlot();
+        ItemStack realMain = inventory.getItem(selectedSlot);
+        ItemStack realOff = inventory.getItem(Inventory.SLOT_OFFHAND);
+        if (!SwordCheck.isSwingItem(realOff)) {
+            handleBladeInMainHand(player, payload);
+            return;
+        }
+        inventory.setItem(selectedSlot, realOff);
+        inventory.setItem(Inventory.SLOT_OFFHAND, realMain);
+        moveHandModifiers(player, realMain, realOff);
+        try {
+            handleBladeInMainHand(player, payload);
+        } finally {
+            // 入れかえをもとにもどす（耐久がへった・こわれた持ち物も、そのまま元の手にもどる）
+            ItemStack nowMain = inventory.getItem(selectedSlot);
+            ItemStack nowOff = inventory.getItem(Inventory.SLOT_OFFHAND);
+            moveHandModifiers(player, nowMain, nowOff);
+            inventory.setItem(selectedSlot, nowOff);
+            inventory.setItem(Inventory.SLOT_OFFHAND, nowMain);
+        }
+    }
+
+    /** メインの手の攻撃力などの補正（持ち物の効果）を、別の持ち物のものに入れかえる。 */
+    private static void moveHandModifiers(ServerPlayer player, ItemStack from, ItemStack to) {
+        from.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
+            AttributeInstance instance = player.getAttribute(attribute);
+            if (instance != null) {
+                instance.removeModifier(modifier.id());
+            }
+        });
+        to.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
+            AttributeInstance instance = player.getAttribute(attribute);
+            if (instance != null) {
+                instance.addOrUpdateTransientModifier(modifier);
+            }
+        });
+    }
+
+    /** メインの手に持っている物（左手持ちのときは入れかえたあと）で、前の向きからの振りを調べる。 */
+    private static void handleBladeInMainHand(ServerPlayer player, BladePayload payload) {
         UUID playerId = player.getUUID();
 
         // 長押しをやめた・振れる物を持っていない・観戦中なら記録を消して終わり
@@ -249,8 +297,10 @@ public final class ServerSwing {
         }
 
         // まわりの人に剣の向きを知らせる（三人称で腕が動いて見える）
-        Net.sendToPlayersTrackingEntity(player,
-                new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE, payload.yaw(), bladePitch));
+        boolean isLeftMain = player.getMainArm() == net.minecraft.world.entity.HumanoidArm.LEFT;
+        boolean bladeInLeftArm = payload.offhand() ? !isLeftMain : isLeftMain;
+        Net.sendToPlayersTrackingEntity(player, new MotionPayload(player.getId(),
+                bladeInLeftArm ? MotionPayload.PLAYER_BLADE_LEFT : MotionPayload.PLAYER_BLADE, payload.yaw(), bladePitch));
 
         // 次の tick のために覚えておく
         state.lastBladeDir = bladeDir;

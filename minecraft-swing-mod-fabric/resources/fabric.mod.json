@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "ikioiken",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "name": "いきおい剣",
   "description": "長押しで剣を動かして、当たった勢いでダメージが決まる Mod（Fabric 26.3 版）",
   "authors": [

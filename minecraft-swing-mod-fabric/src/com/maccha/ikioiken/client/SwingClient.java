@@ -21,6 +21,7 @@ import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderS
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.level.ClipContext;
@@ -70,6 +71,29 @@ public final class SwingClient {
     private static float shakeStrength = 0.0f;
     private static float shakeClock = 0.0f;
 
+    // 剣をにぎっているのが左腕なら true（毎フレーム決めなおす）
+    private static boolean bladeInLeftArm = false;
+
+    /** 左手（オフハンド）に持った武器で振るモードなら true（メインの手が振れる物でなく、左手が振れる物のとき）。 */
+    private static boolean isOffhandMode(LocalPlayer player) {
+        return !SwordCheck.isSwingItem(player.getMainHandItem()) && SwordCheck.isSwingItem(player.getOffhandItem());
+    }
+
+    /** 今、振っている（振れる）手の持ち物を返す（メインの手が先、なければ左手）。 */
+    private static ItemStack activeStack(LocalPlayer player) {
+        return isOffhandMode(player) ? player.getOffhandItem() : player.getMainHandItem();
+    }
+
+    /** 剣が左腕にあるなら true（三人称と一人称の腕の左右を決めるのに使う）。 */
+    public static boolean isBladeInLeftArm() {
+        return bladeInLeftArm;
+    }
+
+    /** 左右で向きが逆になる、構えの左右の向き（度）。 */
+    private static float restYaw() {
+        return bladeInLeftArm ? -SwingConfig.REST_YAW : SwingConfig.REST_YAW;
+    }
+
     /** 剣モードが使える状態なら true（振れる物を持っていて、しゃがんでいない、画面を開いていない）。 */
     private static boolean isSwordModeActive(Minecraft minecraft) {
         LocalPlayer player = minecraft.player;
@@ -79,23 +103,33 @@ public final class SwingClient {
         if (player.isShiftKeyDown()) {
             return false;
         }
-        return SwordCheck.isSwingItem(player.getMainHandItem());
+        return SwordCheck.isSwingItem(player.getMainHandItem()) || SwordCheck.isSwingItem(player.getOffhandItem());
     }
 
-    /** 攻撃ボタン（ふつうは左クリック）が今おされているかを、ゲームのキー設定の状態で調べる。 */
+    /** 振るボタンが今おされているかを調べる（メインの手なら攻撃ボタン、左手持ちなら右クリック）。 */
     private static boolean isAttackButtonPressed(Minecraft minecraft) {
+        if (isOffhandMode(minecraft.player)) {
+            return minecraft.options.keyUse.isDown();
+        }
         return minecraft.options.keyAttack.isDown();
     }
 
     /** ふつうの攻撃・採掘を止めるべきなら true（剣モード中）。 */
     public static boolean shouldBlockAttack() {
-        return isSwordModeActive(Minecraft.getInstance());
+        Minecraft minecraft = Minecraft.getInstance();
+        return isSwordModeActive(minecraft) && !isOffhandMode(minecraft.player);
+    }
+
+    /** 左手持ちの剣モード中の、ふつうの右クリック（使う・置く）を止めるべきなら true。 */
+    public static boolean shouldBlockUse() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return isSwordModeActive(minecraft) && isOffhandMode(minecraft.player);
     }
 
     /** 自分の剣を振っている・構えからずれているなら true（三人称の腕の動きに使う）。 */
     public static boolean isSwordOut() {
         return holding || followThroughLeft > 0
-                || Math.abs(swordYaw - SwingConfig.REST_YAW) > 0.5f
+                || Math.abs(swordYaw - restYaw()) > 0.5f
                 || Math.abs(swordPitch - SwingConfig.REST_PITCH) > 0.5f;
     }
 
@@ -121,8 +155,8 @@ public final class SwingClient {
             return;
         }
 
-        // たまったクリックを捨てて、押しっぱなし扱いもやめる
-        KeyMapping attackKey = minecraft.options.keyAttack;
+        // たまったクリックを捨てる（左手持ちなら右クリック、そうでなければ攻撃）
+        KeyMapping attackKey = isOffhandMode(minecraft.player) ? minecraft.options.keyUse : minecraft.options.keyAttack;
         while (attackKey.consumeClick()) {
             // 何もしない（クリックを捨てるだけ）
         }
@@ -137,6 +171,10 @@ public final class SwingClient {
             holding = false;
             return;
         }
+
+        // 剣が左腕か右腕かを決める（利き手と、どちらの手に持っているかで決まる）
+        boolean isLeftMain = player.getMainArm() == net.minecraft.world.entity.HumanoidArm.LEFT;
+        bladeInLeftArm = isOffhandMode(player) ? !isLeftMain : isLeftMain;
 
         // 長押しが始まった・終わったを調べる
         boolean wantHold = isSwordModeActive(minecraft) && isAttackButtonPressed(minecraft);
@@ -155,7 +193,7 @@ public final class SwingClient {
         if (holding) {
             moveHandByMouse(player);
         } else {
-            handYaw = SwingConfig.REST_YAW;
+            handYaw = restYaw();
             handPitch = SwingConfig.REST_PITCH;
         }
 
@@ -220,19 +258,19 @@ public final class SwingClient {
         float lightness = Mth.clamp(attackSpeed / SwingConfig.NORMAL_ATTACK_SPEED, SwingConfig.MIN_WEIGHT_FACTOR, SwingConfig.MAX_WEIGHT_FACTOR);
 
         // 剣の特殊能力「高速切り」：剣はもっとすばやく振れる
-        if (WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SWORD) {
+        if (WeaponSkill.skillOf(activeStack(player)) == WeaponSkill.SWORD) {
             lightness *= SwingConfig.SWORD_SPEED_BONUS;
         }
 
         // 素材が重いほどゆっくり、軽いほどすばやく動く
-        lightness /= SwordCheck.materialWeight(player.getMainHandItem());
+        lightness /= SwordCheck.materialWeight(activeStack(player));
         return lightness;
     }
 
     /** 持っている武器の刃が片側だけ（斧）なら true。 */
     private static boolean isOneEdged() {
         LocalPlayer player = Minecraft.getInstance().player;
-        return player != null && WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.AXE;
+        return player != null && WeaponSkill.skillOf(activeStack(player)) == WeaponSkill.AXE;
     }
 
     /** 剣を、ばねのように手の向きへ追いかけさせる（重さでおくれて、少し行きすぎてもどる）。 */
@@ -282,14 +320,14 @@ public final class SwingClient {
         if (isSwinging && isSwordModeActive(Minecraft.getInstance())) {
             float bladeYaw = player.getYRot() + swordYaw;
             float bladePitch = Mth.clamp(player.getXRot() + swordPitch, -90.0f, 90.0f);
-            ClientPlayNetworking.send(new BladePayload(true, bladeYaw, bladePitch));
+            ClientPlayNetworking.send(new BladePayload(true, bladeYaw, bladePitch, isOffhandMode(player)));
             sentHolding = true;
             return;
         }
 
         // 振り終わった：1 回だけ「やめた」を送る
         if (sentHolding) {
-            ClientPlayNetworking.send(new BladePayload(false, 0.0f, 0.0f));
+            ClientPlayNetworking.send(new BladePayload(false, 0.0f, 0.0f, false));
             sentHolding = false;
         }
     }
@@ -312,13 +350,12 @@ public final class SwingClient {
                                             PlayerRenderState playerState) {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
-        if (player == null || !SwordCheck.isSwingItem(player.getMainHandItem())
-                || player.getMainArm() != net.minecraft.world.entity.HumanoidArm.RIGHT) {
+        if (player == null || !isSwordModeActive(minecraft)) {
             return false;
         }
 
         // 構えにもどりきっていて長押しもしていないなら、ふつうの描き方
-        boolean isMoved = Math.abs(swordYaw - SwingConfig.REST_YAW) > 0.5f
+        boolean isMoved = Math.abs(swordYaw - restYaw()) > 0.5f
                 || Math.abs(swordPitch - SwingConfig.REST_PITCH) > 0.5f
                 || Math.abs(bladeRoll) > 1.0f;
         if (!holding && !isMoved) {
@@ -346,7 +383,7 @@ public final class SwingClient {
         // 手を引いたぶんで足りないところは、剣を手もとへ引きよせる
         poseStack.translate(0.0f, 0.0f, pullBack * 0.5f);
 
-        if (WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SPEAR) {
+        if (WeaponSkill.skillOf(activeStack(player)) == WeaponSkill.SPEAR) {
             // 槍の絵は、剣と左右が逆（先が左上）で、2 倍の長さ。にぎりの場所を手に合わせて、先を前に向ける
             float spearScale = SwingConfig.SWORD_SCALE * SwingConfig.SPEAR_SCALE_FACTOR;
             poseStack.translate(0.0f, 0.0f, -0.2f * spearScale);
@@ -362,7 +399,7 @@ public final class SwingClient {
             poseStack.rotateDegrees(Axis.ZP, -45.0f);
         }
 
-        minecraft.getItemModelResolver().updateForLiving(SWORD_RENDER_STATE, player.getMainHandItem(),
+        minecraft.getItemModelResolver().updateForLiving(SWORD_RENDER_STATE, activeStack(player),
                 ItemDisplayContext.NONE, player);
         SWORD_RENDER_STATE.submit(poseStack, collector, light, OverlayTexture.NO_OVERLAY, 0);
         poseStack.popPose();
@@ -380,7 +417,7 @@ public final class SwingClient {
         AvatarRenderer<?> avatarRenderer = minecraft.getEntityRenderDispatcher().getRenderer(playerState.avatarRenderState);
 
         // 肩から手への向き
-        Vector3f shoulderPoint = new Vector3f(SwingConfig.ARM_SHOULDER_X, SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z);
+        Vector3f shoulderPoint = new Vector3f(shoulderX(), SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z);
         Vector3f armDir = new Vector3f(handPoint).sub(shoulderPoint);
         if (armDir.lengthSquared() < 1.0e-6f) {
             return;
@@ -395,10 +432,21 @@ public final class SwingClient {
 
         // 刃を向けた向きに合わせて、腕も同じだけひねる
         poseStack.rotateDegrees(Axis.YP, -bladeRoll);
-        poseStack.translate(5.0f / 16.0f + 1.0f / 16.0f, -(2.0f + 10.0f) / 16.0f, 0.0f);
-        avatarRenderer.renderRightHand(poseStack, collector, light,
-                playerState.avatarRenderState.skin.body().texturePath(), playerState.avatarRenderState.showRightSleeve);
+        if (bladeInLeftArm) {
+            poseStack.translate(-(5.0f / 16.0f + 1.0f / 16.0f), -(2.0f + 10.0f) / 16.0f, 0.0f);
+            avatarRenderer.renderLeftHand(poseStack, collector, light,
+                    playerState.avatarRenderState.skin.body().texturePath(), playerState.avatarRenderState.showLeftSleeve);
+        } else {
+            poseStack.translate(5.0f / 16.0f + 1.0f / 16.0f, -(2.0f + 10.0f) / 16.0f, 0.0f);
+            avatarRenderer.renderRightHand(poseStack, collector, light,
+                    playerState.avatarRenderState.skin.body().texturePath(), playerState.avatarRenderState.showRightSleeve);
+        }
         poseStack.popPose();
+    }
+
+    /** 肩の左右の位置（右腕なら右、左腕なら左）。 */
+    private static float shoulderX() {
+        return bladeInLeftArm ? -SwingConfig.ARM_SHOULDER_X : SwingConfig.ARM_SHOULDER_X;
     }
 
     /** 一人称の手の位置：肩を中心に、剣の向きへ腕をのばした先（速く振るほど少し前へのびる）。 */
@@ -413,7 +461,7 @@ public final class SwingClient {
 
         // 肩から腕の長さぶん先が手
         float reach = SwingConfig.ARM_LENGTH + swingPush;
-        return new Vector3f(SwingConfig.ARM_SHOULDER_X, SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z)
+        return new Vector3f(shoulderX(), SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z)
                 .add(armDir.mul(reach));
     }
 
