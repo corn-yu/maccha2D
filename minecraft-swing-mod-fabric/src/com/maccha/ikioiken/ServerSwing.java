@@ -245,8 +245,21 @@ public final class ServerSwing {
         Net.sendToPlayersTrackingEntity(player,
                 new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE_END, 0.0f, 0.0f));
         for (BlockPos pos : state.blockProgress.keySet()) {
-            player.level().destroyBlockProgress(player.getId(), pos, -1);
+            showCracks(player, player.level(), pos, -1);
         }
+    }
+
+    // 自分用のひびの番号（まわりの人に見せるひびとは別の番号にする）
+    private static final int SELF_CRACK_ID_OFFSET = 1_000_000;
+
+    /** ブロックのひびを見せる。stage は 0〜9、-1 でひびを消す。ふつうの命令は本人には送られないので、本人には別の番号で直接送る。 */
+    private static void showCracks(ServerPlayer player, ServerLevel level, BlockPos pos, int stage) {
+        // まわりの人へ
+        level.destroyBlockProgress(player.getId(), pos, stage);
+
+        // 本人へ
+        player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket(
+                player.getId() + SELF_CRACK_ID_OFFSET, pos, stage));
     }
 
     /** プレイヤーの右肩の位置を返す（剣の回転の中心）。 */
@@ -1005,13 +1018,13 @@ public final class ServerSwing {
         // まだ壊れないなら、ひびを見せる
         if (progress < 1.0f) {
             state.blockProgress.put(pos, progress);
-            level.destroyBlockProgress(player.getId(), pos, Mth.clamp((int) (progress * 10.0f), 1, 9));
+            showCracks(player, level, pos, Mth.clamp((int) (progress * 10.0f), 1, 9));
             return false;
         }
 
         // 壊す（ドロップ・道具の耐久・保護エリアなどはふつうに掘ったときと同じ）
         state.blockProgress.remove(pos);
-        level.destroyBlockProgress(player.getId(), pos, -1);
+        showCracks(player, level, pos, -1);
         boolean broken = player.gameMode.destroyBlock(pos);
         if (broken) {
             Net.sendToPlayer(player, new HitPayload(0.4f));
