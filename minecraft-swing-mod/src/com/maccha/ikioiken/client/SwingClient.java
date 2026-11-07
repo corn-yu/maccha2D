@@ -236,6 +236,12 @@ public final class SwingClient {
         return lightness;
     }
 
+    /** 持っている武器の刃が片側だけ（斧）なら true。 */
+    private static boolean isOneEdged() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.AXE;
+    }
+
     /** 剣を、ばねのように手の向きへ追いかけさせる（重さでおくれて、少し行きすぎてもどる）。 */
     private static void moveSwordTowardHand(float frameTicks) {
         float stiffness = (holding ? SwingConfig.SWING_STIFFNESS : SwingConfig.RETURN_STIFFNESS) * weaponLightness();
@@ -247,12 +253,21 @@ public final class SwingClient {
         swordYaw += swordYawSpeed * frameTicks;
         swordPitch += swordPitchSpeed * frameTicks;
 
-        // 刃の面を振る向きに合わせる（速く動いているときだけ）
+        // 刃を、振っている向きに向ける（速く動いているときだけ）
         float moveSpeed = Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed);
         if (moveSpeed > 1.0f) {
-            float targetRoll = (float) Math.toDegrees(Math.atan2(Math.abs(swordYawSpeed), Math.abs(swordPitchSpeed)));
+            // 剣から見た、剣先の動く向き（右・上）。刃（絵の剣の上側のふち）をその向きへ回す角度
+            float moveRight = swordYawSpeed * Mth.cos((float) Math.toRadians(swordPitch));
+            float moveUp = -swordPitchSpeed;
+            float targetRoll = (float) Math.toDegrees(Math.atan2(-moveRight, moveUp));
+
+            // 剣は両側が刃なので、近いほうの刃を向ける（くるっと半回転しない）。斧は刃が片側だけなので、その刃を向ける
+            float period = isOneEdged() ? 360.0f : 180.0f;
+            float turn = targetRoll - bladeRoll;
+            turn = turn - period * Math.round(turn / period);
             float follow = 1.0f - (float) Math.pow(0.4, frameTicks);
-            bladeRoll += (targetRoll - bladeRoll) * follow;
+            bladeRoll += turn * follow;
+            bladeRoll = Mth.wrapDegrees(bladeRoll);
         } else if (!holding) {
             bladeRoll *= (float) Math.pow(0.85, frameTicks);
         }
@@ -370,6 +385,9 @@ public final class SwingClient {
         poseStack.pushPose();
         poseStack.translate(handPoint.x, handPoint.y, handPoint.z);
         poseStack.mulPose(new Quaternionf().rotationTo(0.0f, 1.0f, 0.0f, armDir.x, armDir.y, armDir.z));
+
+        // 刃を向けた向きに合わせて、腕も同じだけひねる
+        poseStack.mulPose(Axis.YP.rotationDegrees(-bladeRoll));
         poseStack.translate(5.0f / 16.0f + 1.0f / 16.0f, -(2.0f + 10.0f) / 16.0f, 0.0f);
         playerRenderer.renderRightHand(poseStack, event.getMultiBufferSource(), event.getPackedLight(), player);
         poseStack.popPose();
