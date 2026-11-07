@@ -80,11 +80,25 @@ public final class ServerSwing {
         final Map<BlockPos, Integer> blockLastHitTick = new HashMap<>();
         boolean wasFast = false;
         final Map<Integer, Integer> lastHitPacket = new HashMap<>();
-        final Map<BlockPos, Float> blockProgress = new HashMap<>();
     }
 
     /** 1 回の振りで当たった相手の情報。 */
     private record BladeHit(Entity target, Vec3 hitPoint, int step) {
+    }
+
+    /** 掘りかけのブロックのひび 1 つぶん（掘り具合・最後に当てたサーバーの tick・ひびのあるワールド）。 */
+    private static final class CrackInfo {
+        float progress;
+        long lastServerTick;
+        ServerLevel level;
+    }
+
+    // プレイヤーごとの掘りかけのひび（長押しをやめても、しばらく残る）
+    private static final Map<UUID, Map<BlockPos, CrackInfo>> CRACKS = new HashMap<>();
+
+    /** そのプレイヤーの、掘りかけのひびの一覧を返す（なければ作る）。 */
+    private static Map<BlockPos, CrackInfo> cracksOf(ServerPlayer player) {
+        return CRACKS.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
     }
 
     // プレイヤーごとの剣の状態
@@ -129,6 +143,7 @@ public final class ServerSwing {
     /** ワールドを閉じたら、全員の剣の記録を消す（次に開いたワールドに古い記録を持ちこまない）。 */
     public static void onServerStopped(MinecraftServer server) {
         STATES.clear();
+        CRACKS.clear();
         PENDING_SLASHES.clear();
         HOE_COMBOS.clear();
     }
@@ -236,7 +251,7 @@ public final class ServerSwing {
         state.lastShoulder = shoulder;
     }
 
-    /** 剣の記録を消す（掘りかけのひびも消す）。 */
+    /** 剣の記録を消す（掘りかけのひびは残す）。 */
     private static void clearState(ServerPlayer player) {
         SwingState state = STATES.remove(player.getUUID());
         if (state == null) {
@@ -244,9 +259,7 @@ public final class ServerSwing {
         }
         Net.sendToPlayersTrackingEntity(player,
                 new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE_END, 0.0f, 0.0f));
-        for (BlockPos pos : state.blockProgress.keySet()) {
-            showCracks(player, player.level(), pos, -1);
-        }
+        // 掘りかけのひびは、すぐには消さない（また振れば続きから広がる。しばらく当てなければ消える）
     }
 
     // 自分用のひびの番号（まわりの人に見せるひびとは別の番号にする）
@@ -864,6 +877,7 @@ public final class ServerSwing {
     /** 毎 tick、時間が来たトライデントの斬撃を当てる。 */
     public static void onServerTick(MinecraftServer server) {
         serverTick++;
+        removeOldCracks(server);
         if (PENDING_SLASHES.isEmpty()) {
             return;
         }
@@ -880,6 +894,26 @@ public final class ServerSwing {
             if (player != null) {
                 extraSlash(player, slash);
             }
+        }
+    }
+
+    /** しばらく当てていないひびを消す（ふつうに掘るのをやめたときと同じ）。 */
+    private static void removeOldCracks(MinecraftServer server) {
+        if (CRACKS.isEmpty() || serverTick % 20 != 0) {
+            return;
+        }
+        for (Map.Entry<UUID, Map<BlockPos, CrackInfo>> playerEntry : CRACKS.entrySet()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(playerEntry.getKey());
+            playerEntry.getValue().entrySet().removeIf(entry -> {
+                CrackInfo crack = entry.getValue();
+                if (serverTick - crack.lastServerTick <= SwingConfig.MINING_FORGET_TICKS) {
+                    return false;
+                }
+                if (player != null) {
+                    showCracks(player, crack.level, entry.getKey(), -1);
+                }
+                return true;
+            });
         }
     }
 
@@ -1001,14 +1035,12 @@ public final class ServerSwing {
             return false;
         }
 
-        // しばらく当てていなかったブロックのひびは消えている（ふつうに掘るのをやめたときと同じ）
-        if (lastHitTick != null && player.tickCount - lastHitTick > SwingConfig.MINING_FORGET_TICKS) {
-            state.blockProgress.remove(pos);
-        }
         state.blockLastHitTick.put(pos, player.tickCount);
 
-        // 掘り具合を足す
-        float progress = state.blockProgress.getOrDefault(pos, 0.0f)
+        // 掘り具合を足す（しばらく当てていないひびは、サーバーの tick ごとの見回りで消えている）
+        Map<BlockPos, CrackInfo> playerCracks = cracksOf(player);
+        CrackInfo crack = playerCracks.get(pos);
+        float progress = (crack == null ? 0.0f : crack.progress)
                 + (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * Math.max(1.0f, SwordCheck.materialWeight(tool)));
 
         // 当たった音
@@ -1017,13 +1049,19 @@ public final class ServerSwing {
 
         // まだ壊れないなら、ひびを見せる
         if (progress < 1.0f) {
-            state.blockProgress.put(pos, progress);
+            if (crack == null) {
+                crack = new CrackInfo();
+                playerCracks.put(pos, crack);
+            }
+            crack.progress = progress;
+            crack.lastServerTick = serverTick;
+            crack.level = level;
             showCracks(player, level, pos, Mth.clamp((int) (progress * 10.0f), 1, 9));
             return false;
         }
 
         // 壊す（ドロップ・道具の耐久・保護エリアなどはふつうに掘ったときと同じ）
-        state.blockProgress.remove(pos);
+        playerCracks.remove(pos);
         showCracks(player, level, pos, -1);
         boolean broken = player.gameMode.destroyBlock(pos);
         if (broken) {
@@ -1052,7 +1090,7 @@ public final class ServerSwing {
             return false;
         }
         state.blockLastHitTick.put(pos, player.tickCount);
-        state.blockProgress.remove(pos);
+        cracksOf(player).remove(pos);
         return true;
     }
 }

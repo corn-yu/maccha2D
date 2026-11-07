@@ -174,7 +174,7 @@ public final class SwingConfig {
     public static final int MINING_HIT_COOLDOWN_TICKS = 2;
 
     // この時間（tick）当てなかったブロックのひびは消える
-    public static final int MINING_FORGET_TICKS = 100;
+    public static final int MINING_FORGET_TICKS = 200;
 
     // 1 tick に壊せるブロックの数の上限
     public static final int MAX_BLOCKS_PER_TICK = 3;
