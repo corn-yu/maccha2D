@@ -30,6 +30,15 @@ public final class SwingConfig {
     public static final float MIN_WEIGHT_FACTOR = 0.45f;
     public static final float MAX_WEIGHT_FACTOR = 1.4f;
 
+    // 素材の重さ（1.0 が鉄）。軽いと速く振れ、重いと振りがおそいかわりに 1 回で掘る量が増える
+    public static final float WEIGHT_WOOD = 0.8f;
+    public static final float WEIGHT_GOLD = 0.85f;
+    public static final float WEIGHT_STONE = 0.95f;
+    public static final float WEIGHT_COPPER = 1.0f;
+    public static final float WEIGHT_IRON = 1.0f;
+    public static final float WEIGHT_DIAMOND = 1.2f;
+    public static final float WEIGHT_NETHERITE = 1.4f;
+
     // 手をはなしたあと、剣が元の構えにもどる強さ（ふりぬいてからゆっくりもどる）
     public static final float RETURN_STIFFNESS = 0.12f;
 

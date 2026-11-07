@@ -220,6 +220,9 @@ public final class SwingClient {
         if (WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SWORD) {
             lightness *= SwingConfig.SWORD_SPEED_BONUS;
         }
+
+        // 素材が重いほどゆっくり、軽いほどすばやく動く
+        lightness /= SwordCheck.materialWeight(player.getMainHandItem());
         return lightness;
     }
 

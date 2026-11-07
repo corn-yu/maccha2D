@@ -181,4 +181,28 @@ public final class SwordCheck {
                 "# - cataclysm:meat_shredder",
                 "");
     }
+
+    /** 武器・道具の素材の重さ（1.0 が鉄くらい）。木や金は軽く、ダイヤやネザライトは重い。名前に素材が入っていないものは 1.0。 */
+    public static float materialWeight(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return 1.0f;
+        }
+        String itemName = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+        if (itemName.startsWith("wooden_")) {
+            return SwingConfig.WEIGHT_WOOD;
+        } else if (itemName.startsWith("golden_")) {
+            return SwingConfig.WEIGHT_GOLD;
+        } else if (itemName.startsWith("stone_")) {
+            return SwingConfig.WEIGHT_STONE;
+        } else if (itemName.startsWith("copper_")) {
+            return SwingConfig.WEIGHT_COPPER;
+        } else if (itemName.startsWith("iron_")) {
+            return SwingConfig.WEIGHT_IRON;
+        } else if (itemName.startsWith("diamond_")) {
+            return SwingConfig.WEIGHT_DIAMOND;
+        } else if (itemName.startsWith("netherite_")) {
+            return SwingConfig.WEIGHT_NETHERITE;
+        }
+        return 1.0f;
+    }
 }

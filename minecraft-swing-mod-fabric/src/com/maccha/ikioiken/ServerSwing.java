@@ -984,7 +984,7 @@ public final class ServerSwing {
 
         // 掘り具合を足す
         float progress = state.blockProgress.getOrDefault(pos, 0.0f)
-                + (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor);
+                + (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * SwordCheck.materialWeight(tool));
 
         // 当たった音
         level.playSound(null, pos, blockState.getSoundType().getHitSound(),
