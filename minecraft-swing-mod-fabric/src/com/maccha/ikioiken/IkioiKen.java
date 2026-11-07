@@ -18,6 +18,9 @@ public class IkioiKen implements ModInitializer {
     /** Mod が読みこまれたときに、パケットとサーバー側のイベントを登録する。 */
     @Override
     public void onInitialize() {
+        // 武器合体台のブロックとアイテム
+        WeaponForge.register();
+
         // パケットの登録（剣の向きは本人 → サーバー、それ以外はサーバー → 本人の画面）
         PayloadTypeRegistry.serverboundPlay().register(BladePayload.TYPE, BladePayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(HitPayload.TYPE, HitPayload.STREAM_CODEC);
