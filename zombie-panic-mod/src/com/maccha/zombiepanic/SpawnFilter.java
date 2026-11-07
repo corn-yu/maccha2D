@@ -7,18 +7,17 @@ import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 
 /**
- * パニック中は、自然にわくモブをゾンビだけにする。
- * スポナー・スポーンエッグ・繁殖・建物のモブ（ボスなど）は止めない。
+ * 呪いのあいだは、どのディメンションでも ゾンビしか わかないようにする。
+ * スポーンエッグ・コマンド・繁殖・バケツ・変身（村人ゾンビを治すなど）は止めない。
  */
 public final class SpawnFilter {
 
     private SpawnFilter() {
     }
 
-    /** 自然スポーンの場所チェックで、ゾンビ以外を失敗にする。 */
+    /** 自然スポーン・スポナーの場所チェックで、ゾンビ以外を失敗にする。 */
     public static void onPositionCheck(MobSpawnEvent.PositionCheck event) {
-        // パニック中の自然スポーンだけ見る
-        if (!PanicEvent.isPanicActive() || event.getSpawnType() != MobSpawnType.NATURAL) {
+        if (!PanicEvent.isCurseActive() || !isBlockedSpawnType(event.getSpawnType())) {
             return;
         }
         if (!isZombieKind(event.getEntity())) {
@@ -26,9 +25,9 @@ public final class SpawnFilter {
         }
     }
 
-    /** 自然スポーン・地形生成・パトロールで、ゾンビ以外が出るのを取り消す。 */
+    /** わく直前に、ゾンビ以外が出るのを取り消す。 */
     public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
-        if (!PanicEvent.isPanicActive() || !isBlockedSpawnType(event.getSpawnType())) {
+        if (!PanicEvent.isCurseActive() || !isBlockedSpawnType(event.getSpawnType())) {
             return;
         }
         if (!isZombieKind(event.getEntity())) {
@@ -36,11 +35,13 @@ public final class SpawnFilter {
         }
     }
 
-    /** 止める対象のわき方かどうか。 */
+    /** 止める対象のわき方かどうか（自然・地形生成・パトロール・建物・スポナー・イベントなど）。 */
     private static boolean isBlockedSpawnType(MobSpawnType spawnType) {
-        return spawnType == MobSpawnType.NATURAL
-                || spawnType == MobSpawnType.CHUNK_GENERATION
-                || spawnType == MobSpawnType.PATROL;
+        return switch (spawnType) {
+            case NATURAL, CHUNK_GENERATION, PATROL, STRUCTURE, SPAWNER, TRIAL_SPAWNER,
+                 EVENT, REINFORCEMENT, JOCKEY, MOB_SUMMONED -> true;
+            default -> false;
+        };
     }
 
     /** ゾンビのなかま（ゾンビ・ハスク・ドラウンド・村人ゾンビ・ゾンビピグリン）かどうか。 */

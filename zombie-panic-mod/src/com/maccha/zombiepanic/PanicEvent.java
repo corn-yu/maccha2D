@@ -7,22 +7,26 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.monster.Zombie;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.player.Player;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayList;
@@ -32,42 +36,52 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * パニックの流れ（しずか → 前ぶれ → パニック → しずか）を進める係。
+ * 呪いの世界の流れを進める係（いつものゾンビ・パニック・たおした数・ボス・クリア）。
  */
 public final class PanicEvent {
 
-    /** いまの段階。 */
+    /** パニックの段階。 */
     public enum Phase { CALM, WARNING, PANIC }
 
     private static final int TICKS_PER_SECOND = 20;
     private static final RandomSource random = RandomSource.create();
 
-    // いまの段階と、その段階の残りtick
+    // 呪いがまだ続いているか（クリアすると false）
+    private static boolean curseActive = true;
+
+    // パニックの段階と、その段階の残りtick
     private static Phase currentPhase = Phase.CALM;
     private static int phaseTicksLeft = 0;
-
-    // パニックの種類と長さ
     private static PanicType currentType = PanicType.NORMAL;
     private static int panicTotalTicks = 1;
 
-    // 画面の上のバー（残り時間とゾンビ大将の体力）
+    // 残り時間のバー
     private static ServerBossEvent timeBar = null;
-    private static ServerBossEvent bossBar = null;
 
-    // ゾンビ大将
-    private static Zombie bossZombie = null;
-    private static boolean bossSpawned = false;
+    // 「ゾンビ大将の襲来」のボス
+    private static boolean panicBossSpawned = false;
+    private static UUID panicBossId = null;
 
-    // だれが何体たおしたか
+    // パニック中に だれが何体たおしたか
     private static final Map<UUID, Integer> killCounts = new HashMap<>();
     private static final Map<UUID, String> killerNames = new HashMap<>();
+
+    // サーバーが動いてからのtick
+    private static long serverTicks = 0;
 
     private PanicEvent() {
     }
 
+    // ---------------- まわりから見る ----------------
+
+    /** 呪いが続いているか（ゾンビしか出ない・ゾンビが燃えない）。 */
+    public static boolean isCurseActive() {
+        return curseActive;
+    }
+
     /** いまパニック中かどうか。 */
     public static boolean isPanicActive() {
-        return currentPhase == Phase.PANIC;
+        return curseActive && currentPhase == Phase.PANIC;
     }
 
     /** いまの段階を返す。 */
@@ -87,9 +101,10 @@ public final class PanicEvent {
 
     // ---------------- サーバーのイベント ----------------
 
-    /** サーバー（ワールド）が始まったら、しずかな時間から始める。 */
+    /** サーバー（ワールド）が始まったら、保存してある記録を読んで しずかな時間から始める。 */
     public static void onServerStarted(ServerStartedEvent event) {
         clearEverything();
+        curseActive = !WorldData.get(event.getServer()).cleared;
         startCalm();
     }
 
@@ -98,15 +113,31 @@ public final class PanicEvent {
         clearEverything();
     }
 
-    /** 毎tick、段階ごとの時計を進める。 */
+    /** 毎tick、いつものゾンビ・パニック・ドラゴンを進める。 */
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
-        boolean anyoneOnline = !server.getPlayerList().getPlayers().isEmpty();
+        serverTicks++;
+        if (!curseActive) {
+            return;
+        }
 
+        // いつものゾンビ（ずっと）
+        if (serverTicks % PanicConfig.BASE_SPAWN_INTERVAL_TICKS == 0) {
+            ZombieSpawner.spawnBaseWave(server);
+        }
+
+        // パニックの段階
+        boolean anyoneOnline = !server.getPlayerList().getPlayers().isEmpty();
         switch (currentPhase) {
             case CALM -> tickCalm(server, anyoneOnline);
             case WARNING -> tickWarning(server);
             case PANIC -> tickPanic(server);
+        }
+
+        // 1秒ごと: ボスのバー・ゾンビドラゴン・クリアのチェック
+        if (serverTicks % TICKS_PER_SECOND == 0) {
+            BossZombies.updateBars();
+            ZombieDragon.tickEverySecond(server);
         }
     }
 
@@ -118,12 +149,18 @@ public final class PanicEvent {
         if (timeBar != null) {
             timeBar.addPlayer(player);
         }
-        if (bossBar != null) {
-            bossBar.addPlayer(player);
+        BossZombies.showBarsTo(player);
+
+        // 入ったときのあいさつ
+        if (!curseActive) {
+            player.sendSystemMessage(Component.literal("この世界の ゾンビの呪いは もう とけているよ。").withStyle(ChatFormatting.GREEN));
+            return;
         }
+        WorldData data = WorldData.get(player.getServer());
+        player.sendSystemMessage(Component.literal("ここは ゾンビの呪いに おおわれた世界。廃都市をさがして 世界の真実を知ろう。（たおしたゾンビ: "
+                + data.killCount + "体）").withStyle(ChatFormatting.DARK_GREEN));
         if (currentPhase == Phase.PANIC) {
-            player.sendSystemMessage(Component.literal("いま「" + currentType.title + "」の真っ最中！ 気をつけて！")
-                    .withStyle(ChatFormatting.RED));
+            player.sendSystemMessage(Component.literal("いま「" + currentType.title + "」の真っ最中！ 気をつけて！").withStyle(ChatFormatting.RED));
         }
     }
 
@@ -135,37 +172,115 @@ public final class PanicEvent {
         if (timeBar != null) {
             timeBar.removePlayer(player);
         }
-        if (bossBar != null) {
-            bossBar.removePlayer(player);
+        BossZombies.hideBarsFrom(player);
+    }
+
+    /** ゾンビやドラゴンが世界に出てきたとき（呪いの力・能力のくじ・ドラゴンの強化）。 */
+    public static void onEntityJoin(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide() || !curseActive) {
+            return;
+        }
+        Entity entity = event.getEntity();
+        if (entity instanceof Zombie zombie) {
+            // 呪いのあいだ、ゾンビは日光で燃えない
+            if (!zombie.hasEffect(MobEffects.FIRE_RESISTANCE)) {
+                zombie.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, PanicConfig.CURSE_FIRE_RESIST_TICKS, 0, false, false));
+            }
+            ZombieAbilities.rollAbility(zombie);
+        } else if (entity instanceof EnderDragon dragon) {
+            ZombieDragon.makeZombieDragon(dragon);
         }
     }
 
-    /** ゾンビがたおされたら数え、ゾンビ大将ならパニックを終わらせる。 */
+    /** ゾンビ1体ごとに、能力をときどき使う。 */
+    public static void onEntityTick(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof Zombie zombie && !zombie.level().isClientSide()) {
+            ZombieAbilities.tickAbilities(zombie);
+        }
+    }
+
+    /** なぐったとき・なぐられたときの、能力と呪鉄の武器の効果。 */
+    public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (event.getEntity().level().isClientSide()) {
+            return;
+        }
+        Entity attacker = event.getSource().getEntity();
+
+        // 能力ゾンビがなぐった
+        if (attacker instanceof Zombie zombieAttacker) {
+            ZombieAbilities.onZombieHits(zombieAttacker, event.getEntity());
+        }
+
+        // ゾンビがなぐられた
+        if (event.getEntity() instanceof Zombie victim) {
+            float multiplier = ZombieAbilities.damageTakenMultiplier(victim);
+            if (attacker instanceof Player player) {
+                multiplier *= ZombieAbilities.cursedWeaponMultiplier(player);
+            }
+            event.setAmount(event.getAmount() * multiplier);
+        }
+    }
+
+    /** ゾンビがたおされたら数え、ボスや能力のごほうびを出す。 */
     public static void onLivingDeath(LivingDeathEvent event) {
-        if (currentPhase != Phase.PANIC || event.getEntity().level().isClientSide()) {
+        if (!(event.getEntity() instanceof Zombie zombie) || !(zombie.level() instanceof ServerLevel level)) {
             return;
         }
-        LivingEntity deadEntity = event.getEntity();
-        if (!(deadEntity instanceof Zombie)) {
-            return;
+        MinecraftServer server = level.getServer();
+
+        // 能力ゾンビ（ばくはつ・分裂・ごほうび）とゴールドラッシュ
+        ZombieAbilities.onZombieDeath(level, zombie);
+        if (zombie.getTags().contains(ZombieSpawner.GOLD_TAG)) {
+            ZombieSpawner.dropGoldRushReward(zombie);
         }
 
-        // たおした人を数える（矢などでも、うった人を数える）
-        Entity killer = event.getSource().getEntity();
-        ServerPlayer killerPlayer = killer instanceof ServerPlayer player ? player : null;
-        if (killerPlayer != null) {
-            UUID playerId = killerPlayer.getUUID();
-            killCounts.merge(playerId, 1, Integer::sum);
-            killerNames.put(playerId, killerPlayer.getName().getString());
-        }
+        // たおした人
+        ServerPlayer killerPlayer = event.getSource().getEntity() instanceof ServerPlayer player ? player : null;
 
-        // ゾンビ大将がたおされた
-        if (deadEntity.getTags().contains(ZombieSpawner.BOSS_TAG)) {
-            MinecraftServer server = deadEntity.getServer();
-            if (server != null) {
-                onBossDefeated(server, deadEntity, killerPlayer);
+        // ボスがたおされた
+        if (BossZombies.isBoss(zombie)) {
+            BossZombies.onBossDefeated(server, zombie, killerPlayer);
+            WorldData data = WorldData.get(server);
+            data.bossesDefeated++;
+            data.setDirty();
+            if (currentPhase == Phase.PANIC && zombie.getUUID().equals(panicBossId)) {
+                endPanic(server);
             }
         }
+
+        if (killerPlayer != null && curseActive) {
+            countKill(server, killerPlayer);
+        }
+    }
+
+    // ---------------- たおした数 ----------------
+
+    /** たおした数を数えて、決まった数になったらボスを出す。 */
+    private static void countKill(MinecraftServer server, ServerPlayer killerPlayer) {
+        WorldData data = WorldData.get(server);
+        data.killCount++;
+        data.setDirty();
+
+        // パニック中のランキング用
+        if (currentPhase == Phase.PANIC) {
+            killCounts.merge(killerPlayer.getUUID(), 1, Integer::sum);
+            killerNames.put(killerPlayer.getUUID(), killerPlayer.getName().getString());
+        }
+
+        // ボスの出番
+        if (data.killCount >= data.nextBossKills) {
+            data.bossKillStep += PanicConfig.BOSS_KILL_STEP_GROW;
+            data.nextBossKills = data.killCount + data.bossKillStep;
+            killerPlayer.serverLevel().getServer().getPlayerList().broadcastSystemMessage(
+                    Component.literal("ゾンビを " + data.killCount + "体 たおした！ 強い気配が 近づいてくる……")
+                            .withStyle(ChatFormatting.DARK_RED), false);
+            BossZombies.spawnBossNear(killerPlayer, null);
+        }
+
+        // 下の文字（アクションバー）
+        int left = data.nextBossKills - data.killCount;
+        killerPlayer.displayClientMessage(Component.literal("たおしたゾンビ: " + data.killCount + "体（ボスまで あと " + left + "体）")
+                .withStyle(ChatFormatting.GRAY), true);
     }
 
     // ---------------- 段階ごとの動き ----------------
@@ -192,31 +307,51 @@ public final class PanicEvent {
         }
     }
 
-    /** パニックを進める（ゾンビを出す・バーを更新・ゾンビ大将を出す）。 */
+    /** パニックを進める（ゾンビを出す・バーを更新・ボスを出す）。 */
     private static void tickPanic(MinecraftServer server) {
         phaseTicksLeft--;
         int elapsedTicks = panicTotalTicks - phaseTicksLeft;
         float progress = (float) elapsedTicks / panicTotalTicks;
 
         // ゾンビの群れを出す
-        if (elapsedTicks % PanicConfig.SPAWN_INTERVAL_TICKS == 0) {
-            ZombieSpawner.spawnWave(server, currentType, progress, phaseTicksLeft + 10 * TICKS_PER_SECOND);
+        if (elapsedTicks % PanicConfig.PANIC_SPAWN_INTERVAL_TICKS == 0) {
+            ZombieSpawner.spawnPanicWave(server, currentType, progress, phaseTicksLeft + 10 * TICKS_PER_SECOND);
         }
 
-        // ゾンビ大将（出せなかったら1秒ごとにやりなおす）
-        if (currentType == PanicType.BOSS && !bossSpawned
+        // 「ゾンビ大将の襲来」のボス（出せなかったら1秒ごとにやりなおす）
+        if (currentType == PanicType.BOSS && !panicBossSpawned
                 && elapsedTicks >= PanicConfig.BOSS_APPEAR_SECONDS * TICKS_PER_SECOND
                 && elapsedTicks % TICKS_PER_SECOND == 0) {
-            trySpawnBoss(server);
+            trySpawnPanicBoss(server);
         }
 
         // 1秒ごとにバーを更新
         if (elapsedTicks % TICKS_PER_SECOND == 0) {
-            updateBars();
+            updateTimeBar();
         }
 
         if (phaseTicksLeft <= 0) {
-            endPanic(server, false);
+            endPanic(server);
+        }
+    }
+
+    /** 「ゾンビ大将の襲来」のボスを、だれか1人の近くに出してみる。 */
+    private static void trySpawnPanicBoss(MinecraftServer server) {
+        List<ServerPlayer> players = new ArrayList<>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!player.isSpectator()) {
+                players.add(player);
+            }
+        }
+        if (players.isEmpty()) {
+            return;
+        }
+        ServerPlayer target = players.get(random.nextInt(players.size()));
+        Zombie boss = BossZombies.spawnBossNear(target, BossZombies.BossKind.GENERAL);
+        if (boss != null) {
+            panicBossSpawned = true;
+            panicBossId = boss.getUUID();
+            broadcast(server, Component.literal("ゾンビ大将を たおせば パニックが終わるよ！").withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -236,26 +371,34 @@ public final class PanicEvent {
         currentType = panicType;
         phaseTicksLeft = PanicConfig.WARNING_SECONDS * TICKS_PER_SECOND;
 
-        broadcast(server, Component.literal("……どこからか ゾンビのうめき声が聞こえる……")
+        broadcast(server, Component.literal("……どこからか たくさんの うめき声が聞こえる……")
                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC));
-        broadcast(server, Component.literal("あと " + PanicConfig.WARNING_SECONDS + " 秒で 何かが起きそうだ。かくれる場所をさがそう！")
+        broadcast(server, Component.literal("あと " + PanicConfig.WARNING_SECONDS + " 秒で 何かが起きそうだ。そなえよう！")
                 .withStyle(ChatFormatting.GRAY));
         playSoundToAll(server, SoundEvents.ZOMBIE_AMBIENT, 1.0f, 0.5f);
     }
 
     /** パニックを始める（タイトル・ラッパの音・残り時間のバー）。 */
     public static void startPanic(MinecraftServer server, PanicType panicType) {
+        if (!curseActive) {
+            return;
+        }
         // 前のパニックが残っていたら片づける
-        clearBars();
+        clearTimeBar();
         killCounts.clear();
         killerNames.clear();
-        bossZombie = null;
-        bossSpawned = false;
+        panicBossSpawned = false;
+        panicBossId = null;
 
         currentPhase = Phase.PANIC;
         currentType = panicType;
         panicTotalTicks = PanicConfig.PANIC_MINUTES * 60 * TICKS_PER_SECOND;
         phaseTicksLeft = panicTotalTicks;
+
+        // 血の月は 夜にする
+        if (panicType == PanicType.BLOOD_MOON) {
+            makeNight(server);
+        }
 
         // 残り時間のバー
         timeBar = new ServerBossEvent(makeTimeBarName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
@@ -273,30 +416,30 @@ public final class PanicEvent {
                 + "（" + PanicConfig.PANIC_MINUTES + "分間）").withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
     }
 
+    /** オーバーワールドを夜にする（血の月）。 */
+    private static void makeNight(MinecraftServer server) {
+        ServerLevel overworld = server.overworld();
+        long dayStart = (overworld.getDayTime() / 24000L) * 24000L;
+        overworld.setDayTime(dayStart + 14000L);
+    }
+
     /** パニックを終わらせ、ランキングを見せて、しずかな時間にもどす。 */
-    public static void endPanic(MinecraftServer server, boolean bossDefeated) {
+    public static void endPanic(MinecraftServer server) {
         if (currentPhase != Phase.PANIC) {
             startCalm();
             return;
         }
 
-        // ゾンビ大将がまだいたら、帰っていく
-        if (bossZombie != null && bossZombie.isAlive() && !bossDefeated) {
-            broadcast(server, Component.literal("ゾンビ大将は どこかへ 去っていった……").withStyle(ChatFormatting.GRAY));
-        }
-
-        // まず段階をもどしてから、ゾンビを落ちつかせる
+        // 先に段階をもどしてから、ゾンビを落ちつかせる
         currentPhase = Phase.CALM;
         ZombieSpawner.calmDownPanicZombies(server);
-        clearBars();
-        bossZombie = null;
+        clearTimeBar();
 
         // おわりの文字・音・ランキング
         showTitleToAll(server,
                 Component.literal("パニック しゅうりょう！").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD),
                 Component.literal("よく 生きのびたね！").withStyle(ChatFormatting.YELLOW));
         playSoundToAll(server, SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-        broadcast(server, Component.literal("ゾンビは 太陽の光で また燃えるようになったよ。").withStyle(ChatFormatting.GRAY));
         broadcastRanking(server);
 
         killCounts.clear();
@@ -304,63 +447,34 @@ public final class PanicEvent {
         startCalm();
     }
 
-    // ---------------- ゾンビ大将 ----------------
+    // ---------------- クリア ----------------
 
-    /** ゾンビ大将を出してみる。出せたら体力バーを作る。 */
-    private static void trySpawnBoss(MinecraftServer server) {
-        Zombie boss = ZombieSpawner.spawnBoss(server, phaseTicksLeft + 10 * TICKS_PER_SECOND);
-        if (boss == null) {
+    /** 呪いがとけた（ゾンビドラゴンをたおした）ときの、クリアの演出。 */
+    public static void onCurseLifted(MinecraftServer server) {
+        if (!curseActive) {
             return;
         }
-        bossZombie = boss;
-        bossSpawned = true;
+        WorldData data = WorldData.get(server);
+        data.cleared = true;
+        data.setDirty();
+        curseActive = false;
 
-        // 体力のバー
-        bossBar = new ServerBossEvent(Component.literal("ゾンビ大将").withStyle(ChatFormatting.GOLD),
-                BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            bossBar.addPlayer(player);
-        }
-        playSoundToAll(server, SoundEvents.WITHER_SPAWN, 0.6f, 1.2f);
-    }
+        // パニックとバーを止めて、ゾンビをふつうにもどす
+        currentPhase = Phase.CALM;
+        clearTimeBar();
+        ZombieSpawner.calmDownPanicZombies(server);
+        ZombieSpawner.removeCurseFromAllZombies(server);
 
-    /** ゾンビ大将がたおされたら、ごほうびを落として パニックを終わらせる。 */
-    private static void onBossDefeated(MinecraftServer server, LivingEntity boss, ServerPlayer killerPlayer) {
-        // だれがたおしたか知らせる
-        String heroName = killerPlayer != null ? killerPlayer.getName().getString() : "だれか";
-        broadcast(server, Component.literal(heroName + " が ゾンビ大将を たおした！ すごい！")
-                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
-
-        // ごほうびを その場に落とす
-        dropReward(boss, new ItemStack(Items.GOLDEN_APPLE, PanicConfig.REWARD_GOLDEN_APPLES));
-        dropReward(boss, new ItemStack(Items.DIAMOND, PanicConfig.REWARD_DIAMONDS));
-
-        endPanic(server, true);
-    }
-
-    /** ゾンビ大将の場所に ごほうびのアイテムを落とす。 */
-    private static void dropReward(LivingEntity boss, ItemStack stack) {
-        ItemEntity itemEntity = new ItemEntity(boss.level(), boss.getX(), boss.getY() + 0.5, boss.getZ(), stack);
-        itemEntity.setDefaultPickUpDelay();
-        boss.level().addFreshEntity(itemEntity);
+        GameClear.celebrate(server, data);
     }
 
     // ---------------- 表示 ----------------
 
-    /** 残り時間とゾンビ大将の体力のバーを新しくする。 */
-    private static void updateBars() {
+    /** 残り時間のバーを新しくする。 */
+    private static void updateTimeBar() {
         if (timeBar != null) {
             timeBar.setName(makeTimeBarName());
             timeBar.setProgress(Math.max(0.0f, (float) phaseTicksLeft / panicTotalTicks));
-        }
-        if (bossBar != null && bossZombie != null) {
-            if (bossZombie.isAlive()) {
-                bossBar.setProgress(Math.max(0.0f, bossZombie.getHealth() / bossZombie.getMaxHealth()));
-            } else if (bossZombie.isRemoved()) {
-                // 読みこみの外に行った・消えたときは、バーだけ消す
-                bossBar.removeAllPlayers();
-                bossBar = null;
-            }
         }
     }
 
@@ -371,7 +485,7 @@ public final class PanicEvent {
         return Component.literal(currentType.title + "  のこり " + timeText).withStyle(ChatFormatting.RED);
     }
 
-    /** たおした数のランキング（上位3人）をみんなに見せる。 */
+    /** パニック中にたおした数のランキング（上位3人）をみんなに見せる。 */
     private static void broadcastRanking(MinecraftServer server) {
         if (killCounts.isEmpty()) {
             broadcast(server, Component.literal("今回は だれもゾンビを たおさなかったみたい。").withStyle(ChatFormatting.GRAY));
@@ -382,32 +496,31 @@ public final class PanicEvent {
         List<Map.Entry<UUID, Integer>> ranking = new ArrayList<>(killCounts.entrySet());
         ranking.sort((a, b) -> b.getValue() - a.getValue());
 
-        broadcast(server, Component.literal("=== ゾンビをたおした数ランキング ===").withStyle(ChatFormatting.YELLOW));
-        String[] medals = {"1位", "2位", "3位"};
+        broadcast(server, Component.literal("=== パニック中に たおした数 ===").withStyle(ChatFormatting.YELLOW));
         for (int i = 0; i < Math.min(3, ranking.size()); i++) {
             Map.Entry<UUID, Integer> entry = ranking.get(i);
             String name = killerNames.getOrDefault(entry.getKey(), "?");
-            broadcast(server, Component.literal(medals[i] + "  " + name + "  " + entry.getValue() + "体")
+            broadcast(server, Component.literal((i + 1) + "位  " + name + "  " + entry.getValue() + "体")
                     .withStyle(i == 0 ? ChatFormatting.GOLD : ChatFormatting.WHITE));
         }
     }
 
     /** みんなのチャットに知らせる。 */
-    private static void broadcast(MinecraftServer server, Component message) {
+    public static void broadcast(MinecraftServer server, Component message) {
         server.getPlayerList().broadcastSystemMessage(message, false);
     }
 
     /** みんなの画面に大きな文字を出す。 */
-    private static void showTitleToAll(MinecraftServer server, Component title, Component subtitle) {
+    public static void showTitleToAll(MinecraftServer server, Component title, Component subtitle) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 60, 20));
+            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 70, 20));
             player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle));
             player.connection.send(new ClientboundSetTitleTextPacket(title));
         }
     }
 
     /** みんなに音を聞かせる（その人にだけ聞こえる音）。 */
-    private static void playSoundToAll(MinecraftServer server, SoundEvent sound, float volume, float pitch) {
+    public static void playSoundToAll(MinecraftServer server, SoundEvent sound, float volume, float pitch) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             player.playNotifySound(sound, SoundSource.HOSTILE, volume, pitch);
         }
@@ -421,26 +534,25 @@ public final class PanicEvent {
         return types[random.nextInt(types.length)];
     }
 
-    /** バーを全部消す。 */
-    private static void clearBars() {
+    /** 残り時間のバーを消す。 */
+    private static void clearTimeBar() {
         if (timeBar != null) {
             timeBar.removeAllPlayers();
             timeBar = null;
-        }
-        if (bossBar != null) {
-            bossBar.removeAllPlayers();
-            bossBar = null;
         }
     }
 
     /** 記録を全部まっさらにする（ワールドを開きなおしたとき用）。 */
     private static void clearEverything() {
-        clearBars();
+        clearTimeBar();
+        BossZombies.clearAll();
+        ZombieDragon.reset();
         currentPhase = Phase.CALM;
         phaseTicksLeft = 0;
-        bossZombie = null;
-        bossSpawned = false;
+        panicBossSpawned = false;
+        panicBossId = null;
         killCounts.clear();
         killerNames.clear();
+        curseActive = true;
     }
 }

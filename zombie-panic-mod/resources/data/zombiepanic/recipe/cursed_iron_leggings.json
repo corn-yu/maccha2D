@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "###",
+    "# #",
+    "# #"
+  ],
+  "key": {
+    "#": {
+      "item": "zombiepanic:cursed_iron_ingot"
+    }
+  },
+  "result": {
+    "id": "zombiepanic:cursed_iron_leggings",
+    "count": 1
+  }
+}

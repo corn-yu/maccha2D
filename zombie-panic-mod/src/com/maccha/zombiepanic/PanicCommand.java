@@ -1,14 +1,17 @@
 package com.maccha.zombiepanic;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.monster.Zombie;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /**
- * /zombiepanic コマンド（start・stop・status）。チートがオンの人（OP）だけ使える。
+ * /zombiepanic コマンド（start・stop・status・boss・ability）。チートがオンの人（OP）だけ使える。
  */
 public final class PanicCommand {
 
@@ -25,15 +28,36 @@ public final class PanicCommand {
                     .executes(context -> startPanicNow(context.getSource(), panicType)));
         }
 
+        // /zombiepanic boss [種類]
+        LiteralArgumentBuilder<CommandSourceStack> bossCommand = Commands.literal("boss")
+                .executes(context -> spawnBossNow(context.getSource(), null));
+        for (BossZombies.BossKind kind : BossZombies.BossKind.values()) {
+            bossCommand.then(Commands.literal(kind.name().toLowerCase())
+                    .executes(context -> spawnBossNow(context.getSource(), kind)));
+        }
+
+        // /zombiepanic ability [能力]（目の前にその能力のゾンビを出す・ためし用）
+        LiteralArgumentBuilder<CommandSourceStack> abilityCommand = Commands.literal("ability");
+        for (ZombieAbilities.Ability ability : ZombieAbilities.Ability.values()) {
+            abilityCommand.then(Commands.literal(ability.id)
+                    .executes(context -> spawnAbilityZombieNow(context.getSource(), ability)));
+        }
+
         event.getDispatcher().register(Commands.literal("zombiepanic")
                 .requires(source -> source.hasPermission(2))
                 .then(startCommand)
+                .then(bossCommand)
+                .then(abilityCommand)
                 .then(Commands.literal("stop").executes(context -> stopPanicNow(context.getSource())))
                 .then(Commands.literal("status").executes(context -> showStatus(context.getSource()))));
     }
 
     /** すぐにパニックを始める（種類を書かなければランダム）。 */
     private static int startPanicNow(CommandSourceStack source, PanicType panicType) {
+        if (!PanicEvent.isCurseActive()) {
+            source.sendFailure(Component.literal("この世界の呪いは もう とけているよ。"));
+            return 0;
+        }
         PanicType chosenType = panicType;
         if (chosenType == null) {
             PanicType[] types = PanicType.values();
@@ -49,20 +73,51 @@ public final class PanicCommand {
             source.sendSuccess(() -> Component.literal("いまはパニック中じゃないよ。次のパニックまでの時間を数えなおすね。")
                     .withStyle(ChatFormatting.GRAY), false);
         }
-        PanicEvent.endPanic(source.getServer(), false);
+        PanicEvent.endPanic(source.getServer());
         return 1;
     }
 
-    /** いまの段階と残り時間を見せる。 */
+    /** 自分の近くにボスを出す。 */
+    private static int spawnBossNow(CommandSourceStack source, BossZombies.BossKind kind) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        if (BossZombies.spawnBossNear(player, kind) == null) {
+            source.sendFailure(Component.literal("ボスを出せる場所が 見つからなかったよ。ひらけた場所で もう一度ためしてね。"));
+            return 0;
+        }
+        return 1;
+    }
+
+    /** 自分の近くに その能力のゾンビを出す。 */
+    private static int spawnAbilityZombieNow(CommandSourceStack source, ZombieAbilities.Ability ability) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        Zombie zombie = ZombieSpawner.spawnZombieCloseTo(player.serverLevel(), player.blockPosition(), 4, 8, null);
+        if (zombie == null) {
+            source.sendFailure(Component.literal("ゾンビを出せる場所が 見つからなかったよ。"));
+            return 0;
+        }
+        ZombieAbilities.giveAbility(zombie, ability);
+        return 1;
+    }
+
+    /** いまの段階・たおした数・次のボスを見せる。 */
     private static int showStatus(CommandSourceStack source) {
+        WorldData data = WorldData.get(source.getServer());
+        if (!PanicEvent.isCurseActive()) {
+            source.sendSuccess(() -> Component.literal("呪いは もう とけているよ（クリアずみ）。たおしたゾンビ: " + data.killCount + "体")
+                    .withStyle(ChatFormatting.GREEN), false);
+            return 1;
+        }
         int secondsLeft = PanicEvent.getSecondsLeft();
         String timeText = (secondsLeft / 60) + "分" + (secondsLeft % 60) + "秒";
-        String message = switch (PanicEvent.getPhase()) {
+        String phaseText = switch (PanicEvent.getPhase()) {
             case CALM -> "いまは しずか。次のパニックまで あと約 " + timeText;
             case WARNING -> "前ぶれ中！ あと " + timeText + " で「" + PanicEvent.getCurrentType().title + "」が始まる";
             case PANIC -> "「" + PanicEvent.getCurrentType().title + "」の真っ最中！ のこり " + timeText;
         };
-        source.sendSuccess(() -> Component.literal(message).withStyle(ChatFormatting.YELLOW), false);
+        String killText = "たおしたゾンビ: " + data.killCount + "体 ／ 次のボスまで あと " + (data.nextBossKills - data.killCount)
+                + "体 ／ たおしたボス: " + data.bossesDefeated + "体";
+        source.sendSuccess(() -> Component.literal(phaseText).withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal(killText).withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
 }
