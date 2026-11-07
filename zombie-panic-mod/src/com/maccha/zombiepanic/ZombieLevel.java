@@ -56,9 +56,7 @@ public final class ZombieLevel {
         if (random.nextInt(PanicConfig.LEVEL_MUTATION_CHANCE) == 0) {
             level = (int) (maxLevel * (1.0 + random.nextDouble() * 0.5));
         }
-        // 100レベをこえるゾンビは、パニック（流行）のあいだだけ出る
-        int cap = PanicEvent.isPanicActive() ? PanicConfig.LEVEL_MAX : PanicConfig.LEVEL_FOR_TIER3;
-        return Math.max(1, Math.min(cap, level));
+        return Math.max(1, Math.min(PanicConfig.LEVEL_MAX, level));
     }
 
     /** レベルに合った能力の段（0〜3）。 */
