@@ -205,4 +205,28 @@ public final class SwordCheck {
         }
         return 1.0f;
     }
+
+    /** 素材ごとの掘る速さの倍率（1.0 が鉄）。木は遅く、ネザライトは速い。名前に素材が入っていないものは 1.0。 */
+    public static float materialDigSpeed(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return 1.0f;
+        }
+        String itemName = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+        if (itemName.startsWith("wooden_")) {
+            return SwingConfig.DIG_WOOD;
+        } else if (itemName.startsWith("stone_")) {
+            return SwingConfig.DIG_STONE;
+        } else if (itemName.startsWith("golden_")) {
+            return SwingConfig.DIG_GOLD;
+        } else if (itemName.startsWith("copper_")) {
+            return SwingConfig.DIG_COPPER;
+        } else if (itemName.startsWith("iron_")) {
+            return SwingConfig.DIG_IRON;
+        } else if (itemName.startsWith("diamond_")) {
+            return SwingConfig.DIG_DIAMOND;
+        } else if (itemName.startsWith("netherite_")) {
+            return SwingConfig.DIG_NETHERITE;
+        }
+        return 1.0f;
+    }
 }

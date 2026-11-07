@@ -243,6 +243,20 @@ public final class SwingConfig {
     public static final float SPEAR_GRIP_X = 0.65f;
     public static final float SPEAR_GRIP_Y = 0.35f;
 
+    // ===== 素材ごとの掘る速さ =====
+
+    // 1 回当てたときに掘れる量にかける倍率（1.0 が鉄）。木は遅く、ネザライトは速い。金は元から速いので 1.0
+    public static final float DIG_WOOD = 0.35f;
+    public static final float DIG_STONE = 0.55f;
+    public static final float DIG_GOLD = 1.0f;
+    public static final float DIG_COPPER = 0.75f;
+    public static final float DIG_IRON = 1.0f;
+    public static final float DIG_DIAMOND = 1.4f;
+    public static final float DIG_NETHERITE = 1.8f;
+
+    // 1 回当てたときに進むひびの上限（1.0 で壊れる）。やわらかいブロックでも、ひびが何段か見える
+    public static final float MAX_PROGRESS_PER_HIT = 0.25f;
+
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
     public static final boolean DEBUG_LOG = false;
 }

@@ -1064,8 +1064,9 @@ public final class ServerSwing {
         // 掘り具合を足す（しばらく当てていないひびは、サーバーの tick ごとの見回りで消えている）
         Map<BlockPos, CrackInfo> playerCracks = cracksOf(player);
         CrackInfo crack = playerCracks.get(pos);
-        float progress = (crack == null ? 0.0f : crack.progress)
-                + (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * Math.max(1.0f, SwordCheck.materialWeight(tool)));
+        float gain = (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * SwordCheck.materialDigSpeed(tool));
+        gain = Math.min(gain, SwingConfig.MAX_PROGRESS_PER_HIT);
+        float progress = (crack == null ? 0.0f : crack.progress) + gain;
 
         // 当たった音
         level.playSound(null, pos, blockState.getSoundType().getHitSound(),
