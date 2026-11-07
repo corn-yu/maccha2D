@@ -82,22 +82,9 @@ public final class SwingClient {
         return SwordCheck.isSwingItem(player.getMainHandItem());
     }
 
-    /** 攻撃ボタン（ふつうは左クリック）が今おされているかを、本当のマウス・キーの状態で調べる。 */
+    /** 攻撃ボタン（ふつうは左クリック）が今おされているかを、ゲームのキー設定の状態で調べる。 */
     private static boolean isAttackButtonPressed(Minecraft minecraft) {
-        KeyMapping attackKey = minecraft.options.keyAttack;
-        InputConstants.Key key = InputConstants.getKey(attackKey.saveString());
-        if (key.getType() == InputConstants.Type.MOUSE) {
-            int button = key.getValue();
-            if (button == 0) {
-                return minecraft.mouseHandler.isLeftPressed();
-            } else if (button == 1) {
-                return minecraft.mouseHandler.isRightPressed();
-            } else if (button == 2) {
-                return minecraft.mouseHandler.isMiddlePressed();
-            }
-            return false;
-        }
-        return InputConstants.isKeyDown(key.getValue());
+        return minecraft.options.keyAttack.isDown();
     }
 
     /** ふつうの攻撃・採掘を止めるべきなら true（剣モード中）。 */
@@ -139,7 +126,7 @@ public final class SwingClient {
         while (attackKey.consumeClick()) {
             // 何もしない（クリックを捨てるだけ）
         }
-        attackKey.setDown(false);
+        // 押しっぱなしの状態は消さない（長押しの判定に使うので）。ふつうの攻撃・採掘は差しこみ側で止めている
     }
 
     /** 毎フレーム、長押しの開始・終了を調べて、マウスの動きを手に回し、剣を重さのある動きで追いかけさせる。 */
