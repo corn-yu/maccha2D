@@ -134,8 +134,9 @@ public final class PanicEvent {
             case PANIC -> tickPanic(server);
         }
 
-        // 1秒ごと: ボスのバー・ゾンビドラゴン・クリアのチェック
+        // 1秒ごと: 永遠の夜・ボスのバー・ゾンビドラゴン・クリアのチェック
         if (serverTicks % TICKS_PER_SECOND == 0) {
+            EternalNight.keepNight(server);
             BossZombies.updateBars();
             ZombieDragon.tickEverySecond(server);
         }
@@ -395,11 +396,6 @@ public final class PanicEvent {
         panicTotalTicks = PanicConfig.PANIC_MINUTES * 60 * TICKS_PER_SECOND;
         phaseTicksLeft = panicTotalTicks;
 
-        // 血の月は 夜にする
-        if (panicType == PanicType.BLOOD_MOON) {
-            makeNight(server);
-        }
-
         // 残り時間のバー
         timeBar = new ServerBossEvent(makeTimeBarName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
         timeBar.setDarkenScreen(true);
@@ -414,13 +410,6 @@ public final class PanicEvent {
         playSoundToAll(server, SoundEvents.RAID_HORN.value(), 1.0f, 0.8f);
         broadcast(server, Component.literal("【" + panicType.title + "】" + panicType.description
                 + "（" + PanicConfig.PANIC_MINUTES + "分間）").withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
-    }
-
-    /** オーバーワールドを夜にする（血の月）。 */
-    private static void makeNight(MinecraftServer server) {
-        ServerLevel overworld = server.overworld();
-        long dayStart = (overworld.getDayTime() / 24000L) * 24000L;
-        overworld.setDayTime(dayStart + 14000L);
     }
 
     /** パニックを終わらせ、ランキングを見せて、しずかな時間にもどす。 */
@@ -464,6 +453,7 @@ public final class PanicEvent {
         clearTimeBar();
         ZombieSpawner.calmDownPanicZombies(server);
         ZombieSpawner.removeCurseFromAllZombies(server);
+        EternalNight.bringBackSunrise(server);
 
         GameClear.celebrate(server, data);
     }

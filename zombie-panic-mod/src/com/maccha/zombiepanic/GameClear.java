@@ -49,7 +49,7 @@ public final class GameClear {
         PanicEvent.broadcast(server, Component.literal(" ゾンビドラゴンが たおれ、世界の呪いが とけた！").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         PanicEvent.broadcast(server, Component.literal(" たおしたゾンビ: " + data.killCount + "体").withStyle(ChatFormatting.WHITE));
         PanicEvent.broadcast(server, Component.literal(" たおしたボス: " + data.bossesDefeated + "体").withStyle(ChatFormatting.WHITE));
-        PanicEvent.broadcast(server, Component.literal(" これからは ふつうの世界。動物や ほかのモブも もどってくるよ。").withStyle(ChatFormatting.GREEN));
+        PanicEvent.broadcast(server, Component.literal(" 長い夜が明けた。これからは ふつうの世界。動物や ほかのモブも もどってくるよ。").withStyle(ChatFormatting.GREEN));
         PanicEvent.broadcast(server, Component.literal(" のこったゾンビは また お日さまで 燃えるようになった。").withStyle(ChatFormatting.GRAY));
         PanicEvent.broadcast(server, Component.literal(" あそんでくれて ありがとう！").withStyle(ChatFormatting.YELLOW));
         PanicEvent.broadcast(server, Component.literal("============================").withStyle(ChatFormatting.GOLD));

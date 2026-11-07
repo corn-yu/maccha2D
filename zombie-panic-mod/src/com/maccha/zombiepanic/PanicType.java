@@ -14,7 +14,7 @@ public enum PanicType {
     JUMPERS("jumpers", "とびはねるゾンビ", "ゾンビが かべを とびこえてくる！"),
     DIGGERS("diggers", "地の底から", "足もとから ゾンビが わいてくる！"),
     INVISIBLE("invisible", "見えないゾンビ", "ゾンビの すがたが 見えない…！ 音をたよりに！"),
-    BLOOD_MOON("blood_moon", "血の月", "夜になり、ゾンビが 強くなった！"),
+    BLOOD_MOON("blood_moon", "血の月", "月が赤くそまり、ゾンビが 強くなった！"),
     DROWNED_RAID("drowned", "水底からの襲撃", "三又のほこを持ったドラウンドが やってくる！"),
     VILLAGERS("villagers", "村人ゾンビの行進", "村人ゾンビの むれだ！ 治せるかも？"),
     EXPLODERS("exploders", "爆発ゾンビ", "たおすと ばくはつする！ 近くでたおすな！"),
