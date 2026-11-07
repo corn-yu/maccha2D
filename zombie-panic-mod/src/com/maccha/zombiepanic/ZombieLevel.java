@@ -105,7 +105,7 @@ public final class ZombieLevel {
                 : level >= PanicConfig.LEVEL_FOR_TIER1 ? ChatFormatting.YELLOW : ChatFormatting.GRAY;
         Component name = Component.literal("Lv." + level + " ゾンビ").withStyle(color);
         if (level >= PanicConfig.LEVEL_FOR_TIER3) {
-            name = Component.literal("Lv." + level + " ゾンビ").withStyle(color, ChatFormatting.BOLD);
+            name = Component.literal("Lv." + level + " 災厄ゾンビ").withStyle(color, ChatFormatting.BOLD);
         }
         zombie.setCustomName(name);
         // 高いレベルは、いつも名前を見せる（ふつうは 見つめたときだけ）
