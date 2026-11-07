@@ -96,6 +96,13 @@ public final class ServerSwing {
     private record PendingSlash(UUID playerId, int targetId, long dueTick, double momentumFactor, int slashIndex) {
     }
 
+    /** クワの連撃（何回続けて当てたか・最後に当てた時間）。 */
+    private record HoeCombo(int count, int lastHitTick) {
+    }
+
+    // プレイヤーごとのクワの連撃（剣をおろしても、少しのあいだは続く）
+    private static final Map<UUID, HoeCombo> HOE_COMBOS = new HashMap<>();
+
     // これから出るトライデントの斬撃と、サーバーの時間（tick）
     private static final List<PendingSlash> PENDING_SLASHES = new ArrayList<>();
     private static long serverTick = 0;
@@ -123,11 +130,13 @@ public final class ServerSwing {
     public static void onServerStopped(ServerStoppedEvent event) {
         STATES.clear();
         PENDING_SLASHES.clear();
+        HOE_COMBOS.clear();
     }
 
     /** ログアウトした人の剣の記録を消す。 */
     public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         STATES.remove(event.getEntity().getUUID());
+        HOE_COMBOS.remove(event.getEntity().getUUID());
     }
 
     /** いきおい剣の攻撃中は、ふつうのなぎ払いを出さない。 */
@@ -613,6 +622,13 @@ public final class ServerSwing {
             // 斧＝超クリティカル：思いきり振りぬくとダメージが大きく上がる
             momentumFactor *= SwingConfig.AXE_CRIT_MULTIPLIER;
             superCritical = true;
+        } else if (skill == WeaponSkill.HOE) {
+            // クワ＝連撃：続けて当てるほど攻撃力がどんどん上がる
+            double comboBonus = nextHoeCombo(player);
+            momentumFactor *= comboBonus;
+            if (comboBonus >= SwingConfig.HOE_COMBO_MAX) {
+                superCritical = true;
+            }
         } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living) {
             // つるはし＝鎧くだき：かたい防具の相手ほどダメージが上がる
             momentumFactor *= Math.min(1.0 + living.getArmorValue() * SwingConfig.PICKAXE_ARMOR_BONUS, SwingConfig.PICKAXE_MAX_BONUS);
@@ -654,8 +670,6 @@ public final class ServerSwing {
         boolean strongHit = hitSpeed >= SwingConfig.REFERENCE_SPEED;
         if (skill == WeaponSkill.SHOVEL && strongHit) {
             launchTarget(rootTarget);
-        } else if (skill == WeaponSkill.HOE) {
-            drainLife(player, dealtDamage);
         } else if (skill == WeaponSkill.OTHER && isHeavyWeapon(player) && strongHit) {
             shockwave(player, rootTarget, hitPoint, momentumFactor);
         } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living && living.getArmorValue() > 0) {
@@ -768,13 +782,26 @@ public final class ServerSwing {
         level.playSound(null, living.getX(), living.getY(), living.getZ(), SoundEvents.SHOVEL_FLATTEN, SoundSource.PLAYERS, 1.0f, 0.7f);
     }
 
-    /** クワ＝命刈り：与えたダメージの一部を、自分の体力にもどす。 */
-    private static void drainLife(ServerPlayer player, float dealtDamage) {
-        if (dealtDamage <= 0.0f || player.getHealth() >= player.getMaxHealth()) {
-            return;
+    /** クワ＝連撃：連撃の数を 1 つ進めて、今の攻撃力の倍率を返す（間があいたら 1 からやりなおし）。 */
+    private static double nextHoeCombo(ServerPlayer player) {
+        HoeCombo combo = HOE_COMBOS.get(player.getUUID());
+        int count = 0;
+        if (combo != null && player.tickCount - combo.lastHitTick() <= SwingConfig.HOE_COMBO_WINDOW_TICKS
+                && player.tickCount >= combo.lastHitTick()) {
+            count = combo.count() + 1;
         }
-        player.heal(dealtDamage * SwingConfig.HOE_LIFESTEAL);
-        player.serverLevel().sendParticles(ParticleTypes.HEART, player.getX(), player.getEyeY() + 0.3, player.getZ(), 2, 0.3, 0.1, 0.3, 0.0);
+        HOE_COMBOS.put(player.getUUID(), new HoeCombo(count, player.tickCount));
+
+        // 連撃が続くほど、手もとに火花が増えて音が高くなる
+        double bonus = Math.min(1.0 + count * SwingConfig.HOE_COMBO_STEP, SwingConfig.HOE_COMBO_MAX);
+        if (count > 0) {
+            ServerLevel level = player.serverLevel();
+            level.sendParticles(ParticleTypes.ENCHANTED_HIT, player.getX(), player.getEyeY() - 0.4, player.getZ(),
+                    Math.min(count * 2, 20), 0.3, 0.3, 0.3, 0.2);
+            level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.NOTE_BLOCK_CHIME.value(),
+                    SoundSource.PLAYERS, 0.5f, (float) Math.min(0.6 + count * 0.1, 2.0));
+        }
+        return bonus;
     }
 
     /** 重い武器＝衝撃波：当てた場所のまわりの敵にもダメージを与えて、外へふっとばす。 */

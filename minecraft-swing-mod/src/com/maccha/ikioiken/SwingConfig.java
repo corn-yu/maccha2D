@@ -193,8 +193,10 @@ public final class SwingConfig {
     public static final double SHOVEL_LAUNCH_SPEED = 0.6;
     public static final int SHOVEL_SLOW_TICKS = 40;
 
-    // クワ＝命刈り：与えたダメージの何割を自分の体力にもどすか
-    public static final float HOE_LIFESTEAL = 0.3f;
+    // クワ＝連撃：この時間（tick）のうちに次を当てると連撃が続く・1 回ごとに上がる攻撃力・上限の倍率
+    public static final int HOE_COMBO_WINDOW_TICKS = 30;
+    public static final double HOE_COMBO_STEP = 0.15;
+    public static final double HOE_COMBO_MAX = 2.5;
 
     // そのほかの武器：攻撃速度がこれより遅い＝重い武器（衝撃波）、速い＝軽い武器（急所突き）
     public static final float HEAVY_ATTACK_SPEED = 1.2f;
