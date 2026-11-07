@@ -17,6 +17,10 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -60,6 +64,9 @@ public final class SwingClient {
 
     // 刃の面の傾き（振る向きに刃を合わせる）
     private static float bladeRoll = 0.0f;
+
+    // 剣がブロックにめりこまないように、手前へ引いている量（ブロック）
+    private static float pullBack = 0.0f;
 
     // 長押し中に固定しているカメラの向き
     private static float lockedYaw = 0.0f;
@@ -335,7 +342,11 @@ public final class SwingClient {
         // 手の位置から、剣の向きに回して描く（速く振るほど手も少し前に出る）
         float swingPush = Math.min((Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed)) * 0.006f, 0.12f);
         PoseStack poseStack = event.getPoseStack();
-        Vector3f handPoint = handPosition(swingPush);
+
+        // 剣先がブロックにめりこみそうなら、そのぶん手ごと手前へ引く（なめらかに）
+        float targetPull = measurePullBack(player);
+        pullBack += (targetPull - pullBack) * SwingConfig.PULL_BACK_FOLLOW;
+        Vector3f handPoint = handPosition(swingPush - pullBack * 0.5f);
 
         // 剣をにぎっている腕を、肩から手までのばして描く
         renderArm(minecraft, player, poseStack, event, handPoint);
@@ -345,6 +356,9 @@ public final class SwingClient {
         poseStack.mulPose(Axis.YP.rotationDegrees(-swordYaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(-swordPitch));
         poseStack.mulPose(Axis.ZP.rotationDegrees(bladeRoll));
+
+        // 手を引いたぶんで足りないところは、剣を手もとへ引きよせる
+        poseStack.translate(0.0f, 0.0f, pullBack * 0.5f);
 
         // にぎりが手に来るように前へずらし、絵の斜めの剣をまっすぐ前に向ける
         poseStack.translate(0.0f, 0.0f, -0.45f * SwingConfig.SWORD_SCALE);
@@ -407,5 +421,22 @@ public final class SwingClient {
         float reach = SwingConfig.ARM_LENGTH + swingPush;
         return new Vector3f(SwingConfig.ARM_SHOULDER_X, SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z)
                 .add(armDir.mul(reach));
+    }
+
+    /** 剣先から先にブロックがあるとき、めりこまないために引く長さ（ブロック）を返す。 */
+    private static float measurePullBack(LocalPlayer player) {
+        // 目から剣の向きへ、見た目の剣の長さぶんの線を引いて、ブロックに当たる場所をさがす
+        Vec3 eye = player.getEyePosition();
+        Vec3 bladeDir = Vec3.directionFromRotation(bladeWorldPitch(player), bladeWorldYaw(player));
+        Vec3 tip = eye.add(bladeDir.scale(SwingConfig.VISUAL_BLADE_LENGTH + 0.3));
+        BlockHitResult hit = player.level().clip(new ClipContext(eye, tip,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        if (hit.getType() != HitResult.Type.BLOCK) {
+            return 0.0f;
+        }
+
+        // 剣先がブロックの手前に来るように、足りないぶんだけ引く
+        float freeDistance = (float) hit.getLocation().distanceTo(eye) - 0.3f;
+        return Mth.clamp(SwingConfig.VISUAL_BLADE_LENGTH - freeDistance, 0.0f, SwingConfig.MAX_PULL_BACK);
     }
 }

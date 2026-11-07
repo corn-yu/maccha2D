@@ -43,6 +43,11 @@ public final class SwingConfig {
     // 一人称の剣の大きさ
     public static final float SWORD_SCALE = 1.1f;
 
+    // 剣がブロックにめりこまないように手前へ引く：見た目の剣先までの長さ・引く量の上限・引くはやさ（0〜1）
+    public static final float VISUAL_BLADE_LENGTH = 1.3f;
+    public static final float MAX_PULL_BACK = 0.9f;
+    public static final float PULL_BACK_FOLLOW = 0.5f;
+
     // 一人称の腕：肩の位置（画面の右・上・うしろ）と腕の長さ（ブロック）。
     // 手は肩を中心に剣の向きへ回るので、手首ではなく腕ごと振って見える
     public static final float ARM_SHOULDER_X = 0.36f;
