@@ -72,6 +72,9 @@ public final class PanicConfig {
     public static final double LEVEL_ATTACK_PER_LEVEL = 0.08;
     public static final double LEVEL_ARMOR_PER_LEVEL = 0.12;
     public static final double LEVEL_SPEED_PER_LEVEL = 0.003;
+    // 能力を1こ足すのに必要なレベル（Lv15で1こ、Lv30で2こ…）と、足せる数の上限
+    public static final int LEVEL_PER_EXTRA_ABILITY = 15;
+    public static final int LEVEL_MAX_EXTRA_ABILITIES = 8;
     // いちばん高いレベル
     public static final int LEVEL_MAX = 999;
 

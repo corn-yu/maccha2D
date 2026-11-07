@@ -164,7 +164,33 @@ public final class ZombieAbilities {
         if (tier > 0) {
             makeRareZombie(zombie, tier);
         }
+        addLevelAbilities(zombie, level);
         ZombieLevel.apply(zombie, level);
+    }
+
+    /** レベルが高いほど、能力をたくさん足す（15レベルごとに1こ。ときどきもう1こ）。 */
+    private static void addLevelAbilities(Zombie zombie, int level) {
+        int count = level / PanicConfig.LEVEL_PER_EXTRA_ABILITY;
+        if (level >= PanicConfig.LEVEL_PER_EXTRA_ABILITY / 2 && random.nextInt(2) == 0) {
+            count++;
+        }
+        count = Math.min(count, PanicConfig.LEVEL_MAX_EXTRA_ABILITIES);
+        // Lv60から 強い能力も混ざる
+        int maxTier = level >= PanicConfig.LEVEL_FOR_TIER2 ? 2 : 1;
+        for (int i = 0; i < count; i++) {
+            List<Ability> candidates = new ArrayList<>();
+            for (Ability ability : Ability.values()) {
+                if (ability.tier >= 1 && ability.tier <= maxTier && !has(zombie, ability)) {
+                    candidates.add(ability);
+                }
+            }
+            if (candidates.isEmpty()) {
+                return;
+            }
+            Ability picked = candidates.get(random.nextInt(candidates.size()));
+            zombie.addTag(picked.tag());
+            applyAbilityStats(zombie, picked);
+        }
     }
 
     /** その段のレアゾンビにする（体を強くして、能力をいくつか持たせる）。 */
