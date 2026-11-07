@@ -223,5 +223,5 @@ public final class SwingConfig {
     public static final boolean SHOW_MESSAGES = false;
 
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
-    public static final boolean DEBUG_LOG = true;
+    public static final boolean DEBUG_LOG = false;
 }

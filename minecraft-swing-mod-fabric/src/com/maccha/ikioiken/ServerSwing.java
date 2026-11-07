@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -1027,30 +1025,7 @@ public final class ServerSwing {
         // 壊す（ドロップ・道具の耐久・保護エリアなどはふつうに掘ったときと同じ）
         state.blockProgress.remove(pos);
         showCracks(player, level, pos, -1);
-
-        // 壊す前に、落ちるはずのアイテムと、まわりにすでにある落ちている物の数を調べておく
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        AABB dropArea = new AABB(pos).inflate(1.5);
-        int itemsBefore = level.getEntitiesOfClass(ItemEntity.class, dropArea).size();
-        ItemStack toolBefore = tool.copy();
-        boolean canHarvest = !player.getAbilities().instabuild && player.hasCorrectToolForDrops(blockState);
-        List<ItemStack> expectedDrops = canHarvest
-                ? Block.getDrops(blockState, level, pos, blockEntity, player, toolBefore)
-                : List.of();
-
         boolean broken = player.gameMode.destroyBlock(pos);
-
-        // 壊れたのにアイテムが出ていなければ、ここで出す（落ちるはずの物を、ふつうに掘ったときと同じ場所に）
-        int itemsAfter = level.getEntitiesOfClass(ItemEntity.class, dropArea).size();
-        if (SwingConfig.DEBUG_LOG) {
-            System.out.println("ikioiken: 壊した broken=" + broken + " 落ちるはず=" + expectedDrops.size()
-                    + " 前=" + itemsBefore + " 後=" + itemsAfter + " 適した道具=" + canHarvest);
-        }
-        if (broken && itemsAfter <= itemsBefore) {
-            for (ItemStack drop : expectedDrops) {
-                Block.popResource(level, pos, drop);
-            }
-        }
         if (broken) {
             Net.sendToPlayer(player, new HitPayload(0.4f));
         }
