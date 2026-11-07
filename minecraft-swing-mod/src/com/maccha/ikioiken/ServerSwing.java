@@ -272,6 +272,7 @@ public final class ServerSwing {
         ItemStack weapon = player.getMainHandItem();
         DamageSource damageSource = player.damageSources().playerAttack(player);
         float swordDamage = (float) player.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        swordDamage += weapon.getItem().getAttackDamageBonus(target, swordDamage, damageSource);
         swordDamage = EnchantmentHelper.modifyDamage(level, weapon, target, damageSource, swordDamage);
         float finalDamage = (float) (swordDamage * speedFactor * angleFactor * remainingPower);
 

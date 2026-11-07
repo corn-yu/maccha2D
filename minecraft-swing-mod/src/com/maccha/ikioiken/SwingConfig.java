@@ -72,6 +72,9 @@ public final class SwingConfig {
     // これより速く振ると「ブンッ」と音が鳴る（剣先の速さ m/s）
     public static final double WHOOSH_SPEED = 12.0;
 
+    // 持つと攻撃力がこれ以上あがる物は、タグがなくても武器として振れる（木の剣は +3）
+    public static final double MIN_WEAPON_DAMAGE = 2.0;
+
     // 当てたときに画面下へ勢いとダメージを出すか
     public static final boolean SHOW_DAMAGE_MESSAGE = true;
 }
