@@ -50,6 +50,11 @@ public final class PanicConfig {
     public static final int STRONG_ABILITY_CHANCE = 100;
     public static final int STRONGEST_ABILITY_CHANCE = 1000;
 
+    // 能力ゾンビをたおすと 能力をもらえる確率（○回に1回）: 特殊・強い特殊・最強
+    public static final int STEAL_CHANCE_TIER1 = 5;
+    public static final int STEAL_CHANCE_TIER2 = 3;
+    public static final int STEAL_CHANCE_TIER3 = 1;
+
     // ---------------- たおした数で出るボス ----------------
 
     // ボスが出る数（300体ごと。BOSS_KILL_STEP_GROW を足すと だんだん間があく）

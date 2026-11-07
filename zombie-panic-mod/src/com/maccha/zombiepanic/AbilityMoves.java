@@ -34,7 +34,7 @@ public final class AbilityMoves {
     private static final int METEOR_FALL_TICKS = 30;
 
     /** 落ちてくる途中の隕石。 */
-    private record PendingMeteor(ServerLevel level, Vec3 impactPos, long impactTime, Zombie owner) {
+    private record PendingMeteor(ServerLevel level, Vec3 impactPos, long impactTime, net.minecraft.world.entity.Entity owner) {
     }
 
     private static final List<PendingMeteor> pendingMeteors = new ArrayList<>();
@@ -239,6 +239,12 @@ public final class AbilityMoves {
         pendingMeteors.add(new PendingMeteor(level, impactPos, level.getGameTime() + METEOR_FALL_TICKS, zombie));
     }
 
+    /** その場所に 隕石をよぶ（プレイヤーの能力でも使う）。 */
+    public static void callMeteorAt(ServerLevel level, Vec3 impactPos, net.minecraft.world.entity.Entity owner) {
+        drawRing(level, impactPos.add(0, 0.1, 0), 2.5, ParticleTypes.FLAME, 24);
+        pendingMeteors.add(new PendingMeteor(level, impactPos, level.getGameTime() + METEOR_FALL_TICKS, owner));
+    }
+
     /** 毎tick: 落ちてくる隕石を動かして、時間になったら 着弾させる。 */
     public static void tickPendingMeteors(MinecraftServer server) {
         if (pendingMeteors.isEmpty()) {
@@ -363,7 +369,7 @@ public final class AbilityMoves {
     // ---------------- 見た目の道具 ----------------
 
     /** 2点のあいだに つぶつぶの線を引く。 */
-    private static void drawLine(ServerLevel level, Vec3 from, Vec3 to, ParticleOptions particle) {
+    static void drawLine(ServerLevel level, Vec3 from, Vec3 to, ParticleOptions particle) {
         Vec3 step = to.subtract(from);
         int points = (int) Math.max(4, step.length() * 3);
         for (int i = 0; i <= points; i++) {
@@ -373,7 +379,7 @@ public final class AbilityMoves {
     }
 
     /** 地面に つぶつぶの輪を えがく。 */
-    private static void drawRing(ServerLevel level, Vec3 center, double radius, ParticleOptions particle, int points) {
+    static void drawRing(ServerLevel level, Vec3 center, double radius, ParticleOptions particle, int points) {
         for (int i = 0; i < points; i++) {
             double angle = Math.PI * 2.0 * i / points;
             level.sendParticles(particle, center.x + Math.cos(angle) * radius, center.y, center.z + Math.sin(angle) * radius, 1, 0, 0.05, 0, 0);

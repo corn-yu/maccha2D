@@ -32,6 +32,10 @@ public class ZombiePanic {
         NeoForge.EVENT_BUS.addListener(PanicEvent::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(PanicEvent::onLivingDeath);
 
+        // プレイヤーの能力（死んでも なくさない）
+        NeoForge.EVENT_BUS.addListener(PlayerPowers::onPlayerClone);
+        NeoForge.EVENT_BUS.addListener(PlayerPowers::onPlayerRespawn);
+
         // 呪いのあいだは ゾンビ以外わかないようにする
         NeoForge.EVENT_BUS.addListener(SpawnFilter::onPositionCheck);
         NeoForge.EVENT_BUS.addListener(SpawnFilter::onFinalizeSpawn);

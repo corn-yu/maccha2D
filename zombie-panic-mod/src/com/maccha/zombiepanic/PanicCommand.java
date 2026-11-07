@@ -43,11 +43,32 @@ public final class PanicCommand {
                     .executes(context -> spawnAbilityZombieNow(context.getSource(), ability)));
         }
 
+        // /zombiepanic power [能力|list|clear]（自分に能力をあげる・ためし用）
+        LiteralArgumentBuilder<CommandSourceStack> powerCommand = Commands.literal("power")
+                .then(Commands.literal("list").executes(context -> {
+                    PlayerPowers.listPowers(context.getSource().getPlayerOrException());
+                    return 1;
+                }))
+                .then(Commands.literal("clear").executes(context -> {
+                    PlayerPowers.clearPowers(context.getSource().getPlayerOrException());
+                    context.getSource().sendSuccess(() -> Component.literal("能力を ぜんぶ なくしたよ。"), false);
+                    return 1;
+                }));
+        for (ZombieAbilities.Ability ability : ZombieAbilities.Ability.values()) {
+            if (ability.tier >= 1) {
+                powerCommand.then(Commands.literal(ability.id).executes(context -> {
+                    PlayerPowers.givePower(context.getSource().getPlayerOrException(), ability);
+                    return 1;
+                }));
+            }
+        }
+
         event.getDispatcher().register(Commands.literal("zombiepanic")
                 .requires(source -> source.hasPermission(2))
                 .then(startCommand)
                 .then(bossCommand)
                 .then(abilityCommand)
+                .then(powerCommand)
                 .then(Commands.literal("stop").executes(context -> stopPanicNow(context.getSource())))
                 .then(Commands.literal("status").executes(context -> showStatus(context.getSource()))));
     }

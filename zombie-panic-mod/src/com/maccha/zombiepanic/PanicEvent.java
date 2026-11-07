@@ -118,6 +118,10 @@ public final class PanicEvent {
         MinecraftServer server = event.getServer();
         serverTicks++;
         AbilityMoves.tickPendingMeteors(server);
+        PlayerPowers.tick(server);
+        if (serverTicks % TICKS_PER_SECOND == 0) {
+            PlayerPowers.tickEverySecond(server);
+        }
         if (!curseActive) {
             return;
         }
@@ -198,6 +202,8 @@ public final class PanicEvent {
     public static void onEntityTick(EntityTickEvent.Post event) {
         if (event.getEntity() instanceof Zombie zombie && !zombie.level().isClientSide()) {
             ZombieAbilities.tickAbilities(zombie);
+        } else if (event.getEntity().getTags().contains(PlayerPowers.HELPER_GOLEM_TAG) && !event.getEntity().level().isClientSide()) {
+            PlayerPowers.tickHelperGolem(event.getEntity());
         }
     }
 
@@ -211,6 +217,17 @@ public final class PanicEvent {
         // 能力ゾンビがなぐった
         if (attacker instanceof Zombie zombieAttacker) {
             ZombieAbilities.onZombieHits(zombieAttacker, event.getEntity());
+        }
+
+        // プレイヤーがなぐった（うばった能力の 毒・炎・吸血・凍結）
+        if (attacker instanceof ServerPlayer playerAttacker && event.getSource().getDirectEntity() == playerAttacker) {
+            PlayerPowers.onPlayerHits(playerAttacker, event.getEntity());
+        }
+
+        // 大技でとんだあとは 落ちても平気
+        if (event.getEntity() instanceof ServerPlayer playerVictim && PlayerPowers.shouldIgnoreFall(playerVictim, event.getSource())) {
+            event.setCanceled(true);
+            return;
         }
 
         // ゾンビがなぐられた（飛びまわる能力のゾンビは 落ちても平気）
@@ -252,6 +269,11 @@ public final class PanicEvent {
             if (currentPhase == Phase.PANIC && zombie.getUUID().equals(panicBossId)) {
                 endPanic(server);
             }
+        }
+
+        // 能力ゾンビをたおした人は、ときどき その能力をもらえる
+        if (killerPlayer != null && !ZombieAbilities.isIllusion(zombie) && !BossZombies.isBoss(zombie)) {
+            PlayerPowers.tryStealAbility(killerPlayer, zombie);
         }
 
         if (killerPlayer != null && curseActive && !ZombieAbilities.isIllusion(zombie)) {

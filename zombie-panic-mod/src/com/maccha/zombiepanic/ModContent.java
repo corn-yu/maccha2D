@@ -46,6 +46,10 @@ public final class ModContent {
     public static final DeferredItem<Item> CURSED_IRON_NUGGET = ITEMS.registerSimpleItem("cursed_iron_nugget");
     public static final DeferredItem<Item> CURSED_IRON_INGOT = ITEMS.registerSimpleItem("cursed_iron_ingot");
 
+    // 能力の石（うばった大技を使う）
+    public static final DeferredItem<AbilityStoneItem> ABILITY_STONE = ITEMS.register("ability_stone",
+            () -> new AbilityStoneItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
+
     // 呪鉄の道具の強さ（ダイヤより少し強く、ネザライトより少し弱い）
     public static final SimpleTier CURSED_TIER = new SimpleTier(BlockTags.INCORRECT_FOR_NETHERITE_TOOL,
             1800, 8.5f, 3.5f, 18, () -> Ingredient.of(CURSED_IRON_INGOT.get()));
@@ -128,6 +132,7 @@ public final class ModContent {
             event.accept(CURSED_IRON_CHESTPLATE.get());
             event.accept(CURSED_IRON_LEGGINGS.get());
             event.accept(CURSED_IRON_BOOTS.get());
+            event.accept(ABILITY_STONE.get());
         }
         if (isTab(event, "tools_and_utilities")) {
             event.accept(CURSED_IRON_PICKAXE.get());
