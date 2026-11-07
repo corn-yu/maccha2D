@@ -613,6 +613,13 @@ public final class ServerSwing {
             // 斧＝超クリティカル：思いきり振りぬくとダメージが大きく上がる
             momentumFactor *= SwingConfig.AXE_CRIT_MULTIPLIER;
             superCritical = true;
+        } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living) {
+            // つるはし＝鎧くだき：かたい防具の相手ほどダメージが上がる
+            momentumFactor *= Math.min(1.0 + living.getArmorValue() * SwingConfig.PICKAXE_ARMOR_BONUS, SwingConfig.PICKAXE_MAX_BONUS);
+        } else if (skill == WeaponSkill.OTHER && !isHeavyWeapon(player) && player.getRandom().nextDouble() < SwingConfig.WEAKPOINT_CHANCE) {
+            // 軽い武器＝急所突き：ときどき急所に入ってダメージが上がる
+            momentumFactor *= SwingConfig.WEAKPOINT_MULTIPLIER;
+            superCritical = true;
         }
 
         // 攻撃前の体力（与えたダメージを出すため）
@@ -642,6 +649,20 @@ public final class ServerSwing {
         int numberStyle = superCritical ? DamagePayload.CRITICAL
                 : hitSpeed >= SwingConfig.REFERENCE_SPEED ? DamagePayload.STRONG : DamagePayload.NORMAL;
         sendDamageNumber(player, hitPoint, dealtDamage, numberStyle);
+
+        // 当てたあとに出る能力（シャベル＝打ち上げ、クワ＝命刈り、重い武器＝衝撃波、つるはし＝鎧くだきの音）
+        boolean strongHit = hitSpeed >= SwingConfig.REFERENCE_SPEED;
+        if (skill == WeaponSkill.SHOVEL && strongHit) {
+            launchTarget(rootTarget);
+        } else if (skill == WeaponSkill.HOE) {
+            drainLife(player, dealtDamage);
+        } else if (skill == WeaponSkill.OTHER && isHeavyWeapon(player) && strongHit) {
+            shockwave(player, rootTarget, hitPoint, momentumFactor);
+        } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living && living.getArmorValue() > 0) {
+            player.serverLevel().playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR,
+                    SoundSource.PLAYERS, 0.6f, 1.4f);
+            player.serverLevel().sendParticles(ParticleTypes.CRIT, hitPoint.x, hitPoint.y, hitPoint.z, 12, 0.2, 0.2, 0.2, 0.3);
+        }
 
         // トライデント＝三本の斬撃：少しずつおくれて、あと 2 本の斬撃が当たる
         if (skill == WeaponSkill.TRIDENT) {
@@ -723,6 +744,62 @@ public final class ServerSwing {
         level.sendParticles(ParticleTypes.FLASH, hitPoint.x, hitPoint.y, hitPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
         level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1.3f, 0.6f);
         level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.35f, 1.7f);
+    }
+
+    // ===== そのほかの武器の能力 =====
+
+    /** 持っている武器が重い（攻撃速度が遅い）なら true。 */
+    private static boolean isHeavyWeapon(ServerPlayer player) {
+        return player.getAttributeValue(Attributes.ATTACK_SPEED) < SwingConfig.HEAVY_ATTACK_SPEED;
+    }
+
+    /** シャベル＝打ち上げ：相手を空中へ浮かせて、しばらく動きをおそくする。 */
+    private static void launchTarget(Entity target) {
+        if (!(target instanceof LivingEntity living)) {
+            return;
+        }
+        living.setDeltaMovement(living.getDeltaMovement().add(0.0, SwingConfig.SHOVEL_LAUNCH_SPEED, 0.0));
+        living.hurtMarked = true;
+        living.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, SwingConfig.SHOVEL_SLOW_TICKS, 2));
+
+        // 土けむりと音
+        ServerLevel level = (ServerLevel) living.level();
+        level.sendParticles(ParticleTypes.POOF, living.getX(), living.getY() + 0.1, living.getZ(), 15, 0.4, 0.1, 0.4, 0.05);
+        level.playSound(null, living.getX(), living.getY(), living.getZ(), SoundEvents.SHOVEL_FLATTEN, SoundSource.PLAYERS, 1.0f, 0.7f);
+    }
+
+    /** クワ＝命刈り：与えたダメージの一部を、自分の体力にもどす。 */
+    private static void drainLife(ServerPlayer player, float dealtDamage) {
+        if (dealtDamage <= 0.0f || player.getHealth() >= player.getMaxHealth()) {
+            return;
+        }
+        player.heal(dealtDamage * SwingConfig.HOE_LIFESTEAL);
+        player.serverLevel().sendParticles(ParticleTypes.HEART, player.getX(), player.getEyeY() + 0.3, player.getZ(), 2, 0.3, 0.1, 0.3, 0.0);
+    }
+
+    /** 重い武器＝衝撃波：当てた場所のまわりの敵にもダメージを与えて、外へふっとばす。 */
+    private static void shockwave(ServerPlayer player, Entity mainTarget, Vec3 center, double momentumFactor) {
+        ServerLevel level = player.serverLevel();
+        level.sendParticles(ParticleTypes.EXPLOSION, center.x, center.y, center.z, 2, 0.3, 0.1, 0.3, 0.0);
+        level.playSound(null, center.x, center.y, center.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.6f, 0.5f);
+
+        // まわりの、切ってよい相手
+        AABB area = new AABB(center, center).inflate(SwingConfig.SHOCKWAVE_RADIUS);
+        List<Entity> nearby = level.getEntities(player, area,
+                entity -> entity != mainTarget && rootOf(entity) != mainTarget && entity instanceof LivingEntity && canBeHit(player, entity));
+        for (Entity entity : nearby) {
+            LivingEntity living = (LivingEntity) entity;
+            float healthBefore = living.getHealth() + living.getAbsorptionAmount();
+            attackWithMomentum(player, living, momentumFactor * SwingConfig.SHOCKWAVE_FACTOR);
+            float dealtDamage = healthBefore - (living.getHealth() + living.getAbsorptionAmount());
+
+            // 外向きにふっとばす
+            Vec3 away = living.position().subtract(center);
+            if (away.horizontalDistanceSqr() > 1.0e-4) {
+                living.knockback(0.6, -away.x, -away.z);
+            }
+            sendDamageNumber(player, living.getBoundingBox().getCenter(), dealtDamage, DamagePayload.NORMAL);
+        }
     }
 
     // ===== トライデントの三本の斬撃 =====

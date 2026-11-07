@@ -185,6 +185,24 @@ public final class SwingConfig {
     public static final int TRIDENT_SLASH_DELAY_TICKS = 3;
     public static final double TRIDENT_EXTRA_FACTOR = 0.5;
 
+    // つるはし＝鎧くだき：相手の防具 1 ポイントごとにダメージが何割ふえるか・上限の倍率
+    public static final double PICKAXE_ARMOR_BONUS = 0.05;
+    public static final double PICKAXE_MAX_BONUS = 2.0;
+
+    // シャベル＝打ち上げ：強く当てると相手が浮く高さ（速さ）・動きがおそくなる時間（tick）
+    public static final double SHOVEL_LAUNCH_SPEED = 0.6;
+    public static final int SHOVEL_SLOW_TICKS = 40;
+
+    // クワ＝命刈り：与えたダメージの何割を自分の体力にもどすか
+    public static final float HOE_LIFESTEAL = 0.3f;
+
+    // そのほかの武器：攻撃速度がこれより遅い＝重い武器（衝撃波）、速い＝軽い武器（急所突き）
+    public static final float HEAVY_ATTACK_SPEED = 1.2f;
+    public static final double SHOCKWAVE_RADIUS = 2.5;
+    public static final double SHOCKWAVE_FACTOR = 0.35;
+    public static final double WEAKPOINT_CHANCE = 0.3;
+    public static final double WEAKPOINT_MULTIPLIER = 1.6;
+
     // 画面下に文字（ガード・パリィ・よけた）を出すか（まっちゃの希望で出さない）
     public static final boolean SHOW_MESSAGES = false;
 }
