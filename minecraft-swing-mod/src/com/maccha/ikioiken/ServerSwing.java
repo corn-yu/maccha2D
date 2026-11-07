@@ -596,9 +596,9 @@ public final class ServerSwing {
         showHitEffects(player.serverLevel(), hitPoint, speedFactor);
         PacketDistributor.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5)));
 
-        // 画面下に勢いとダメージを出す
-        if (SwingConfig.SHOW_MESSAGES) {
-            showDamageMessage(player, hitSpeed, angleFactor, dealtDamage, isCounter);
+        // 画面下に与えたダメージの数字を出す
+        if (SwingConfig.SHOW_DAMAGE_NUMBER) {
+            showDamageNumber(player, hitSpeed, dealtDamage);
         }
         return true;
     }
@@ -657,16 +657,10 @@ public final class ServerSwing {
         level.sendParticles(ParticleTypes.SWEEP_ATTACK, hitPoint.x, hitPoint.y, hitPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
     }
 
-    /** 画面下（アクションバー）に「いきおい・当たり方・ダメージ」を出す。 */
-    private static void showDamageMessage(ServerPlayer player, double hitSpeed, double angleFactor, float dealtDamage, boolean isCounter) {
-        String word = hitSpeed >= SwingConfig.REFERENCE_SPEED * 1.25 ? "ズバァッ！" : hitSpeed >= SwingConfig.REFERENCE_SPEED ? "ズバッ！" : "ペチッ";
-        if (isCounter) {
-            word = "反撃！" + word;
-        }
-        ChatFormatting color = hitSpeed >= SwingConfig.REFERENCE_SPEED ? ChatFormatting.GOLD : ChatFormatting.GRAY;
-        String text = String.format("%s いきおい %.0f m/s ・ 当たり方 %.0f%% → %.1f ダメージ",
-                word, hitSpeed, angleFactor * 100.0, dealtDamage);
-        player.displayClientMessage(Component.literal(text).withStyle(color), true);
+    /** 画面下（アクションバー）に、与えたダメージの数字だけを出す（強く当てたほど明るい色）。 */
+    private static void showDamageNumber(ServerPlayer player, double hitSpeed, float dealtDamage) {
+        ChatFormatting color = hitSpeed >= SwingConfig.REFERENCE_SPEED ? ChatFormatting.GOLD : ChatFormatting.WHITE;
+        player.displayClientMessage(Component.literal(String.format("%.1f ダメージ", dealtDamage)).withStyle(color), true);
     }
 
     // ===== 道具でブロックを壊す =====

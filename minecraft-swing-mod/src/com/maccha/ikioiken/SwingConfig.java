@@ -165,6 +165,9 @@ public final class SwingConfig {
     // 1 tick に壊せるブロックの数の上限
     public static final int MAX_BLOCKS_PER_TICK = 3;
 
-    // 画面下に文字（ダメージ・ガード・パリィ・よけた）を出すか（まっちゃの希望で出さない）
+    // 画面下に与えたダメージの数字を出すか
+    public static final boolean SHOW_DAMAGE_NUMBER = true;
+
+    // 画面下に文字（ガード・パリィ・よけた）を出すか（まっちゃの希望で出さない）
     public static final boolean SHOW_MESSAGES = false;
 }
