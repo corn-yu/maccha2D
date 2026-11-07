@@ -232,6 +232,7 @@ public final class PanicEvent {
                 event.setCanceled(true);
                 return;
             }
+            NewAbilities.onZombieHurt((net.minecraft.server.level.ServerLevel) victim.level(), victim, event.getSource().getEntity(), event.getAmount());
             float multiplier = ZombieAbilities.damageTakenMultiplier(victim);
             if (attacker instanceof Player player) {
                 multiplier *= ZombieAbilities.cursedWeaponMultiplier(player);

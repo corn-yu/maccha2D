@@ -1,5 +1,6 @@
 package com.maccha.zombiepanic;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.ChatFormatting;
@@ -55,7 +56,7 @@ public final class PanicCommand {
                     return 1;
                 }));
         for (ZombieAbilities.Ability ability : ZombieAbilities.Ability.values()) {
-            if (ability.tier >= 1) {
+            if (ability.tier >= 1 && !ability.zombieOnly) {
                 powerCommand.then(Commands.literal(ability.id).executes(context -> {
                     PlayerPowers.givePower(context.getSource().getPlayerOrException(), ability);
                     return 1;
@@ -69,6 +70,9 @@ public final class PanicCommand {
                 .then(bossCommand)
                 .then(abilityCommand)
                 .then(powerCommand)
+                // /zombiepanic level <数>（目の前に そのレベルのゾンビを出す・ためし用）
+                .then(Commands.literal("level").then(Commands.argument("level", IntegerArgumentType.integer(1, PanicConfig.LEVEL_MAX))
+                        .executes(context -> spawnLevelZombieNow(context.getSource(), IntegerArgumentType.getInteger(context, "level")))))
                 .then(Commands.literal("stop").executes(context -> stopPanicNow(context.getSource())))
                 .then(Commands.literal("status").executes(context -> showStatus(context.getSource()))));
     }
@@ -117,6 +121,20 @@ public final class PanicCommand {
             return 0;
         }
         ZombieAbilities.giveAbility(zombie, ability);
+        return 1;
+    }
+
+    /** 自分の近くに そのレベルのゾンビを出す。 */
+    private static int spawnLevelZombieNow(CommandSourceStack source, int level) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        Zombie zombie = ZombieSpawner.spawnZombieCloseTo(player.serverLevel(), player.blockPosition(), 4, 8, null);
+        if (zombie == null) {
+            source.sendFailure(Component.literal("ゾンビを出せる場所が 見つからなかったよ。"));
+            return 0;
+        }
+        // 出たときのくじで つけたレベルは外して、えらんだレベルをつけなおす
+        zombie.getTags().removeIf(tag -> tag.startsWith("zp_lv_"));
+        ZombieLevel.apply(zombie, level);
         return 1;
     }
 
