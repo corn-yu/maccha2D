@@ -25,6 +25,11 @@ public final class SwingConfig {
     public static final float SWING_STIFFNESS = 0.6f;
     public static final float SWING_DAMPING = 0.45f;
 
+    // 武器の重さ：攻撃速度がこれ（ふつうの剣 1.6）より遅い武器ほど重く、速い武器ほど軽く動く（倍率の範囲）
+    public static final float NORMAL_ATTACK_SPEED = 1.6f;
+    public static final float MIN_WEIGHT_FACTOR = 0.45f;
+    public static final float MAX_WEIGHT_FACTOR = 1.4f;
+
     // 手をはなしたあと、剣が元の構えにもどる強さ（ふりぬいてからゆっくりもどる）
     public static final float RETURN_STIFFNESS = 0.12f;
 
@@ -43,9 +48,14 @@ public final class SwingConfig {
 
     // ===== 当たり判定 =====
 
-    // 肩から見た刃の始まりと先っぽの距離（ブロック）
+    // 肩から見た刃の始まりと先っぽの距離（ブロック）。先っぽは武器で届く距離に合わせる（この範囲で）
     public static final double BLADE_START = 0.5;
     public static final double BLADE_LENGTH = 3.0;
+    public static final double MIN_BLADE_LENGTH = 2.0;
+    public static final double MAX_BLADE_LENGTH = 6.0;
+
+    // 1 tick に肩がこれ以上動いたら（テレポートなど）、振りをはじめからやりなおす
+    public static final double MAX_SHOULDER_JUMP = 2.5;
 
     // 肩の位置（目からどれだけ下・右にずらすか）
     public static final double SHOULDER_DROP = 0.3;
@@ -137,6 +147,9 @@ public final class SwingConfig {
 
     // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか（石を鉄のつるはしで約 1 回）
     public static final float SWING_MINING_TICKS = 8.0f;
+
+    // この時間（tick）当てなかったブロックのひびは消える
+    public static final int MINING_FORGET_TICKS = 60;
 
     // 1 tick に壊せるブロックの数の上限
     public static final int MAX_BLOCKS_PER_TICK = 3;

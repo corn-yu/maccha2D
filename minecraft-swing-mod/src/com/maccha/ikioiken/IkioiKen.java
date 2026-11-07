@@ -22,6 +22,8 @@ public class IkioiKen {
 
         // ログアウトしたら、その人の剣の記録を消す
         NeoForge.EVENT_BUS.addListener(ServerSwing::onPlayerLogout);
+        NeoForge.EVENT_BUS.addListener(ServerSwing::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(EnemyStrike::onServerStopped);
 
         // 敵の殴りを「ためてから振る」攻撃に変える（ガードより先に横取りする）
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, EnemyStrike::onIncomingDamage);

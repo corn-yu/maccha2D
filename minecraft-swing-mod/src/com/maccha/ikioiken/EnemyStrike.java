@@ -20,6 +20,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -100,6 +101,11 @@ public final class EnemyStrike {
         level.playSound(null, attacker.getX(), attacker.getY(), attacker.getZ(),
                 SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 0.5f, 0.5f);
         level.sendParticles(ParticleTypes.CRIT, front.x, front.y, front.z, 6, 0.15, 0.15, 0.15, 0.05);
+    }
+
+    /** ワールドを閉じたら、ためている途中の攻撃を全部わすれる。 */
+    public static void onServerStopped(ServerStoppedEvent event) {
+        PENDING.clear();
     }
 
     /** 毎 tick、ため終わった攻撃を振る。 */

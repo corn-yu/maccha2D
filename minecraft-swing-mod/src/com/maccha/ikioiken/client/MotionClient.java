@@ -19,6 +19,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLivingEvent;
@@ -142,8 +143,9 @@ public final class MotionClient {
         return new Pose(STRIKE_LEAN * recover, STRIKE_LUNGE * recover, 0.0f, 1.0f, -1.0f, recover);
     }
 
-    /** 描く前に、攻撃中の敵の体全体をかたむけて踏みこませる（どんな形の敵でも動く）。 */
-    @SubscribeEvent
+    /** 描く前に、攻撃中の敵の体全体をかたむけて踏みこませる（どんな形の敵でも動く）。
+     *  ほかの Mod が描くのを取りやめたときに押しっぱなしにならないよう、いちばん最後に動く。 */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onRenderLivingStart(RenderLivingEvent.Pre<?, ?> event) {
         LivingEntity entity = event.getEntity();
         Pose pose = enemyPose(entity.getId(), event.getPartialTick());

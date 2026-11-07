@@ -51,6 +51,7 @@ import net.neoforged.neoforge.entity.PartEntity;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.SweepAttackEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
@@ -72,6 +73,8 @@ public final class ServerSwing {
         boolean guarding = false;
         int lastFastSwingTick = -1000;
         int counterUntilTick = 0;
+        double bladeLength = SwingConfig.BLADE_LENGTH;
+        final Map<BlockPos, Integer> blockLastHitTick = new HashMap<>();
         boolean wasFast = false;
         final Map<Integer, Integer> lastHitPacket = new HashMap<>();
         final Map<BlockPos, Float> blockProgress = new HashMap<>();
@@ -101,6 +104,11 @@ public final class ServerSwing {
                 handleBlade(player, payload);
             }
         });
+    }
+
+    /** ワールドを閉じたら、全員の剣の記録を消す（次に開いたワールドに古い記録を持ちこまない）。 */
+    public static void onServerStopped(ServerStoppedEvent event) {
+        STATES.clear();
     }
 
     /** ログアウトした人の剣の記録を消す。 */
@@ -135,8 +143,15 @@ public final class ServerSwing {
         Vec3 bladeDir = Vec3.directionFromRotation(bladePitch, payload.yaw());
         Vec3 shoulder = shoulderPosition(player);
 
-        // はじめの 1 回目は記録するだけ
+        // テレポート・リスポーン・しばらく止まっていたあとは、はじめからやりなおす（遠くまで一気に切らないように）
         SwingState state = STATES.get(playerId);
+        if (state != null && (state.lastShoulder.distanceTo(shoulder) > SwingConfig.MAX_SHOULDER_JUMP
+                || player.tickCount - state.lastPacketGameTick > 5)) {
+            clearState(player);
+            state = null;
+        }
+
+        // はじめの 1 回目は記録するだけ
         if (state == null) {
             state = new SwingState();
             state.lastBladeDir = bladeDir;
@@ -148,9 +163,12 @@ public final class ServerSwing {
         state.packetCount++;
         state.lastPacketGameTick = player.tickCount;
 
+        // 刃の長さは、その武器で届く距離に合わせる（長い槍は遠くまで、短剣は近く）
+        state.bladeLength = Mth.clamp(player.entityInteractionRange(), SwingConfig.MIN_BLADE_LENGTH, SwingConfig.MAX_BLADE_LENGTH);
+
         // 1 tick に回しすぎていたら上限までにする（ずる防止）
         bladeDir = limitTurn(state.lastBladeDir, bladeDir);
-        double tipSpeed = angleBetween(state.lastBladeDir, bladeDir) * SwingConfig.BLADE_LENGTH * 20.0;
+        double tipSpeed = angleBetween(state.lastBladeDir, bladeDir) * state.bladeLength * 20.0;
 
         // 止めて構えているか（ガード）・さっき速く振ったか（パリィ）
         updateGuard(player, state, bladeDir, tipSpeed);
@@ -158,7 +176,7 @@ public final class ServerSwing {
         // 速く振ったら「ブンッ」と鳴らして、通り道に軌跡を出す
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
-            spawnTrail(player.serverLevel(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed);
+            spawnTrail(player.serverLevel(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength);
         }
 
         // 前の向きから今の向きまでの通り道で、当たった相手にダメージ
@@ -264,7 +282,7 @@ public final class ServerSwing {
 
         // 剣の線（肩 → 剣先）
         Vec3 bladeStart = state.lastShoulder.add(state.lastBladeDir.scale(0.3));
-        Vec3 bladeEnd = state.lastShoulder.add(state.lastBladeDir.scale(SwingConfig.BLADE_LENGTH));
+        Vec3 bladeEnd = state.lastShoulder.add(state.lastBladeDir.scale(state.bladeLength));
 
         // 剣が攻撃の線のじゃまをしていなければ、ふつうに当たる
         double gap = segmentDistance(attackFrom, attackTo, bladeStart, bladeEnd);
@@ -388,8 +406,10 @@ public final class ServerSwing {
 
         // 遅い → 速い に変わった瞬間だけ鳴らす
         if (isFast && !state.wasFast) {
+            float loudness = (float) Mth.clamp(tipSpeed / SwingConfig.REFERENCE_SPEED * 0.5, 0.3, 1.0);
+            float pitch = (float) Mth.clamp(0.9 + tipSpeed / SwingConfig.REFERENCE_SPEED * 0.3, 0.9, 1.6);
             player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 0.6f, 1.3f);
+                    SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, loudness, pitch);
             player.swing(InteractionHand.MAIN_HAND, true);
         }
         state.wasFast = tipSpeed >= SwingConfig.WHOOSH_SPEED * 0.6;
@@ -397,7 +417,7 @@ public final class ServerSwing {
 
     /** 剣の通り道（剣先の弧）に白い軌跡の粒を出す（みんなに見える）。 */
     private static void spawnTrail(ServerLevel level, Vec3 lastDir, Vec3 newDir,
-                                   Vec3 lastShoulder, Vec3 shoulder, double tipSpeed) {
+                                   Vec3 lastShoulder, Vec3 shoulder, double tipSpeed, double bladeLength) {
         // 速いほど太く明るく
         float trailSize = (float) Mth.clamp(tipSpeed / SwingConfig.REFERENCE_SPEED, 0.6, 1.6);
         DustParticleOptions trailDust = new DustParticleOptions(new Vector3f(0.95f, 0.97f, 1.0f), trailSize);
@@ -409,7 +429,7 @@ public final class ServerSwing {
             Vec3 dir = lastDir.lerp(newDir, progress).normalize();
             Vec3 center = lastShoulder.lerp(shoulder, progress);
             for (double along = 0.65; along <= 1.0; along += 0.175) {
-                Vec3 spot = center.add(dir.scale(SwingConfig.BLADE_LENGTH * along));
+                Vec3 spot = center.add(dir.scale(bladeLength * along));
                 level.sendParticles(trailDust, spot.x, spot.y, spot.z, 1, 0.0, 0.0, 0.0, 0.0);
             }
         }
@@ -425,7 +445,7 @@ public final class ServerSwing {
         int stepCount = Mth.clamp((int) Math.ceil(turnDegrees / SwingConfig.SWEEP_STEP_DEGREES), 1, 30);
 
         // 近くにいる、切ってよい相手（大きいボスにも届くように広めにさがす）
-        AABB searchArea = new AABB(shoulder, shoulder).inflate(SwingConfig.BLADE_LENGTH + 4.0);
+        AABB searchArea = new AABB(shoulder, shoulder).inflate(state.bladeLength + 4.0);
         List<Entity> candidates = player.level().getEntities(player, searchArea, entity -> canBeHit(player, entity));
 
         // 相手ごとに、刃がはじめて当たった場所をさがす
@@ -440,7 +460,7 @@ public final class ServerSwing {
                 Vec3 stepDir = lastDir.lerp(newDir, progress).normalize();
                 Vec3 stepShoulder = lastShoulder.lerp(shoulder, progress);
                 Vec3 bladeStart = stepShoulder.add(stepDir.scale(SwingConfig.BLADE_START));
-                Vec3 bladeEnd = stepShoulder.add(stepDir.scale(SwingConfig.BLADE_LENGTH));
+                Vec3 bladeEnd = stepShoulder.add(stepDir.scale(state.bladeLength));
                 Vec3 hitPoint = targetBox.contains(bladeStart) ? bladeStart : targetBox.clip(bladeStart, bladeEnd).orElse(null);
                 if (hitPoint != null) {
                     if (!isBlockedByWall(player, stepShoulder, hitPoint)) {
@@ -656,7 +676,7 @@ public final class ServerSwing {
             Vec3 stepDir = lastDir.lerp(newDir, progress).normalize();
             Vec3 stepShoulder = lastShoulder.lerp(shoulder, progress);
             Vec3 bladeStart = stepShoulder.add(stepDir.scale(SwingConfig.BLADE_START));
-            Vec3 bladeEnd = stepShoulder.add(stepDir.scale(SwingConfig.BLADE_LENGTH));
+            Vec3 bladeEnd = stepShoulder.add(stepDir.scale(state.bladeLength));
 
             // 刃がはじめに当たるブロック
             BlockHitResult blockHit = level.clip(new ClipContext(bladeStart, bladeEnd,
@@ -694,6 +714,13 @@ public final class ServerSwing {
         if (progressPerTick <= 0.0f) {
             return false;
         }
+
+        // しばらく当てていなかったブロックのひびは消えている（ふつうに掘るのをやめたときと同じ）
+        Integer lastHitTick = state.blockLastHitTick.get(pos);
+        if (lastHitTick != null && player.tickCount - lastHitTick > SwingConfig.MINING_FORGET_TICKS) {
+            state.blockProgress.remove(pos);
+        }
+        state.blockLastHitTick.put(pos, player.tickCount);
 
         // 掘り具合を足す
         float progress = state.blockProgress.getOrDefault(pos, 0.0f)

@@ -13,6 +13,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -215,9 +216,19 @@ public final class SwingClient {
         player.xRotO += fixPitch;
     }
 
+    /** 持っている武器の軽さ（攻撃速度が速いほど大きい）。大剣や斧は重くゆっくり、短剣は軽くすばやく動く。 */
+    private static float weaponLightness() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return 1.0f;
+        }
+        float attackSpeed = (float) player.getAttributeValue(Attributes.ATTACK_SPEED);
+        return Mth.clamp(attackSpeed / SwingConfig.NORMAL_ATTACK_SPEED, SwingConfig.MIN_WEIGHT_FACTOR, SwingConfig.MAX_WEIGHT_FACTOR);
+    }
+
     /** 剣を、ばねのように手の向きへ追いかけさせる（重さでおくれて、少し行きすぎてもどる）。 */
     private static void moveSwordTowardHand(float frameTicks) {
-        float stiffness = holding ? SwingConfig.SWING_STIFFNESS : SwingConfig.RETURN_STIFFNESS;
+        float stiffness = (holding ? SwingConfig.SWING_STIFFNESS : SwingConfig.RETURN_STIFFNESS) * weaponLightness();
         float keepSpeed = (float) Math.pow(SwingConfig.SWING_DAMPING, frameTicks);
 
         // 引っぱる力で速さを変えて、ゆれを止めて、動かす
