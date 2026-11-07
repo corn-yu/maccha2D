@@ -83,12 +83,12 @@ public final class SwordCheck {
         }
 
         // 剣・槍・トライデントならまちがいなく武器
-        if (stack.is(ItemTags.SWORDS) || stack.is(ItemTags.SPEARS) || stack.is(Items.TRIDENT)) {
+        if (stack.is(ItemTags.SWORDS) || stack.is(ItemTags.SPEARS) || stack.is(Items.TRIDENT) || stack.is(Items.MACE)) {
             return true;
         }
 
-        // 掘る道具は「道具」として別にあつかう。弓、メイス、左クリック技のある武器はふつうのまま
-        if (isDiggingTool(stack) || item instanceof ProjectileWeaponItem || stack.is(Items.MACE)) {
+        // 掘る道具は「道具」として別にあつかう。弓、左クリック技のある武器はふつうのまま（メイスは重い武器として振れる）
+        if (isDiggingTool(stack) || item instanceof ProjectileWeaponItem) {
             return false;
         }
         if (hasLeftClickSkill(item)) {

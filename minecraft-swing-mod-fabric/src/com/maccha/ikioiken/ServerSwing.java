@@ -207,6 +207,11 @@ public final class ServerSwing {
         // 刃の長さは、その武器で届く距離に合わせる（長い槍は遠くまで、短剣は近く）
         state.bladeLength = Mth.clamp(player.entityInteractionRange(), SwingConfig.MIN_BLADE_LENGTH, SwingConfig.MAX_BLADE_LENGTH);
 
+        // 槍は、さらに遠くまで届く
+        if (WeaponSkill.skillOf(heldItem) == WeaponSkill.SPEAR) {
+            state.bladeLength = Math.min(state.bladeLength + SwingConfig.SPEAR_REACH_BONUS, SwingConfig.MAX_BLADE_LENGTH);
+        }
+
         // 1 tick に回しすぎていたら上限までにする（ずる防止）
         bladeDir = limitTurn(state.lastBladeDir, bladeDir);
         double tipSpeed = angleBetween(state.lastBladeDir, bladeDir) * state.bladeLength * 20.0;
@@ -233,7 +238,8 @@ public final class ServerSwing {
         for (BladeHit hit : hits) {
             boolean didHit = applyMomentumHit(player, state, hit, bladeDir, shoulder, remainingPower);
             if (didHit) {
-                remainingPower *= SwingConfig.MULTI_HIT_FALLOFF;
+                remainingPower *= WeaponSkill.skillOf(heldItem) == WeaponSkill.SPEAR
+                        ? SwingConfig.SPEAR_PIERCE_FALLOFF : SwingConfig.MULTI_HIT_FALLOFF;
             }
         }
 
@@ -658,6 +664,22 @@ public final class ServerSwing {
             if (comboBonus >= SwingConfig.HOE_COMBO_MAX) {
                 superCritical = true;
             }
+        } else if (skill == WeaponSkill.SPEAR) {
+            // 槍＝突き：刃の向きにまっすぐ突くほどダメージが上がる（横にふってもあまり効かない）
+            double thrustRatio = relativeVelocity.lengthSqr() < 1.0e-8 ? 0.0 : Math.max(0.0, relativeVelocity.normalize().dot(bladeDir));
+            if (thrustRatio >= SwingConfig.SPEAR_THRUST_RATIO) {
+                momentumFactor *= SwingConfig.SPEAR_THRUST_MULTIPLIER;
+                superCritical = true;
+            } else {
+                momentumFactor *= 0.6;
+            }
+        } else if (skill == WeaponSkill.MACE) {
+            // メイス＝地ひびき：上からたたきつけるとダメージが上がる
+            double downRatio = relativeVelocity.lengthSqr() < 1.0e-8 ? 0.0 : Math.max(0.0, -relativeVelocity.normalize().y);
+            if (downRatio >= SwingConfig.MACE_SMASH_DOWN_RATIO) {
+                momentumFactor *= SwingConfig.MACE_SMASH_MULTIPLIER;
+                superCritical = true;
+            }
         } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living) {
             // つるはし＝鎧くだき：かたい防具の相手ほどダメージが上がる
             momentumFactor *= Math.min(1.0 + living.getArmorValue() * SwingConfig.PICKAXE_ARMOR_BONUS, SwingConfig.PICKAXE_MAX_BONUS);
@@ -700,6 +722,8 @@ public final class ServerSwing {
         if (skill == WeaponSkill.SHOVEL && strongHit) {
             launchTarget(rootTarget);
         } else if (skill == WeaponSkill.OTHER && isHeavyWeapon(player) && strongHit) {
+            shockwave(player, rootTarget, hitPoint, momentumFactor);
+        } else if (skill == WeaponSkill.MACE && strongHit) {
             shockwave(player, rootTarget, hitPoint, momentumFactor);
         } else if (skill == WeaponSkill.PICKAXE && rootTarget instanceof LivingEntity living && living.getArmorValue() > 0) {
             player.level().playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR,

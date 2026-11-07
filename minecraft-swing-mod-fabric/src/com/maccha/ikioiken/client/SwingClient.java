@@ -346,11 +346,21 @@ public final class SwingClient {
         // 手を引いたぶんで足りないところは、剣を手もとへ引きよせる
         poseStack.translate(0.0f, 0.0f, pullBack * 0.5f);
 
-        // にぎりが手に来るように前へずらし、絵の斜めの剣をまっすぐ前に向ける
-        poseStack.translate(0.0f, 0.0f, -0.45f * SwingConfig.SWORD_SCALE);
-        poseStack.scale(SwingConfig.SWORD_SCALE, SwingConfig.SWORD_SCALE, SwingConfig.SWORD_SCALE);
-        poseStack.rotateDegrees(Axis.YP, 90.0f);
-        poseStack.rotateDegrees(Axis.ZP, -45.0f);
+        if (WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SPEAR) {
+            // 槍の絵は、剣と左右が逆（先が左上）で、2 倍の長さ。にぎりの場所を手に合わせて、先を前に向ける
+            float spearScale = SwingConfig.SWORD_SCALE * SwingConfig.SPEAR_SCALE_FACTOR;
+            poseStack.translate(0.0f, 0.0f, -0.2f * spearScale);
+            poseStack.scale(spearScale, spearScale, spearScale);
+            poseStack.rotateDegrees(Axis.YP, -90.0f);
+            poseStack.rotateDegrees(Axis.ZP, 45.0f);
+            poseStack.translate(-SwingConfig.SPEAR_GRIP_X, -SwingConfig.SPEAR_GRIP_Y, 0.0f);
+        } else {
+            // にぎりが手に来るように前へずらし、絵の斜めの剣をまっすぐ前に向ける
+            poseStack.translate(0.0f, 0.0f, -0.45f * SwingConfig.SWORD_SCALE);
+            poseStack.scale(SwingConfig.SWORD_SCALE, SwingConfig.SWORD_SCALE, SwingConfig.SWORD_SCALE);
+            poseStack.rotateDegrees(Axis.YP, 90.0f);
+            poseStack.rotateDegrees(Axis.ZP, -45.0f);
+        }
 
         minecraft.getItemModelResolver().updateForLiving(SWORD_RENDER_STATE, player.getMainHandItem(),
                 ItemDisplayContext.NONE, player);

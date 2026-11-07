@@ -5,7 +5,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * 武器ごとの特殊能力を決めるクラス（剣＝高速切り、斧＝超クリティカル、トライデント＝三本の斬撃）。
+ * 武器ごとの特殊能力を決めるクラス（剣＝高速切り、斧＝超クリティカル、トライデント＝三本の斬撃、槍＝突き、メイス＝地ひびき）。
  */
 public final class WeaponSkill {
 
@@ -21,6 +21,8 @@ public final class WeaponSkill {
     public static final int SHOVEL = 5;
     public static final int HOE = 6;
     public static final int OTHER = 7;
+    public static final int SPEAR = 8;
+    public static final int MACE = 9;
 
     /** 持っている物の特殊能力を返す（ほかの Mod の武器も、タグと重さで見分ける）。 */
     public static int skillOf(ItemStack stack) {
@@ -37,8 +39,16 @@ public final class WeaponSkill {
         if (stack.is(ItemTags.AXES)) {
             return AXE;
         }
-        if (stack.is(ItemTags.SWORDS) || stack.is(ItemTags.SPEARS)) {
+        if (stack.is(ItemTags.SWORDS)) {
             return SWORD;
+        }
+
+        // 槍（突きで貫く）とメイス（たたきつけて地ひびき）
+        if (stack.is(ItemTags.SPEARS)) {
+            return SPEAR;
+        }
+        if (stack.is(Items.MACE)) {
+            return MACE;
         }
 
         // つるはし・シャベル・クワ（カタリズムのハンマーなどもここ）

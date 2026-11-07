@@ -222,6 +222,27 @@ public final class SwingConfig {
     // 画面下に文字（ガード・パリィ・よけた）を出すか（まっちゃの希望で出さない）
     public static final boolean SHOW_MESSAGES = false;
 
+    // ===== 槍とメイスの特殊能力 =====
+
+    // 槍＝突き：刃の向きにまっすぐ突いた割合（0〜1）がこれ以上なら「突き」になってダメージが上がる
+    public static final double SPEAR_THRUST_RATIO = 0.7;
+    public static final double SPEAR_THRUST_MULTIPLIER = 1.6;
+
+    // 槍は、ふつうの武器よりこれだけ遠くまで届く（ブロック）
+    public static final double SPEAR_REACH_BONUS = 1.0;
+
+    // 槍は貫くので、1 体当てるたびに弱くなる割合がゆるい（剣は MULTI_HIT_FALLOFF）
+    public static final double SPEAR_PIERCE_FALLOFF = 0.9;
+
+    // メイス＝地ひびき：上からたたきつけた割合（下向きの動きの割合）がこれ以上なら、ダメージが上がる
+    public static final double MACE_SMASH_DOWN_RATIO = 0.3;
+    public static final double MACE_SMASH_MULTIPLIER = 1.5;
+
+    // 槍の絵の大きさ（剣に対する倍率。槍の絵は 2 倍の長さ）と、にぎる場所（絵の中の位置 0〜1）
+    public static final float SPEAR_SCALE_FACTOR = 1.8f;
+    public static final float SPEAR_GRIP_X = 0.65f;
+    public static final float SPEAR_GRIP_Y = 0.35f;
+
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
     public static final boolean DEBUG_LOG = false;
 }
