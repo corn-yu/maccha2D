@@ -12,7 +12,7 @@ import net.minecraft.world.entity.monster.Zombie;
 /**
  * ゾンビのレベル。レベルが高いほど 体力・攻撃・かたさ・速さが上がる。
  * 遊ぶ人には「Lv.数字」だけが見える（くわしい強さや能力は見えない）。
- * たくさんたおすほど、高いレベルが出やすくなる。
+ * 時間がたつほど、高いレベルが出やすくなる。
  */
 public final class ZombieLevel {
 
@@ -38,13 +38,13 @@ public final class ZombieLevel {
         return 0;
     }
 
-    /** いまのたおした数から、出てよいレベルの上限を出す。 */
+    /** あそんだ時間から、出てよいレベルの上限を出す（時間がたつほど 高くなる）。 */
     public static int maxLevelNow(Zombie zombie) {
         if (!(zombie.level() instanceof ServerLevel level)) {
             return 1;
         }
-        int kills = WorldData.get(level.getServer()).killCount;
-        return 1 + kills / PanicConfig.LEVEL_KILLS_PER_STEP;
+        long playedTicks = level.getServer().overworld().getGameTime();
+        return 1 + (int) (playedTicks / PanicConfig.LEVEL_TICKS_PER_STEP);
     }
 
     /** くじびきでレベルをきめる（低いレベルが多く、高いレベルはまれ）。 */

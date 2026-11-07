@@ -57,8 +57,8 @@ public final class PanicConfig {
 
     // ---------------- ゾンビのレベル（たくさん遊ぶほど 高いレベルが出る） ----------------
 
-    // たおした数 ○体ごとに、出るレベルの上限が1ふえる
-    public static final int LEVEL_KILLS_PER_STEP = 15;
+    // あそんだ時間 ○tick（20tick = 1秒）ごとに、出るレベルの上限が1ふえる（1200 = 1分）
+    public static final int LEVEL_TICKS_PER_STEP = 20 * 60;
     // レベルのかたより（大きいほど 低いレベルが多く、高いレベルはまれ）
     public static final int LEVEL_LUCK_POWER = 5;
     // 上限をこえる「とつぜん変異」の確率（○体に1体）
