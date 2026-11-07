@@ -151,7 +151,9 @@ public final class EnemyStrike {
 
         // よけられたら空ぶり
         if (!isStillInReach(attacker, target)) {
-            target.displayClientMessage(Component.literal("ひらり！ 攻撃をよけた").withStyle(ChatFormatting.GREEN), true);
+            if (SwingConfig.SHOW_MESSAGES) {
+                target.displayClientMessage(Component.literal("ひらり！ 攻撃をよけた").withStyle(ChatFormatting.GREEN), true);
+            }
             return;
         }
 

@@ -361,9 +361,12 @@ public final class ServerSwing {
                 SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0f, 1.2f);
         level.sendParticles(ParticleTypes.CRIT, sparkPoint.x, sparkPoint.y, sparkPoint.z, 8, 0.15, 0.15, 0.15, 0.3);
         PacketDistributor.sendToPlayer(player, new HitPayload(0.5f));
-        String word = blockRatio >= 1.0f ? "ガキンッ！ ガード" : "ガッ！ 受け流し";
-        player.displayClientMessage(Component.literal(String.format("%s（%.1f ダメージを止めた）", word, blockedDamage))
-                .withStyle(ChatFormatting.AQUA), true);
+        // 文字を出す設定のときだけ、止めたダメージを見せる
+        if (SwingConfig.SHOW_MESSAGES) {
+            String word = blockRatio >= 1.0f ? "ガキンッ！ ガード" : "ガッ！ 受け流し";
+            player.displayClientMessage(Component.literal(String.format("%s（%.1f ダメージを止めた）", word, blockedDamage))
+                    .withStyle(ChatFormatting.AQUA), true);
+        }
     }
 
     /** ピッタリのタイミングで振り返した：攻撃を全部はじき、相手をよろけさせ、次の一撃を強くする。 */
@@ -398,8 +401,11 @@ public final class ServerSwing {
         level.sendParticles(ParticleTypes.CRIT, sparkPoint.x, sparkPoint.y, sparkPoint.z, 25, 0.2, 0.2, 0.2, 0.6);
         level.sendParticles(ParticleTypes.FLASH, sparkPoint.x, sparkPoint.y, sparkPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
         PacketDistributor.sendToPlayer(player, new HitPayload(1.3f));
-        player.displayClientMessage(Component.literal("⚔ キィンッ！ パリィ！ 次の一撃が強くなる！")
-                .withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), true);
+        // 文字を出す設定のときだけ、パリィしたことを見せる
+        if (SwingConfig.SHOW_MESSAGES) {
+            player.displayClientMessage(Component.literal("⚔ キィンッ！ パリィ！ 次の一撃が強くなる！")
+                    .withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), true);
+        }
     }
 
     // ===== 音と軌跡 =====
@@ -591,7 +597,7 @@ public final class ServerSwing {
         PacketDistributor.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5)));
 
         // 画面下に勢いとダメージを出す
-        if (SwingConfig.SHOW_DAMAGE_MESSAGE) {
+        if (SwingConfig.SHOW_MESSAGES) {
             showDamageMessage(player, hitSpeed, angleFactor, dealtDamage, isCounter);
         }
         return true;
