@@ -313,8 +313,7 @@ public final class SwingClient {
         // 手の位置から、剣の向きに回して描く（速く振るほど手も少し前に出る）
         float swingPush = Math.min((Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed)) * 0.006f, 0.12f);
         PoseStack poseStack = event.getPoseStack();
-        Vector3f handPoint = new Vector3f(SwingConfig.HAND_X - swordYaw * 0.002f,
-                SwingConfig.HAND_Y - swordPitch * 0.002f, SwingConfig.HAND_Z - swingPush);
+        Vector3f handPoint = handPosition(swingPush);
 
         // 剣をにぎっている腕を、肩から手までのばして描く
         renderArm(minecraft, player, poseStack, event, handPoint);
@@ -367,5 +366,21 @@ public final class SwingClient {
         poseStack.translate(5.0f / 16.0f + 1.0f / 16.0f, -(2.0f + 10.0f) / 16.0f, 0.0f);
         playerRenderer.renderRightHand(poseStack, event.getMultiBufferSource(), event.getPackedLight(), player);
         poseStack.popPose();
+    }
+
+    /** 一人称の手の位置：肩を中心に、剣の向きへ腕をのばした先（速く振るほど少し前へのびる）。 */
+    private static Vector3f handPosition(float swingPush) {
+        // 腕の向き（剣と同じ左右、上下は剣より少し下）
+        float armYaw = (float) Math.toRadians(swordYaw);
+        float armPitch = (float) Math.toRadians(Mth.clamp(swordPitch + SwingConfig.ARM_PITCH_OFFSET, -85.0f, 85.0f));
+        Vector3f armDir = new Vector3f(
+                Mth.cos(armPitch) * Mth.sin(armYaw),
+                -Mth.sin(armPitch),
+                -Mth.cos(armPitch) * Mth.cos(armYaw));
+
+        // 肩から腕の長さぶん先が手
+        float reach = SwingConfig.ARM_LENGTH + swingPush;
+        return new Vector3f(SwingConfig.ARM_SHOULDER_X, SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z)
+                .add(armDir.mul(reach));
     }
 }

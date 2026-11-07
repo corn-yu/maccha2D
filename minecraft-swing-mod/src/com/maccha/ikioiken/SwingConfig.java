@@ -40,16 +40,18 @@ public final class SwingConfig {
     public static final float HITSTOP_TICKS = 2.0f;
     public static final float SHAKE_DEGREES = 2.5f;
 
-    // 一人称で剣を持つ手の位置と、剣の大きさ
-    public static final float HAND_X = 0.45f;
-    public static final float HAND_Y = -0.5f;
-    public static final float HAND_Z = -0.6f;
+    // 一人称の剣の大きさ
     public static final float SWORD_SCALE = 1.1f;
 
-    // 一人称で見える腕のつけ根（肩）の位置（画面の右・上・うしろ。剣を持つ手から肩まで腕をのばして描く）
-    public static final float ARM_SHOULDER_X = 0.38f;
-    public static final float ARM_SHOULDER_Y = -0.78f;
-    public static final float ARM_SHOULDER_Z = 0.05f;
+    // 一人称の腕：肩の位置（画面の右・上・うしろ）と腕の長さ（ブロック）。
+    // 手は肩を中心に剣の向きへ回るので、手首ではなく腕ごと振って見える
+    public static final float ARM_SHOULDER_X = 0.36f;
+    public static final float ARM_SHOULDER_Y = -0.55f;
+    public static final float ARM_SHOULDER_Z = 0.1f;
+    public static final float ARM_LENGTH = 0.7f;
+
+    // 腕を剣よりどれだけ下に向けるか（度）。剣は手首で少し上を向く
+    public static final float ARM_PITCH_OFFSET = 25.0f;
 
     // ===== 当たり判定 =====
 
