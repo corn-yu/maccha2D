@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.maccha.ikioiken.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LivingEntityMixin",
+    "PlayerMixin"
+  ],
+  "client": [
+    "EntityRenderStateMixin",
+    "LivingEntityRendererMixin",
+    "HumanoidModelMixin",
+    "GameRendererMixin",
+    "MinecraftMixin",
+    "FirstPersonHandsAndItemsRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
