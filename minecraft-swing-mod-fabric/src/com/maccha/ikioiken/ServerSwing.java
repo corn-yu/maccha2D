@@ -993,7 +993,7 @@ public final class ServerSwing {
         // まだ壊れないなら、ひびを見せる
         if (progress < 1.0f) {
             state.blockProgress.put(pos, progress);
-            level.destroyBlockProgress(player.getId(), pos, Mth.clamp((int) (progress * 10.0f), 0, 9));
+            level.destroyBlockProgress(player.getId(), pos, Mth.clamp((int) (progress * 10.0f), 1, 9));
             return false;
         }
 
