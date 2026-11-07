@@ -4,6 +4,7 @@ import com.maccha.ikioiken.BladePayload;
 import com.maccha.ikioiken.IkioiKen;
 import com.maccha.ikioiken.SwingConfig;
 import com.maccha.ikioiken.SwordCheck;
+import com.maccha.ikioiken.WeaponSkill;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -226,7 +227,13 @@ public final class SwingClient {
             return 1.0f;
         }
         float attackSpeed = (float) player.getAttributeValue(Attributes.ATTACK_SPEED);
-        return Mth.clamp(attackSpeed / SwingConfig.NORMAL_ATTACK_SPEED, SwingConfig.MIN_WEIGHT_FACTOR, SwingConfig.MAX_WEIGHT_FACTOR);
+        float lightness = Mth.clamp(attackSpeed / SwingConfig.NORMAL_ATTACK_SPEED, SwingConfig.MIN_WEIGHT_FACTOR, SwingConfig.MAX_WEIGHT_FACTOR);
+
+        // 剣の特殊能力「高速切り」：剣はもっとすばやく振れる
+        if (WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SWORD) {
+            lightness *= SwingConfig.SWORD_SPEED_BONUS;
+        }
+        return lightness;
     }
 
     /** 剣を、ばねのように手の向きへ追いかけさせる（重さでおくれて、少し行きすぎてもどる）。 */

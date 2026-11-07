@@ -165,8 +165,25 @@ public final class SwingConfig {
     // 1 tick に壊せるブロックの数の上限
     public static final int MAX_BLOCKS_PER_TICK = 3;
 
-    // 画面下に与えたダメージの数字を出すか
+    // 当てた相手からダメージの数字を出すか・数字が見えている時間（tick）
     public static final boolean SHOW_DAMAGE_NUMBER = true;
+    public static final float DAMAGE_NUMBER_TICKS = 20.0f;
+
+    // ===== 武器ごとの特殊能力 =====
+
+    // 剣＝高速切り：同じ相手にまた当てられるまでの時間（tick）・続けて当てたときの 1 回の強さ・振る速さの上がり方
+    public static final int SWORD_HIT_COOLDOWN_TICKS = 4;
+    public static final double SWORD_RAPID_FACTOR = 0.6;
+    public static final float SWORD_SPEED_BONUS = 1.3f;
+
+    // 斧＝超クリティカル：この速さ（基準の速さの何倍）以上で当てると、ダメージが何倍になるか
+    public static final double AXE_CRIT_SPEED_RATIO = 1.0;
+    public static final double AXE_CRIT_MULTIPLIER = 2.0;
+
+    // トライデント＝三本の斬撃：あとから出る斬撃の数・間かく（tick）・1 本の強さ
+    public static final int TRIDENT_EXTRA_SLASHES = 2;
+    public static final int TRIDENT_SLASH_DELAY_TICKS = 3;
+    public static final double TRIDENT_EXTRA_FACTOR = 0.5;
 
     // 画面下に文字（ガード・パリィ・よけた）を出すか（まっちゃの希望で出さない）
     public static final boolean SHOW_MESSAGES = false;

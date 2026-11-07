@@ -34,14 +34,19 @@ public class IkioiKen {
 
         // いきおい剣の攻撃では、ふつうの「なぎ払い」は出さない（勢いで何体も切れるので）
         NeoForge.EVENT_BUS.addListener(ServerSwing::onSweepAttack);
+
+        // トライデントの、あとから出る斬撃
+        NeoForge.EVENT_BUS.addListener(ServerSwing::onServerTick);
     }
 
     /** 剣の向きパケット（クライアント → サーバー）と手ごたえパケット（サーバー → クライアント）を登録する。 */
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("3");
+        PayloadRegistrar registrar = event.registrar("4");
         registrar.playToServer(BladePayload.TYPE, BladePayload.STREAM_CODEC, ServerSwing::onBladePayload);
         registrar.playToClient(HitPayload.TYPE, HitPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> com.maccha.ikioiken.client.SwingClient.onHit(payload.strength())));
+        registrar.playToClient(DamagePayload.TYPE, DamagePayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> com.maccha.ikioiken.client.DamageNumbers.onDamage(payload)));
         registrar.playToClient(MotionPayload.TYPE, MotionPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> com.maccha.ikioiken.client.MotionClient.onMotion(payload)));
     }

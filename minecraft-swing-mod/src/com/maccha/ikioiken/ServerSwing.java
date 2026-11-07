@@ -56,6 +56,7 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.SweepAttackEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
@@ -91,6 +92,14 @@ public final class ServerSwing {
     // プレイヤーごとの剣の状態
     private static final Map<UUID, SwingState> STATES = new HashMap<>();
 
+    /** トライデントの、あとから出る斬撃 1 本ぶん。 */
+    private record PendingSlash(UUID playerId, int targetId, long dueTick, double momentumFactor, int slashIndex) {
+    }
+
+    // これから出るトライデントの斬撃と、サーバーの時間（tick）
+    private static final List<PendingSlash> PENDING_SLASHES = new ArrayList<>();
+    private static long serverTick = 0;
+
     // 勢いの倍率を一時的に攻撃力へかけるときの名前
     private static final ResourceLocation MOMENTUM_MODIFIER_ID =
             ResourceLocation.fromNamespaceAndPath(IkioiKen.MOD_ID, "momentum");
@@ -113,6 +122,7 @@ public final class ServerSwing {
     /** ワールドを閉じたら、全員の剣の記録を消す（次に開いたワールドに古い記録を持ちこまない）。 */
     public static void onServerStopped(ServerStoppedEvent event) {
         STATES.clear();
+        PENDING_SLASHES.clear();
     }
 
     /** ログアウトした人の剣の記録を消す。 */
@@ -181,6 +191,13 @@ public final class ServerSwing {
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
             spawnTrail(player.serverLevel(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength);
+
+            // トライデントは上と下にもう 1 本ずつ、三本の斬撃の軌跡
+            if (WeaponSkill.skillOf(heldItem) == WeaponSkill.TRIDENT) {
+                Vec3 gap = new Vec3(0.0, 0.35, 0.0);
+                spawnTrail(player.serverLevel(), state.lastBladeDir, bladeDir, state.lastShoulder.add(gap), shoulder.add(gap), tipSpeed, state.bladeLength);
+                spawnTrail(player.serverLevel(), state.lastBladeDir, bladeDir, state.lastShoulder.subtract(gap), shoulder.subtract(gap), tipSpeed, state.bladeLength);
+            }
         }
 
         // 前の向きから今の向きまでの通り道で、当たった相手にダメージ
@@ -459,9 +476,13 @@ public final class ServerSwing {
         List<Entity> candidates = player.level().getEntities(player, searchArea, entity -> canBeHit(player, entity));
 
         // 相手ごとに、刃がはじめて当たった場所をさがす
+        // 剣（高速切り）は、同じ相手にすぐまた当てられる
+        int cooldownTicks = WeaponSkill.skillOf(player.getMainHandItem()) == WeaponSkill.SWORD
+                ? SwingConfig.SWORD_HIT_COOLDOWN_TICKS : SwingConfig.HIT_COOLDOWN_TICKS;
+
         List<BladeHit> hits = new ArrayList<>();
         for (Entity candidate : candidates) {
-            if (isOnCooldown(state, candidate)) {
+            if (isOnCooldown(state, candidate, cooldownTicks)) {
                 continue;
             }
             AABB targetBox = candidate.getBoundingBox().inflate(candidate.getPickRadius() + 0.1);
@@ -526,9 +547,9 @@ public final class ServerSwing {
     }
 
     /** 同じ相手にさっき当てたばかりなら true。 */
-    private static boolean isOnCooldown(SwingState state, Entity entity) {
+    private static boolean isOnCooldown(SwingState state, Entity entity, int cooldownTicks) {
         Integer lastHit = state.lastHitPacket.get(rootOf(entity).getId());
-        return lastHit != null && state.packetCount - lastHit < SwingConfig.HIT_COOLDOWN_TICKS;
+        return lastHit != null && state.packetCount - lastHit < cooldownTicks;
     }
 
     /** 肩から当たった場所までのあいだに壁があれば true（壁ごしには切れない）。 */
@@ -572,9 +593,27 @@ public final class ServerSwing {
             state.counterUntilTick = 0;
         }
 
-        // 同じ相手にすぐ当たらないように記録
+        // 同じ相手にすぐ当たらないように記録（前に当てた時間も見ておく）
         Entity rootTarget = rootOf(target);
+        Integer previousHit = state.lastHitPacket.get(rootTarget.getId());
         state.lastHitPacket.put(rootTarget.getId(), state.packetCount);
+
+        // 武器ごとの特殊能力
+        int skill = WeaponSkill.skillOf(player.getMainHandItem());
+        boolean superCritical = false;
+        if (skill == WeaponSkill.SWORD) {
+            // 剣＝高速切り：無敵時間を消して続けて切れる（続けて当てた 1 回は少し弱い）
+            if (rootTarget instanceof LivingEntity living) {
+                living.invulnerableTime = 0;
+            }
+            if (previousHit != null && state.packetCount - previousHit < SwingConfig.HIT_COOLDOWN_TICKS) {
+                momentumFactor *= SwingConfig.SWORD_RAPID_FACTOR;
+            }
+        } else if (skill == WeaponSkill.AXE && hitSpeed >= SwingConfig.REFERENCE_SPEED * SwingConfig.AXE_CRIT_SPEED_RATIO) {
+            // 斧＝超クリティカル：思いきり振りぬくとダメージが大きく上がる
+            momentumFactor *= SwingConfig.AXE_CRIT_MULTIPLIER;
+            superCritical = true;
+        }
 
         // 攻撃前の体力（与えたダメージを出すため）
         float healthBefore = rootTarget instanceof LivingEntity living ? living.getHealth() + living.getAbsorptionAmount() : 0.0f;
@@ -594,11 +633,23 @@ public final class ServerSwing {
 
         // 粒で手ごたえを出して、本人の画面をゆらす
         showHitEffects(player.serverLevel(), hitPoint, speedFactor);
-        PacketDistributor.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5)));
+        if (superCritical) {
+            showCriticalEffects(player.serverLevel(), hitPoint);
+        }
+        PacketDistributor.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5) + (superCritical ? 0.6f : 0.0f)));
 
-        // 画面下に与えたダメージの数字を出す
-        if (SwingConfig.SHOW_DAMAGE_NUMBER) {
-            showDamageNumber(player, hitSpeed, dealtDamage);
+        // 当てた相手からダメージの数字を出す
+        int numberStyle = superCritical ? DamagePayload.CRITICAL
+                : hitSpeed >= SwingConfig.REFERENCE_SPEED ? DamagePayload.STRONG : DamagePayload.NORMAL;
+        sendDamageNumber(player, hitPoint, dealtDamage, numberStyle);
+
+        // トライデント＝三本の斬撃：少しずつおくれて、あと 2 本の斬撃が当たる
+        if (skill == WeaponSkill.TRIDENT) {
+            for (int slash = 1; slash <= SwingConfig.TRIDENT_EXTRA_SLASHES; slash++) {
+                PENDING_SLASHES.add(new PendingSlash(player.getUUID(), rootTarget.getId(),
+                        serverTick + (long) slash * SwingConfig.TRIDENT_SLASH_DELAY_TICKS,
+                        momentumFactor * SwingConfig.TRIDENT_EXTRA_FACTOR, slash));
+            }
         }
         return true;
     }
@@ -657,10 +708,83 @@ public final class ServerSwing {
         level.sendParticles(ParticleTypes.SWEEP_ATTACK, hitPoint.x, hitPoint.y, hitPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
     }
 
-    /** 画面下（アクションバー）に、与えたダメージの数字だけを出す（強く当てたほど明るい色）。 */
-    private static void showDamageNumber(ServerPlayer player, double hitSpeed, float dealtDamage) {
-        ChatFormatting color = hitSpeed >= SwingConfig.REFERENCE_SPEED ? ChatFormatting.GOLD : ChatFormatting.WHITE;
-        player.displayClientMessage(Component.literal(String.format("%.1f ダメージ", dealtDamage)).withStyle(color), true);
+    /** 当てた場所から、本人の画面にダメージの数字を出す。 */
+    private static void sendDamageNumber(ServerPlayer player, Vec3 hitPoint, float dealtDamage, int style) {
+        if (!SwingConfig.SHOW_DAMAGE_NUMBER || dealtDamage <= 0.0f) {
+            return;
+        }
+        PacketDistributor.sendToPlayer(player, new DamagePayload(hitPoint.x, hitPoint.y, hitPoint.z, dealtDamage, style));
+    }
+
+    /** 斧の超クリティカルの派手な火花と音。 */
+    private static void showCriticalEffects(ServerLevel level, Vec3 hitPoint) {
+        level.sendParticles(ParticleTypes.CRIT, hitPoint.x, hitPoint.y, hitPoint.z, 30, 0.3, 0.3, 0.3, 0.6);
+        level.sendParticles(ParticleTypes.ENCHANTED_HIT, hitPoint.x, hitPoint.y, hitPoint.z, 20, 0.3, 0.3, 0.3, 0.5);
+        level.sendParticles(ParticleTypes.FLASH, hitPoint.x, hitPoint.y, hitPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
+        level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1.3f, 0.6f);
+        level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.35f, 1.7f);
+    }
+
+    // ===== トライデントの三本の斬撃 =====
+
+    /** 毎 tick、時間が来たトライデントの斬撃を当てる。 */
+    public static void onServerTick(ServerTickEvent.Post event) {
+        serverTick++;
+        if (PENDING_SLASHES.isEmpty()) {
+            return;
+        }
+        List<PendingSlash> dueSlashes = new ArrayList<>();
+        PENDING_SLASHES.removeIf(slash -> {
+            if (slash.dueTick() <= serverTick) {
+                dueSlashes.add(slash);
+                return true;
+            }
+            return false;
+        });
+        for (PendingSlash slash : dueSlashes) {
+            ServerPlayer player = event.getServer().getPlayerList().getPlayer(slash.playerId());
+            if (player != null) {
+                extraSlash(player, slash);
+            }
+        }
+    }
+
+    /** あとから出る斬撃を 1 本当てる（相手が近くにいて、まだトライデントを持っているときだけ）。 */
+    private static void extraSlash(ServerPlayer player, PendingSlash slash) {
+        if (!player.isAlive() || WeaponSkill.skillOf(player.getMainHandItem()) != WeaponSkill.TRIDENT) {
+            return;
+        }
+        Entity target = player.serverLevel().getEntity(slash.targetId());
+        if (target == null || !target.isAlive() || !canBeHit(player, target)) {
+            return;
+        }
+        double reach = Mth.clamp(player.entityInteractionRange(), SwingConfig.MIN_BLADE_LENGTH, SwingConfig.MAX_BLADE_LENGTH) + 3.0;
+        if (target.distanceTo(player) > reach) {
+            return;
+        }
+
+        // 斬撃が当たる場所（1 本目より上・下にずらす）
+        Vec3 center = target.getBoundingBox().getCenter();
+        double offset = (slash.slashIndex() % 2 == 1 ? 1.0 : -1.0) * target.getBbHeight() * 0.25;
+        Vec3 slashPoint = center.add(0.0, offset, 0.0);
+
+        // 無敵時間を消して、ふつうの攻撃と同じしくみで当てる
+        float healthBefore = target instanceof LivingEntity living ? living.getHealth() + living.getAbsorptionAmount() : 0.0f;
+        if (target instanceof LivingEntity living) {
+            living.invulnerableTime = 0;
+        }
+        attackWithMomentum(player, target, slash.momentumFactor());
+        float dealtDamage = target instanceof LivingEntity living
+                ? healthBefore - (living.getHealth() + living.getAbsorptionAmount()) : 0.0f;
+
+        // 斬撃の見た目と音
+        ServerLevel level = player.serverLevel();
+        level.sendParticles(ParticleTypes.SWEEP_ATTACK, slashPoint.x, slashPoint.y, slashPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
+        level.sendParticles(ParticleTypes.BUBBLE_POP, slashPoint.x, slashPoint.y, slashPoint.z, 8, 0.3, 0.1, 0.3, 0.05);
+        level.playSound(null, slashPoint.x, slashPoint.y, slashPoint.z, SoundEvents.PLAYER_ATTACK_SWEEP,
+                SoundSource.PLAYERS, 0.9f, 1.2f + 0.2f * slash.slashIndex());
+        PacketDistributor.sendToPlayer(player, new HitPayload(0.4f));
+        sendDamageNumber(player, slashPoint, dealtDamage, DamagePayload.NORMAL);
     }
 
     // ===== 道具でブロックを壊す =====
