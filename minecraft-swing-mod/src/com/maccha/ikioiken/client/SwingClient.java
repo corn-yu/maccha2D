@@ -21,11 +21,12 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
+import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 遊ぶ人の画面側の処理（長押し中はマウスで剣を動かし、剣を描き、向きをサーバーへ送る）。
+ * 遊ぶ人の画面側の処理（長押し中はマウスで剣を動かし、重さのある動きで剣を描き、向きをサーバーへ送る）。
  */
 @EventBusSubscriber(modid = IkioiKen.MOD_ID, value = Dist.CLIENT)
 public final class SwingClient {
@@ -36,12 +37,21 @@ public final class SwingClient {
     // 長押し中かどうか
     private static boolean holding = false;
 
-    // サーバーに「長押し中」と伝えてあるか
+    // 手をはなしたあと、まだ勢いで切れる残り時間（tick）
+    private static int followThroughLeft = 0;
+
+    // サーバーに「振っている」と伝えてあるか
     private static boolean sentHolding = false;
 
-    // 剣の向き（視線から右へ何度・下へ何度）
-    private static float offsetYaw = SwingConfig.REST_YAW;
-    private static float offsetPitch = SwingConfig.REST_PITCH;
+    // マウスで動かしている「手」の向き（視線から右へ何度・下へ何度）
+    private static float handYaw = SwingConfig.REST_YAW;
+    private static float handPitch = SwingConfig.REST_PITCH;
+
+    // 実際の剣の向きと、その動く速さ（重さがあるので手より少しおくれて、ふりぬける）
+    private static float swordYaw = SwingConfig.REST_YAW;
+    private static float swordPitch = SwingConfig.REST_PITCH;
+    private static float swordYawSpeed = 0.0f;
+    private static float swordPitchSpeed = 0.0f;
 
     // 刃の面の傾き（振る向きに刃を合わせる）
     private static float bladeRoll = 0.0f;
@@ -50,7 +60,12 @@ public final class SwingClient {
     private static float lockedYaw = 0.0f;
     private static float lockedPitch = 0.0f;
 
-    /** 剣モードが使える状態なら true（剣を持っていて、しゃがんでいない、画面を開いていない）。 */
+    // 当てた瞬間に剣が止まる残り時間（tick）と、画面ゆれの強さ（度）
+    private static float hitStopLeft = 0.0f;
+    private static float shakeStrength = 0.0f;
+    private static float shakeClock = 0.0f;
+
+    /** 剣モードが使える状態なら true（振れる物を持っていて、しゃがんでいない、画面を開いていない）。 */
     private static boolean isSwordModeActive(Minecraft minecraft) {
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.screen != null || player.isSpectator()) {
@@ -59,7 +74,7 @@ public final class SwingClient {
         if (player.isShiftKeyDown()) {
             return false;
         }
-        return SwordCheck.isSword(player.getMainHandItem());
+        return SwordCheck.isSwingItem(player.getMainHandItem());
     }
 
     /** 攻撃ボタン（ふつうは左クリック）が今おされているかを、本当のマウス・キーの状態で調べる。 */
@@ -71,6 +86,12 @@ public final class SwingClient {
             return GLFW.glfwGetMouseButton(window, key.getValue()) == GLFW.GLFW_PRESS;
         }
         return InputConstants.isKeyDown(window, key.getValue());
+    }
+
+    /** サーバーから「当たった・防いだ」と届いたら、剣を一瞬止めて画面をゆらす。 */
+    public static void onHit(float strength) {
+        hitStopLeft = Math.max(hitStopLeft, SwingConfig.HITSTOP_TICKS * Math.min(strength, 1.5f));
+        shakeStrength = Math.max(shakeStrength, SwingConfig.SHAKE_DEGREES * strength);
     }
 
     /** tick のはじめに、剣モード中はふつうの攻撃・採掘を止める（他の戦闘 Mod より先に止める）。 */
@@ -98,7 +119,7 @@ public final class SwingClient {
         }
     }
 
-    /** 毎フレーム、長押しの開始・終了を調べて、マウスの動きを剣に回す。 */
+    /** 毎フレーム、長押しの開始・終了を調べて、マウスの動きを手に回し、剣を重さのある動きで追いかけさせる。 */
     @SubscribeEvent
     public static void onRenderFrame(RenderFrameEvent.Pre event) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -114,46 +135,57 @@ public final class SwingClient {
             startHolding(player);
         } else if (!wantHold && holding) {
             holding = false;
+            followThroughLeft = SwingConfig.FOLLOW_THROUGH_TICKS;
         }
 
-        // 長押し中はマウスで剣を動かす、はなしたら構えにもどす
-        float frameTicks = event.getPartialTick().getRealtimeDeltaTicks();
+        // 長押し中はマウスで手を動かす、はなしたら手は構えにもどる
+        float frameTicks = Math.min(event.getPartialTick().getRealtimeDeltaTicks(), 3.0f);
         if (holding) {
-            moveSwordByMouse(player, frameTicks);
+            moveHandByMouse(player);
         } else {
-            returnToRest(frameTicks);
+            handYaw = SwingConfig.REST_YAW;
+            handPitch = SwingConfig.REST_PITCH;
         }
+
+        // 剣を手に向かって動かす（当てた瞬間は少し止まる）
+        if (hitStopLeft > 0.0f) {
+            hitStopLeft -= frameTicks;
+        } else {
+            moveSwordTowardHand(frameTicks);
+        }
+
+        // 画面ゆれを少しずつおさめる
+        shakeClock += frameTicks;
+        shakeStrength *= (float) Math.pow(0.7, frameTicks);
     }
 
     /** 長押しを始める（今のカメラの向きを固定する）。 */
     private static void startHolding(LocalPlayer player) {
         holding = true;
+        followThroughLeft = 0;
         lockedYaw = player.getYRot();
         lockedPitch = player.getXRot();
+        handYaw = swordYaw;
+        handPitch = swordPitch;
     }
 
-    /** マウスで動いたぶんを剣の向きに回し、カメラは少しだけ動かす。 */
-    private static void moveSwordByMouse(LocalPlayer player, float frameTicks) {
+    /** マウスで動いたぶんを手の向きに回し、カメラは少しだけ動かす。 */
+    private static void moveHandByMouse(LocalPlayer player) {
         // このフレームでマウスが動かした角度
         float mouseYaw = player.getYRot() - lockedYaw;
         float mousePitch = player.getXRot() - lockedPitch;
 
-        // 一部はカメラへ、残りは剣へ
+        // 一部はカメラへ、残りは手へ
         float cameraYaw = mouseYaw * SwingConfig.CAMERA_FOLLOW;
         float cameraPitch = mousePitch * SwingConfig.CAMERA_FOLLOW;
-        float wantYaw = offsetYaw + mouseYaw - cameraYaw;
-        float wantPitch = offsetPitch + mousePitch - cameraPitch;
+        float wantYaw = handYaw + mouseYaw - cameraYaw;
+        float wantPitch = handPitch + mousePitch - cameraPitch;
 
-        // 剣が動ける広さをこえたぶんはカメラを回す（うしろも向ける）
-        float newOffsetYaw = Mth.clamp(wantYaw, -SwingConfig.MAX_OFFSET_YAW, SwingConfig.MAX_OFFSET_YAW);
-        float newOffsetPitch = Mth.clamp(wantPitch, -SwingConfig.MAX_OFFSET_PITCH, SwingConfig.MAX_OFFSET_PITCH);
-        cameraYaw += wantYaw - newOffsetYaw;
-        cameraPitch += wantPitch - newOffsetPitch;
-
-        // 刃の面を振る向きに合わせる
-        updateBladeRoll(newOffsetYaw - offsetYaw, newOffsetPitch - offsetPitch, frameTicks);
-        offsetYaw = newOffsetYaw;
-        offsetPitch = newOffsetPitch;
+        // 手が動ける広さをこえたぶんはカメラを回す（うしろも向ける）
+        handYaw = Mth.clamp(wantYaw, -SwingConfig.MAX_OFFSET_YAW, SwingConfig.MAX_OFFSET_YAW);
+        handPitch = Mth.clamp(wantPitch, -SwingConfig.MAX_OFFSET_PITCH, SwingConfig.MAX_OFFSET_PITCH);
+        cameraYaw += wantYaw - handYaw;
+        cameraPitch += wantPitch - handPitch;
 
         // カメラの向きを決めなおす
         lockedYaw += cameraYaw;
@@ -166,25 +198,29 @@ public final class SwingClient {
         player.xRotO += fixPitch;
     }
 
-    /** 振っている向きに合わせて、刃の面の傾きを少しずつ変える。 */
-    private static void updateBladeRoll(float moveYaw, float movePitch, float frameTicks) {
-        if (Math.abs(moveYaw) + Math.abs(movePitch) < 0.5f) {
-            return;
+    /** 剣を、ばねのように手の向きへ追いかけさせる（重さでおくれて、少し行きすぎてもどる）。 */
+    private static void moveSwordTowardHand(float frameTicks) {
+        float stiffness = holding ? SwingConfig.SWING_STIFFNESS : SwingConfig.RETURN_STIFFNESS;
+        float keepSpeed = (float) Math.pow(SwingConfig.SWING_DAMPING, frameTicks);
+
+        // 引っぱる力で速さを変えて、ゆれを止めて、動かす
+        swordYawSpeed = (swordYawSpeed + (handYaw - swordYaw) * stiffness * frameTicks) * keepSpeed;
+        swordPitchSpeed = (swordPitchSpeed + (handPitch - swordPitch) * stiffness * frameTicks) * keepSpeed;
+        swordYaw += swordYawSpeed * frameTicks;
+        swordPitch += swordPitchSpeed * frameTicks;
+
+        // 刃の面を振る向きに合わせる（速く動いているときだけ）
+        float moveSpeed = Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed);
+        if (moveSpeed > 1.0f) {
+            float targetRoll = (float) Math.toDegrees(Math.atan2(Math.abs(swordYawSpeed), Math.abs(swordPitchSpeed)));
+            float follow = 1.0f - (float) Math.pow(0.4, frameTicks);
+            bladeRoll += (targetRoll - bladeRoll) * follow;
+        } else if (!holding) {
+            bladeRoll *= (float) Math.pow(0.85, frameTicks);
         }
-        float targetRoll = (float) Math.toDegrees(Math.atan2(Math.abs(moveYaw), Math.abs(movePitch)));
-        float follow = 1.0f - (float) Math.pow(0.5, frameTicks);
-        bladeRoll += (targetRoll - bladeRoll) * follow;
     }
 
-    /** 手をはなしているとき、剣を元の構えにゆっくりもどす。 */
-    private static void returnToRest(float frameTicks) {
-        float follow = 1.0f - (float) Math.pow(1.0f - SwingConfig.RETURN_SPEED, frameTicks);
-        offsetYaw += (SwingConfig.REST_YAW - offsetYaw) * follow;
-        offsetPitch += (SwingConfig.REST_PITCH - offsetPitch) * follow;
-        bladeRoll += (0.0f - bladeRoll) * follow;
-    }
-
-    /** tick の終わりに、長押し中なら剣の向きをサーバーへ送る。 */
+    /** tick の終わりに、振っている間（ふりぬき中も）は剣の向きをサーバーへ送る。 */
     @SubscribeEvent
     public static void onClientTickEnd(ClientTickEvent.Post event) {
         LocalPlayer player = Minecraft.getInstance().player;
@@ -193,23 +229,37 @@ public final class SwingClient {
             return;
         }
 
-        // 長押し中：今の剣の向き（世界の向き）を送る
-        if (holding) {
-            float bladeYaw = player.getYRot() + offsetYaw;
-            float bladePitch = Mth.clamp(player.getXRot() + offsetPitch, -90.0f, 90.0f);
+        // 長押し中か、はなした直後の勢いが残っているあいだは、剣の向き（世界の向き）を送る
+        boolean isSwinging = holding || followThroughLeft > 0;
+        if (followThroughLeft > 0) {
+            followThroughLeft--;
+        }
+        if (isSwinging && isSwordModeActive(Minecraft.getInstance())) {
+            float bladeYaw = player.getYRot() + swordYaw;
+            float bladePitch = Mth.clamp(player.getXRot() + swordPitch, -90.0f, 90.0f);
             PacketDistributor.sendToServer(new BladePayload(true, bladeYaw, bladePitch));
             sentHolding = true;
             return;
         }
 
-        // はなした：1 回だけ「やめた」を送る
+        // 振り終わった：1 回だけ「やめた」を送る
         if (sentHolding) {
             PacketDistributor.sendToServer(new BladePayload(false, 0.0f, 0.0f));
             sentHolding = false;
         }
     }
 
-    /** 一人称の剣を、今の剣の向きで描く（構えのままのときはふつうの描き方にまかせる）。 */
+    /** 当てたときの画面ゆれ（カメラを少しかたむける）。 */
+    @SubscribeEvent
+    public static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+        if (shakeStrength < 0.05f) {
+            return;
+        }
+        event.setRoll(event.getRoll() + shakeStrength * (float) Math.sin(shakeClock * 2.9));
+        event.setPitch(event.getPitch() + shakeStrength * 0.5f * (float) Math.sin(shakeClock * 3.7 + 1.0));
+    }
+
+    /** 一人称の剣を、今の剣の向きで描く（構えのまま止まっているときはふつうの描き方にまかせる）。 */
     @SubscribeEvent
     public static void onRenderHand(RenderHandEvent event) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -217,23 +267,25 @@ public final class SwingClient {
         if (player == null || event.getHand() != InteractionHand.MAIN_HAND) {
             return;
         }
-        if (!SwordCheck.isSword(event.getItemStack()) || player.getMainArm() != HumanoidArm.RIGHT) {
+        if (!SwordCheck.isSwingItem(event.getItemStack()) || player.getMainArm() != HumanoidArm.RIGHT) {
             return;
         }
 
         // 構えにもどりきっていて長押しもしていないなら、ふつうの描き方
-        boolean isMoved = Math.abs(offsetYaw - SwingConfig.REST_YAW) > 0.5f
-                || Math.abs(offsetPitch - SwingConfig.REST_PITCH) > 0.5f;
+        boolean isMoved = Math.abs(swordYaw - SwingConfig.REST_YAW) > 0.5f
+                || Math.abs(swordPitch - SwingConfig.REST_PITCH) > 0.5f
+                || Math.abs(bladeRoll) > 1.0f;
         if (!holding && !isMoved) {
             return;
         }
 
-        // 手の位置から、剣の向きに回して描く
+        // 手の位置から、剣の向きに回して描く（速く振るほど手も少し前に出る）
+        float swingPush = Math.min((Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed)) * 0.006f, 0.12f);
         PoseStack poseStack = event.getPoseStack();
         poseStack.pushPose();
-        poseStack.translate(SwingConfig.HAND_X, SwingConfig.HAND_Y, SwingConfig.HAND_Z);
-        poseStack.mulPose(Axis.YP.rotationDegrees(-offsetYaw));
-        poseStack.mulPose(Axis.XP.rotationDegrees(-offsetPitch));
+        poseStack.translate(SwingConfig.HAND_X - swordYaw * 0.002f, SwingConfig.HAND_Y - swordPitch * 0.002f, SwingConfig.HAND_Z - swingPush);
+        poseStack.mulPose(Axis.YP.rotationDegrees(-swordYaw));
+        poseStack.mulPose(Axis.XP.rotationDegrees(-swordPitch));
         poseStack.mulPose(Axis.ZP.rotationDegrees(bladeRoll));
 
         // にぎりが手に来るように前へずらし、絵の斜めの剣をまっすぐ前に向ける

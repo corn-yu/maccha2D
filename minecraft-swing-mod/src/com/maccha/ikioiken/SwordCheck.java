@@ -23,7 +23,7 @@ import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.common.Tags;
 
 /**
- * 持っている物が「いきおい剣で振れる武器」かどうかを調べるクラス（武器追加 Mod の武器にも対応）。
+ * 持っている物が「いきおい剣で振れる武器・道具」かどうかを調べるクラス（武器追加 Mod の武器にも対応）。
  */
 public final class SwordCheck {
 
@@ -37,8 +37,23 @@ public final class SwordCheck {
     private static Set<String> addedWeapons = null;
     private static Set<String> removedWeapons = null;
 
+    /** いきおい剣で振れる物（武器か、掘る道具）なら true を返す。 */
+    public static boolean isSwingItem(ItemStack stack) {
+        return isWeapon(stack) || isTool(stack);
+    }
+
+    /** 振ってブロックを壊せる道具（つるはし・斧・シャベル・クワ・ハンマー）なら true を返す。 */
+    public static boolean isTool(ItemStack stack) {
+        if (stack.isEmpty() || !(stack.getItem() instanceof DiggerItem)) {
+            return false;
+        }
+        loadWeaponListIfNeeded();
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        return !isListed(removedWeapons, itemId) && !hasLeftClickSkill(stack.getItem());
+    }
+
     /** いきおい剣で振れる武器なら true を返す。 */
-    public static boolean isSword(ItemStack stack) {
+    public static boolean isWeapon(ItemStack stack) {
         // 何も持っていなければ武器ではない
         if (stack.isEmpty()) {
             return false;
@@ -60,7 +75,7 @@ public final class SwordCheck {
             return true;
         }
 
-        // 掘る道具（つるはし・斧・シャベル・クワ・ハンマー）、弓、メイス、左クリック技のある武器はふつうのまま
+        // 掘る道具は「道具」として別にあつかう。弓、メイス、左クリック技のある武器はふつうのまま
         if (item instanceof DiggerItem || item instanceof ProjectileWeaponItem || item instanceof MaceItem) {
             return false;
         }

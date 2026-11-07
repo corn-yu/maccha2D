@@ -21,8 +21,19 @@ public final class SwingConfig {
     // 長押し中、マウスの動きのうち何割をカメラにも回すか（0 = カメラは止まる）
     public static final float CAMERA_FOLLOW = 0.15f;
 
-    // 手をはなしたあと、剣が元の構えにもどる速さ（1 tick あたりの割合）
-    public static final float RETURN_SPEED = 0.25f;
+    // 剣の重さ（マウスに追いつく強さと、ゆれの止まりやすさ）。小さいほど重くておくれる
+    public static final float SWING_STIFFNESS = 0.6f;
+    public static final float SWING_DAMPING = 0.45f;
+
+    // 手をはなしたあと、剣が元の構えにもどる強さ（ふりぬいてからゆっくりもどる）
+    public static final float RETURN_STIFFNESS = 0.12f;
+
+    // 手をはなしても、勢いで切れる時間（tick）
+    public static final int FOLLOW_THROUGH_TICKS = 6;
+
+    // 当てた瞬間に剣が止まる時間（tick、ヒットストップ）と画面ゆれの強さ（度）
+    public static final float HITSTOP_TICKS = 2.0f;
+    public static final float SHAKE_DEGREES = 2.5f;
 
     // 一人称で剣を持つ手の位置と、剣の大きさ
     public static final float HAND_X = 0.45f;
@@ -66,14 +77,55 @@ public final class SwingConfig {
     // 同じ相手にもう一度当たるまでの待ち時間（tick、20 で 1 秒）
     public static final int HIT_COOLDOWN_TICKS = 10;
 
-    // ノックバックの強さ（速さ倍率をかけて使う）
-    public static final float KNOCKBACK_BASE = 0.4f;
+    // 勢いの向きに足すノックバックの強さ（ふつうのノックバックとは別、速さ倍率をかけて使う）
+    public static final float KNOCKBACK_BASE = 0.3f;
 
     // これより速く振ると「ブンッ」と音が鳴る（剣先の速さ m/s）
     public static final double WHOOSH_SPEED = 12.0;
 
     // 持つと攻撃力がこれ以上あがる物は、タグがなくても武器として振れる（木の剣は +3）
     public static final double MIN_WEAPON_DAMAGE = 2.0;
+
+    // これより速く振ると、剣の通り道に軌跡が出る（剣先の速さ m/s）
+    public static final double TRAIL_SPEED = 10.0;
+
+    // ===== ガード =====
+
+    // 剣が「相手 → 自分」の攻撃の線からこの距離（ブロック）以内にあれば、攻撃が剣に当たる
+    public static final double BLADE_BLOCK_RADIUS = 0.45;
+
+    // 剣先が 1 tick にこれより動かない状態が、この tick 続くとガード（止めて構えている）
+    public static final double GUARD_MAX_TURN_DEGREES = 4.0;
+    public static final int GUARD_READY_TICKS = 3;
+
+    // 止めるダメージの割合：構えているとき・動かしているとき
+    public static final float GUARD_BLOCK_RATIO = 1.0f;
+    public static final float MOVING_BLOCK_RATIO = 0.5f;
+
+    // 止めたダメージ何点で武器の耐久が 1 減るか
+    public static final float GUARD_DAMAGE_PER_DURABILITY = 2.0f;
+
+    // ===== パリィ =====
+
+    // 攻撃が来る直前この tick 以内に、この速さ以上で振っていたらパリィ（剣先の速さ m/s）
+    public static final int PARRY_WINDOW_TICKS = 5;
+    public static final double PARRY_SPEED = 10.0;
+
+    // パリィした相手がよろける時間（tick）と、はね返した矢の速さの倍率
+    public static final int PARRY_STUN_TICKS = 40;
+    public static final double PARRY_REFLECT_SPEED = 1.2;
+
+    // パリィのあと、この時間（tick）以内の一撃は強くなる（倍率）
+    public static final int COUNTER_TICKS = 30;
+    public static final double COUNTER_BONUS = 1.5;
+
+    // ===== 道具でブロックを壊す =====
+
+    // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか（石を鉄のつるはしで約 1 回）
+    public static final float SWING_MINING_TICKS = 8.0f;
+
+    // 1 tick に壊せるブロックの数の上限
+    public static final int MAX_BLOCKS_PER_TICK = 3;
 
     // 当てたときに画面下へ勢いとダメージを出すか
     public static final boolean SHOW_DAMAGE_MESSAGE = true;
