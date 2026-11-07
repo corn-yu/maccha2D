@@ -10,6 +10,7 @@ import com.mojang.math.Axis;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
@@ -24,6 +25,8 @@ import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -310,8 +313,14 @@ public final class SwingClient {
         // 手の位置から、剣の向きに回して描く（速く振るほど手も少し前に出る）
         float swingPush = Math.min((Math.abs(swordYawSpeed) + Math.abs(swordPitchSpeed)) * 0.006f, 0.12f);
         PoseStack poseStack = event.getPoseStack();
+        Vector3f handPoint = new Vector3f(SwingConfig.HAND_X - swordYaw * 0.002f,
+                SwingConfig.HAND_Y - swordPitch * 0.002f, SwingConfig.HAND_Z - swingPush);
+
+        // 剣をにぎっている腕を、肩から手までのばして描く
+        renderArm(minecraft, player, poseStack, event, handPoint);
+
         poseStack.pushPose();
-        poseStack.translate(SwingConfig.HAND_X - swordYaw * 0.002f, SwingConfig.HAND_Y - swordPitch * 0.002f, SwingConfig.HAND_Z - swingPush);
+        poseStack.translate(handPoint.x, handPoint.y, handPoint.z);
         poseStack.mulPose(Axis.YP.rotationDegrees(-swordYaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(-swordPitch));
         poseStack.mulPose(Axis.ZP.rotationDegrees(bladeRoll));
@@ -329,5 +338,34 @@ public final class SwingClient {
 
         // ふつうの描き方はしない
         event.setCanceled(true);
+    }
+
+    /** 一人称で、肩から剣をにぎる手まで自分の右腕を描く（スキンもそのまま）。 */
+    private static void renderArm(Minecraft minecraft, LocalPlayer player, PoseStack poseStack,
+                                  RenderHandEvent event, Vector3f handPoint) {
+        // 透明のときは描かない
+        if (player.isInvisible()) {
+            return;
+        }
+        if (!(minecraft.getEntityRenderDispatcher().getRenderer(player) instanceof PlayerRenderer playerRenderer)) {
+            return;
+        }
+
+        // 肩から手への向き
+        Vector3f shoulderPoint = new Vector3f(SwingConfig.ARM_SHOULDER_X, SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z);
+        Vector3f armDir = new Vector3f(handPoint).sub(shoulderPoint);
+        if (armDir.lengthSquared() < 1.0e-6f) {
+            return;
+        }
+        armDir.normalize();
+
+        // 腕のモデルは「肩（つけ根）から下（+Y）へ 12 ドットのびる」形なので、
+        // 手の先を手の位置に置き、+Y を肩→手の向きに回す
+        poseStack.pushPose();
+        poseStack.translate(handPoint.x, handPoint.y, handPoint.z);
+        poseStack.mulPose(new Quaternionf().rotationTo(0.0f, 1.0f, 0.0f, armDir.x, armDir.y, armDir.z));
+        poseStack.translate(5.0f / 16.0f + 1.0f / 16.0f, -(2.0f + 10.0f) / 16.0f, 0.0f);
+        playerRenderer.renderRightHand(poseStack, event.getMultiBufferSource(), event.getPackedLight(), player);
+        poseStack.popPose();
     }
 }

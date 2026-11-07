@@ -46,6 +46,11 @@ public final class SwingConfig {
     public static final float HAND_Z = -0.6f;
     public static final float SWORD_SCALE = 1.1f;
 
+    // 一人称で見える腕のつけ根（肩）の位置（画面の右・上・うしろ。剣を持つ手から肩まで腕をのばして描く）
+    public static final float ARM_SHOULDER_X = 0.38f;
+    public static final float ARM_SHOULDER_Y = -0.78f;
+    public static final float ARM_SHOULDER_Z = 0.05f;
+
     // ===== 当たり判定 =====
 
     // 肩から見た刃の始まりと先っぽの距離（ブロック）。先っぽは武器で届く距離に合わせる（この範囲で）
