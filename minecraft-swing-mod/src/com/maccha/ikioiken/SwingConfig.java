@@ -119,6 +119,23 @@ public final class SwingConfig {
     public static final int COUNTER_TICKS = 30;
     public static final double COUNTER_BONUS = 1.5;
 
+    // ===== 敵の攻撃 =====
+
+    // 敵の殴りを「ためてから振る」攻撃に変えるか
+    public static final boolean ENEMY_REAL_ATTACK = true;
+
+    // 敵がためる時間（tick、20 で 1 秒）。この間によけたり、剣を入れたりできる
+    public static final int ENEMY_WINDUP_TICKS = 8;
+
+    // 敵の正面からこの角度の外へ回りこめば当たらない
+    public static final double ENEMY_STRIKE_ARC_DEGREES = 80.0;
+
+    // 当たったときに敵の向きにふっとぶ強さ
+    public static final float ENEMY_KNOCKBACK = 0.4f;
+
+    // 元の攻撃のままにする Mod（カタリズムの敵は、もともと攻撃の前に動きがあるのでそのまま）
+    public static final String[] ENEMY_SKIP_MODS = {"cataclysm"};
+
     // ===== 道具でブロックを壊す =====
 
     // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか（石を鉄のつるはしで約 1 回）

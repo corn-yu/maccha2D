@@ -1,5 +1,6 @@
 package com.maccha.ikioiken;
 
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -22,7 +23,11 @@ public class IkioiKen {
         // ログアウトしたら、その人の剣の記録を消す
         NeoForge.EVENT_BUS.addListener(ServerSwing::onPlayerLogout);
 
-        // ガード中は前からの攻撃を防ぐ
+        // 敵の殴りを「ためてから振る」攻撃に変える（ガードより先に横取りする）
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, EnemyStrike::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(EnemyStrike::onServerTick);
+
+        // 剣が攻撃の線に入っていれば止める（ガード・パリィ）
         NeoForge.EVENT_BUS.addListener(ServerSwing::onIncomingDamage);
 
         // いきおい剣の攻撃では、ふつうの「なぎ払い」は出さない（勢いで何体も切れるので）
