@@ -257,6 +257,15 @@ public final class SwingConfig {
     // 1 回当てたときに進むひびの上限（1.0 で壊れる）。やわらかいブロックでも、ひびが何段か見える
     public static final float MAX_PROGRESS_PER_HIT = 0.25f;
 
+    // ===== 両手持ち =====
+
+    // 両手で持つと、ダメージと 1 回で掘る量がこれだけ上がる（そのかわり、ふり心地は少し重くなる）
+    public static final double TWO_HAND_DAMAGE_FACTOR = 1.3;
+    public static final float TWO_HAND_LIGHTNESS = 0.85f;
+
+    // 両手持ちの、うしろの手をにぎりのどれくらいうしろに置くか（ブロック）と、手の左右のよせ具合
+    public static final float TWO_HAND_BACK_GAP = 0.22f;
+
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
     public static final boolean DEBUG_LOG = false;
 }

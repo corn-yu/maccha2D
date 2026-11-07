@@ -33,7 +33,7 @@ public final class MotionClient {
     }
 
     /** ほかのプレイヤー 1 人ぶんの剣の向き。 */
-    private record PlayerBlade(float yaw, float pitch, float receivedTime, boolean leftArm) {
+    private record PlayerBlade(float yaw, float pitch, float receivedTime, boolean leftArm, boolean twoHanded) {
     }
 
     /** 今の動きの様子（体のかたむき・前への踏みこみ・腕）。 */
@@ -80,9 +80,13 @@ public final class MotionClient {
                 motion.strikeStart = currentTime;
             }
             case MotionPayload.PLAYER_BLADE -> PLAYER_BLADES.put(payload.entityId(),
-                    new PlayerBlade(payload.first(), payload.second(), currentTime, false));
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, false, false));
             case MotionPayload.PLAYER_BLADE_LEFT -> PLAYER_BLADES.put(payload.entityId(),
-                    new PlayerBlade(payload.first(), payload.second(), currentTime, true));
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, true, false));
+            case MotionPayload.PLAYER_BLADE_TWO -> PLAYER_BLADES.put(payload.entityId(),
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, false, true));
+            case MotionPayload.PLAYER_BLADE_LEFT_TWO -> PLAYER_BLADES.put(payload.entityId(),
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, true, true));
             case MotionPayload.PLAYER_BLADE_END -> PLAYER_BLADES.remove(payload.entityId());
             default -> {
             }
@@ -206,6 +210,7 @@ public final class MotionClient {
         float bladeYaw;
         float bladePitch;
         boolean useLeftArm;
+        boolean twoHanded;
         Minecraft minecraft = Minecraft.getInstance();
         if (player == minecraft.player) {
             // 自分：画面側の剣の向きをそのまま使う
@@ -216,6 +221,7 @@ public final class MotionClient {
             bladeYaw = SwingClient.bladeWorldYaw(localPlayer);
             bladePitch = SwingClient.bladeWorldPitch(localPlayer);
             useLeftArm = SwingClient.isBladeInLeftArm();
+            twoHanded = SwingClient.isTwoHanded();
         } else {
             // ほかの人：サーバーから届いた剣の向き（しばらく届かなければやめる）
             PlayerBlade blade = PLAYER_BLADES.get(player.getId());
@@ -229,6 +235,7 @@ public final class MotionClient {
             bladeYaw = blade.yaw();
             bladePitch = blade.pitch();
             useLeftArm = blade.leftArm();
+            twoHanded = blade.twoHanded();
         }
 
         // 体の向きから見た剣の向きに、右腕を向ける
@@ -238,6 +245,15 @@ public final class MotionClient {
         bladeArm.xRot = (float) Math.toRadians(-90.0f + bladePitch);
         bladeArm.yRot = (float) Math.toRadians(relativeYaw);
         bladeArm.zRot = 0.0f;
+
+        // 両手持ちなら、もう片方の腕も剣のほうへ向ける（少しだけ内がわへ）
+        if (twoHanded) {
+            net.minecraft.client.model.geom.ModelPart otherArm = useLeftArm ? humanoid.rightArm : humanoid.leftArm;
+            float inward = useLeftArm ? -0.35f : 0.35f;
+            otherArm.xRot = (float) Math.toRadians(-90.0f + bladePitch);
+            otherArm.yRot = (float) Math.toRadians(relativeYaw) + inward;
+            otherArm.zRot = 0.0f;
+        }
 
         // 体も少しひねる
         humanoid.body.yRot = (float) Math.toRadians(relativeYaw * 0.25f);

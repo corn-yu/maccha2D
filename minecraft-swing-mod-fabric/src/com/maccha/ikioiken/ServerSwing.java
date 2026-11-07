@@ -75,6 +75,7 @@ public final class ServerSwing {
         int lastPacketGameTick = 0;
         int steadyTicks = 0;
         boolean guarding = false;
+        boolean twoHanded = false;
         int lastFastSwingTick = -1000;
         int counterUntilTick = 0;
         double bladeLength = SwingConfig.BLADE_LENGTH;
@@ -227,6 +228,9 @@ public final class ServerSwing {
             return;
         }
 
+        // 両手持ち（左手が空いているときだけ有効）
+        boolean twoHandedNow = payload.twoHanded() && !payload.offhand() && player.getOffhandItem().isEmpty();
+
         // 今の剣の向きと肩の位置
         float bladePitch = Mth.clamp(payload.pitch(), -90.0f, 90.0f);
         Vec3 bladeDir = Vec3.directionFromRotation(bladePitch, payload.yaw());
@@ -251,6 +255,7 @@ public final class ServerSwing {
         }
         state.packetCount++;
         state.lastPacketGameTick = player.tickCount;
+        state.twoHanded = twoHandedNow;
 
         // 刃の長さは、その武器で届く距離に合わせる（長い槍は遠くまで、短剣は近く）
         state.bladeLength = Mth.clamp(player.entityInteractionRange(), SwingConfig.MIN_BLADE_LENGTH, SwingConfig.MAX_BLADE_LENGTH);
@@ -299,8 +304,10 @@ public final class ServerSwing {
         // まわりの人に剣の向きを知らせる（三人称で腕が動いて見える）
         boolean isLeftMain = player.getMainArm() == net.minecraft.world.entity.HumanoidArm.LEFT;
         boolean bladeInLeftArm = payload.offhand() ? !isLeftMain : isLeftMain;
-        Net.sendToPlayersTrackingEntity(player, new MotionPayload(player.getId(),
-                bladeInLeftArm ? MotionPayload.PLAYER_BLADE_LEFT : MotionPayload.PLAYER_BLADE, payload.yaw(), bladePitch));
+        int motionKind = bladeInLeftArm
+                ? (twoHandedNow ? MotionPayload.PLAYER_BLADE_LEFT_TWO : MotionPayload.PLAYER_BLADE_LEFT)
+                : (twoHandedNow ? MotionPayload.PLAYER_BLADE_TWO : MotionPayload.PLAYER_BLADE);
+        Net.sendToPlayersTrackingEntity(player, new MotionPayload(player.getId(), motionKind, payload.yaw(), bladePitch));
 
         // 次の tick のために覚えておく
         state.lastBladeDir = bladeDir;
@@ -679,6 +686,9 @@ public final class ServerSwing {
         double straightness = toCenter.lengthSqr() < 1.0e-6 ? 1.0 : relativeVelocity.normalize().dot(toCenter.normalize());
         double angleFactor = SwingConfig.ANGLE_MIN_FACTOR + (1.0 - SwingConfig.ANGLE_MIN_FACTOR) * Math.max(0.0, straightness);
         double momentumFactor = speedFactor * angleFactor * remainingPower;
+        if (state.twoHanded) {
+            momentumFactor *= SwingConfig.TWO_HAND_DAMAGE_FACTOR;
+        }
 
         // パリィのすぐあとなら反撃ボーナス
         boolean isCounter = player.tickCount <= state.counterUntilTick;
@@ -1114,7 +1124,8 @@ public final class ServerSwing {
         // 掘り具合を足す（しばらく当てていないひびは、サーバーの tick ごとの見回りで消えている）
         Map<BlockPos, CrackInfo> playerCracks = cracksOf(player);
         CrackInfo crack = playerCracks.get(pos);
-        float gain = (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * SwordCheck.materialDigSpeed(tool));
+        float gain = (float) (progressPerTick * SwingConfig.SWING_MINING_TICKS * speedFactor * SwordCheck.materialDigSpeed(tool)
+                * (state.twoHanded ? SwingConfig.TWO_HAND_DAMAGE_FACTOR : 1.0));
         gain = Math.min(gain, SwingConfig.MAX_PROGRESS_PER_HIT);
         float progress = (crack == null ? 0.0f : crack.progress) + gain;
 

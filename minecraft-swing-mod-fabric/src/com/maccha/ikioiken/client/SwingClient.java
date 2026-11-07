@@ -74,6 +74,14 @@ public final class SwingClient {
     // 剣をにぎっているのが左腕なら true（毎フレーム決めなおす）
     private static boolean bladeInLeftArm = false;
 
+    // 両手で構えているなら true（振っている最中に右クリックも押していて、左手が空いているとき）
+    private static boolean twoHanded = false;
+
+    /** 両手で構えているなら true。 */
+    public static boolean isTwoHanded() {
+        return twoHanded;
+    }
+
     /** 左手（オフハンド）に持った武器で振るモードなら true（メインの手が振れる物でなく、左手が振れる物のとき）。 */
     private static boolean isOffhandMode(LocalPlayer player) {
         return !SwordCheck.isSwingItem(player.getMainHandItem()) && SwordCheck.isSwingItem(player.getOffhandItem());
@@ -123,7 +131,12 @@ public final class SwingClient {
     /** 左手持ちの剣モード中の、ふつうの右クリック（使う・置く）を止めるべきなら true。 */
     public static boolean shouldBlockUse() {
         Minecraft minecraft = Minecraft.getInstance();
-        return isSwordModeActive(minecraft) && isOffhandMode(minecraft.player);
+        if (!isSwordModeActive(minecraft)) {
+            return false;
+        }
+
+        // 左手持ちのとき、またはメインの手で振っている最中（右クリックを両手持ちに使う）は止める
+        return isOffhandMode(minecraft.player) || holding;
     }
 
     /** 自分の剣を振っている・構えからずれているなら true（三人称の腕の動きに使う）。 */
@@ -160,6 +173,11 @@ public final class SwingClient {
         while (attackKey.consumeClick()) {
             // 何もしない（クリックを捨てるだけ）
         }
+        if (holding && !isOffhandMode(minecraft.player)) {
+            while (minecraft.options.keyUse.consumeClick()) {
+                // 振っている最中の右クリックは両手持ちに使うので、ふつうの使うは出さない
+            }
+        }
         // 押しっぱなしの状態は消さない（長押しの判定に使うので）。ふつうの攻撃・採掘は差しこみ側で止めている
     }
 
@@ -187,6 +205,10 @@ public final class SwingClient {
             holding = false;
             followThroughLeft = SwingConfig.FOLLOW_THROUGH_TICKS;
         }
+
+        // 両手持ち：メインの手で振っている最中に右クリックも押していて、左手が空いている
+        twoHanded = holding && !isOffhandMode(player) && player.getOffhandItem().isEmpty()
+                && minecraft.options.keyUse.isDown();
 
         // 長押し中はマウスで手を動かす、はなしたら手は構えにもどる
         float frameTicks = Math.min(minecraft.getDeltaTracker().getRealtimeDeltaTicks(), 3.0f);
@@ -264,6 +286,11 @@ public final class SwingClient {
 
         // 素材が重いほどゆっくり、軽いほどすばやく動く
         lightness /= SwordCheck.materialWeight(activeStack(player));
+
+        // 両手持ちは、少し重くなる
+        if (twoHanded) {
+            lightness *= SwingConfig.TWO_HAND_LIGHTNESS;
+        }
         return lightness;
     }
 
@@ -320,14 +347,14 @@ public final class SwingClient {
         if (isSwinging && isSwordModeActive(Minecraft.getInstance())) {
             float bladeYaw = player.getYRot() + swordYaw;
             float bladePitch = Mth.clamp(player.getXRot() + swordPitch, -90.0f, 90.0f);
-            ClientPlayNetworking.send(new BladePayload(true, bladeYaw, bladePitch, isOffhandMode(player)));
+            ClientPlayNetworking.send(new BladePayload(true, bladeYaw, bladePitch, isOffhandMode(player), twoHanded));
             sentHolding = true;
             return;
         }
 
         // 振り終わった：1 回だけ「やめた」を送る
         if (sentHolding) {
-            ClientPlayNetworking.send(new BladePayload(false, 0.0f, 0.0f, false));
+            ClientPlayNetworking.send(new BladePayload(false, 0.0f, 0.0f, false, false));
             sentHolding = false;
         }
     }
@@ -372,7 +399,19 @@ public final class SwingClient {
         Vector3f handPoint = handPosition(swingPush - pullBack * 0.5f);
 
         // 剣をにぎっている腕を、肩から手までのばして描く
-        renderArm(minecraft, player, poseStack, collector, playerState, light, handPoint);
+        renderArm(minecraft, player, poseStack, collector, playerState, light, handPoint, bladeInLeftArm);
+
+        // 両手持ちなら、もう片方の腕も、にぎりのうしろをにぎる
+        if (twoHanded) {
+            float yawRadians = (float) Math.toRadians(swordYaw);
+            float pitchRadians = (float) Math.toRadians(swordPitch);
+            Vector3f bladeForward = new Vector3f(
+                    Mth.cos(pitchRadians) * Mth.sin(yawRadians),
+                    -Mth.sin(pitchRadians),
+                    -Mth.cos(pitchRadians) * Mth.cos(yawRadians));
+            Vector3f backHand = new Vector3f(handPoint).sub(bladeForward.mul(SwingConfig.TWO_HAND_BACK_GAP));
+            renderArm(minecraft, player, poseStack, collector, playerState, light, backHand, !bladeInLeftArm);
+        }
 
         poseStack.pushPose();
         poseStack.translate(handPoint.x, handPoint.y, handPoint.z);
@@ -409,7 +448,7 @@ public final class SwingClient {
     /** 一人称で、肩から剣をにぎる手まで自分の右腕を描く（スキンもそのまま）。 */
     private static void renderArm(Minecraft minecraft, LocalPlayer player, PoseStack poseStack,
                                   SubmitNodeCollector collector, PlayerRenderState playerState, int light,
-                                  Vector3f handPoint) {
+                                  Vector3f handPoint, boolean leftArm) {
         // 透明のときは描かない
         if (player.isInvisible()) {
             return;
@@ -417,7 +456,8 @@ public final class SwingClient {
         AvatarRenderer<?> avatarRenderer = minecraft.getEntityRenderDispatcher().getRenderer(playerState.avatarRenderState);
 
         // 肩から手への向き
-        Vector3f shoulderPoint = new Vector3f(shoulderX(), SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z);
+        Vector3f shoulderPoint = new Vector3f(leftArm ? -SwingConfig.ARM_SHOULDER_X : SwingConfig.ARM_SHOULDER_X,
+                SwingConfig.ARM_SHOULDER_Y, SwingConfig.ARM_SHOULDER_Z);
         Vector3f armDir = new Vector3f(handPoint).sub(shoulderPoint);
         if (armDir.lengthSquared() < 1.0e-6f) {
             return;
@@ -432,7 +472,7 @@ public final class SwingClient {
 
         // 刃を向けた向きに合わせて、腕も同じだけひねる
         poseStack.rotateDegrees(Axis.YP, -bladeRoll);
-        if (bladeInLeftArm) {
+        if (leftArm) {
             poseStack.translate(-(5.0f / 16.0f + 1.0f / 16.0f), -(2.0f + 10.0f) / 16.0f, 0.0f);
             avatarRenderer.renderLeftHand(poseStack, collector, light,
                     playerState.avatarRenderState.skin.body().texturePath(), playerState.avatarRenderState.showLeftSleeve);
