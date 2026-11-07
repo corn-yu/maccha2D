@@ -690,6 +690,9 @@ public final class ServerSwing {
             momentumFactor *= SwingConfig.TWO_HAND_DAMAGE_FACTOR;
         }
 
+        // 武器のレベルが高いほどダメージが上がる
+        momentumFactor *= 1.0 + SwingConfig.WEAPON_LEVEL_DAMAGE_BONUS * (WeaponAbilities.weaponLevel(player.getMainHandItem()) - 1);
+
         // パリィのすぐあとなら反撃ボーナス
         boolean isCounter = player.tickCount <= state.counterUntilTick;
         if (isCounter) {
@@ -771,6 +774,14 @@ public final class ServerSwing {
             showCriticalEffects(player.level(), hitPoint);
         }
         Net.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5) + (superCritical ? 0.6f : 0.0f)));
+
+        // 武器についている能力（当てたとき・倒したとき）
+        if (rootTarget instanceof LivingEntity struck) {
+            WeaponAbilities.onHit(player, player.getMainHandItem(), struck, dealtDamage, hitPoint);
+            if (!struck.isAlive()) {
+                WeaponAbilities.onKill(player, player.getMainHandItem(), struck);
+            }
+        }
 
         // 当てた相手からダメージの数字を出す
         int numberStyle = superCritical ? DamagePayload.CRITICAL
@@ -962,6 +973,13 @@ public final class ServerSwing {
     public static void onServerTick(MinecraftServer server) {
         serverTick++;
         removeOldCracks(server);
+
+        // 1 秒ごとに、持っているだけで効く能力をかける
+        if (serverTick % 20 == 0) {
+            for (ServerPlayer onlinePlayer : server.getPlayerList().getPlayers()) {
+                WeaponAbilities.tickPassives(onlinePlayer);
+            }
+        }
         if (PENDING_SLASHES.isEmpty()) {
             return;
         }

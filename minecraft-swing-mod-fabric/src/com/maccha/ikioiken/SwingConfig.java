@@ -266,6 +266,11 @@ public final class SwingConfig {
     // 両手持ちの、うしろの手をにぎりのどれくらいうしろに置くか（ブロック）と、手の左右のよせ具合
     public static final float TWO_HAND_BACK_GAP = 0.22f;
 
+    // ===== 武器のレベル =====
+
+    // 武器のレベルが 1 上がるごとに、ダメージがこれだけ（割合）上がる
+    public static final double WEAPON_LEVEL_DAMAGE_BONUS = 0.08;
+
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
     public static final boolean DEBUG_LOG = false;
 }
