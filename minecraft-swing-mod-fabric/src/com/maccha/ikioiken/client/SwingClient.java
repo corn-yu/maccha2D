@@ -140,6 +140,9 @@ public final class SwingClient {
 
         // 長押しが始まった・終わったを調べる
         boolean wantHold = isSwordModeActive(minecraft) && isAttackButtonPressed(minecraft);
+        if (SwingConfig.DEBUG_LOG && wantHold != holding) {
+            System.out.println("ikioiken: 長押し " + holding + " -> " + wantHold);
+        }
         if (wantHold && !holding) {
             startHolding(player);
         } else if (!wantHold && holding) {

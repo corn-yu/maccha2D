@@ -117,6 +117,12 @@ public final class ServerSwing {
 
     /** 剣の向きパケットが届いたら、メインスレッドで処理する。 */
     public static void onBladePayload(BladePayload payload, ServerPlayNetworking.Context context) {
+        if (SwingConfig.DEBUG_LOG && context.player().tickCount % 20 == 0) {
+            System.out.println("ikioiken: 剣の向きを受け取った holding=" + payload.holding()
+                    + " 持ち物=" + context.player().getMainHandItem().getItem()
+                    + " 振れる物=" + SwordCheck.isSwingItem(context.player().getMainHandItem())
+                    + " 道具=" + SwordCheck.isTool(context.player().getMainHandItem()));
+        }
         handleBlade(context.player(), payload);
     }
 
@@ -927,6 +933,9 @@ public final class ServerSwing {
             if (blockHit.getType() != HitResult.Type.BLOCK) {
                 continue;
             }
+            if (SwingConfig.DEBUG_LOG) {
+                System.out.println("ikioiken: 刃がブロックに当たった " + blockHit.getBlockPos());
+            }
             BlockPos pos = blockHit.getBlockPos();
             if (!touchedBlocks.add(pos)) {
                 continue;
@@ -935,6 +944,9 @@ public final class ServerSwing {
             // 当たった場所の速さ（回転 ＋ 自分の移動）
             double hitRadius = blockHit.getLocation().distanceTo(stepShoulder);
             double hitSpeed = (turnRadians * hitRadius + shoulder.subtract(lastShoulder).length()) * 20.0;
+            if (SwingConfig.DEBUG_LOG) {
+                System.out.println("ikioiken: 当たった速さ=" + hitSpeed);
+            }
             if (hitSpeed < SwingConfig.MIN_HIT_SPEED) {
                 continue;
             }
