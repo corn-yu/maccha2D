@@ -4,7 +4,7 @@ license = "All Rights Reserved"
 
 [[mods]]
 modId = "ikioiken"
-version = "1.3.0"
+version = "1.4.0"
 displayName = "いきおい剣"
 authors = "まっちゃ"
 description = '''
@@ -12,6 +12,9 @@ description = '''
 当たったときの勢い（振る速さ・当たる角度・自分と相手の動き）でダメージが決まる。
 しゃがみながらだと、ふつうの攻撃・採掘になる。
 '''
+
+[[mixins]]
+config = "ikioiken.mixins.json"
 
 [[dependencies.ikioiken]]
 modId = "neoforge"

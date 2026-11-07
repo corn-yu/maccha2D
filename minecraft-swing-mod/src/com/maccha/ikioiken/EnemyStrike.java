@@ -21,6 +21,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 敵の殴り攻撃を「ためてから振る」攻撃に変えるクラス（ためている間によけたり、剣で受けたりできる）。
@@ -31,7 +32,7 @@ public final class EnemyStrike {
     }
 
     /** ためている途中の敵の攻撃 1 つぶん。 */
-    private record PendingStrike(Mob attacker, ServerPlayer target, DamageSource source, float damage, int strikeTick) {
+    private record PendingStrike(Mob attacker, ServerPlayer target, int strikeTick) {
     }
 
     // 敵ごとの、ためている途中の攻撃
@@ -71,9 +72,10 @@ public final class EnemyStrike {
         }
 
         // ためを始める（音と火花で「来るぞ」と知らせる）
-        PENDING.put(attacker.getId(), new PendingStrike(attacker, player, source, event.getAmount(),
-                serverTick + SwingConfig.ENEMY_WINDUP_TICKS));
+        PENDING.put(attacker.getId(), new PendingStrike(attacker, player, serverTick + SwingConfig.ENEMY_WINDUP_TICKS));
         showWindup(attacker);
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(attacker,
+                new MotionPayload(attacker.getId(), MotionPayload.ENEMY_WINDUP, SwingConfig.ENEMY_WINDUP_TICKS, 0.0f));
     }
 
     /** ボスや、もともと攻撃の動きがある Mod の敵は、元の攻撃のままにする。 */
@@ -135,6 +137,8 @@ public final class EnemyStrike {
 
         // 振る動きと音
         attacker.swing(InteractionHand.MAIN_HAND, true);
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(attacker,
+                new MotionPayload(attacker.getId(), MotionPayload.ENEMY_STRIKE, 0.0f, 0.0f));
         ServerLevel level = (ServerLevel) attacker.level();
         level.playSound(null, attacker.getX(), attacker.getY(), attacker.getZ(),
                 SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 0.8f, 0.8f);
@@ -145,18 +149,13 @@ public final class EnemyStrike {
             return;
         }
 
-        // 当てる（剣で受けていればガード・パリィになる）
-        float healthBefore = target.getHealth();
+        // 敵の本来の攻撃処理で当てなおす（毒・ウィザー・火などのおまけ効果やノックバックもそのまま出る）
+        // 剣で受けていればガード・パリィになる
         strikingNow = true;
         try {
-            target.hurt(strike.source(), strike.damage());
+            attacker.doHurtTarget(target);
         } finally {
             strikingNow = false;
-        }
-
-        // 当たったら、敵の向きにふっとぶ
-        if (target.getHealth() < healthBefore) {
-            target.knockback(SwingConfig.ENEMY_KNOCKBACK, attacker.getX() - target.getX(), attacker.getZ() - target.getZ());
         }
     }
 

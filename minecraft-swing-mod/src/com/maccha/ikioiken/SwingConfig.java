@@ -130,9 +130,6 @@ public final class SwingConfig {
     // 敵の正面からこの角度の外へ回りこめば当たらない
     public static final double ENEMY_STRIKE_ARC_DEGREES = 80.0;
 
-    // 当たったときに敵の向きにふっとぶ強さ
-    public static final float ENEMY_KNOCKBACK = 0.4f;
-
     // 元の攻撃のままにする Mod（カタリズムの敵は、もともと攻撃の前に動きがあるのでそのまま）
     public static final String[] ENEMY_SKIP_MODS = {"cataclysm"};
 

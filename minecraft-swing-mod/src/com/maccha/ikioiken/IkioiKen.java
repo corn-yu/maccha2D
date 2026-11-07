@@ -36,9 +36,11 @@ public class IkioiKen {
 
     /** 剣の向きパケット（クライアント → サーバー）と手ごたえパケット（サーバー → クライアント）を登録する。 */
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("2");
+        PayloadRegistrar registrar = event.registrar("3");
         registrar.playToServer(BladePayload.TYPE, BladePayload.STREAM_CODEC, ServerSwing::onBladePayload);
         registrar.playToClient(HitPayload.TYPE, HitPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> com.maccha.ikioiken.client.SwingClient.onHit(payload.strength())));
+        registrar.playToClient(MotionPayload.TYPE, MotionPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> com.maccha.ikioiken.client.MotionClient.onMotion(payload)));
     }
 }

@@ -176,6 +176,10 @@ public final class ServerSwing {
             mineBlocksOnPath(player, state, state.lastBladeDir, bladeDir, state.lastShoulder, shoulder);
         }
 
+        // まわりの人に剣の向きを知らせる（三人称で腕が動いて見える）
+        PacketDistributor.sendToPlayersTrackingEntity(player,
+                new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE, payload.yaw(), bladePitch));
+
         // 次の tick のために覚えておく
         state.lastBladeDir = bladeDir;
         state.lastShoulder = shoulder;
@@ -187,6 +191,8 @@ public final class ServerSwing {
         if (state == null) {
             return;
         }
+        PacketDistributor.sendToPlayersTrackingEntity(player,
+                new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE_END, 0.0f, 0.0f));
         for (BlockPos pos : state.blockProgress.keySet()) {
             player.serverLevel().destroyBlockProgress(player.getId(), pos, -1);
         }

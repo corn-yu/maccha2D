@@ -1,7 +1,7 @@
 #!/bin/bash
 # いきおい剣をビルドする: bash build.sh <NeoForge 1.21.1 の jar を集めたフォルダ>
 # 必要な jar: neoforge-21.1.x-client.jar（先に置く）・client-1.21.1-*-srg.jar・neoforge-21.1.x-universal.jar・
-#            loader・bus・brigadier・datafixerupper・netty・joml・lwjgl・guava・gson など
+#            loader・bus・mergetool-api・sponge-mixin・brigadier・datafixerupper・netty・joml・lwjgl・guava・gson など
 set -e
 cd "$(dirname "$0")"
 LIB_DIR="$1"
@@ -19,7 +19,7 @@ done
 # コンパイル（Java 21 向け）
 rm -rf build
 mkdir -p build/classes dist
-javac --release 21 -encoding UTF-8 -nowarn -cp "$CLASS_PATH" -d build/classes $(find src -name "*.java")
+javac --release 21 -proc:none -encoding UTF-8 -nowarn -cp "$CLASS_PATH" -d build/classes $(find src -name "*.java")
 
 # jar にまとめる
 cp -r resources/* build/classes/

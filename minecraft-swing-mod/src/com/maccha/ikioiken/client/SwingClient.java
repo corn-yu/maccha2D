@@ -88,6 +88,23 @@ public final class SwingClient {
         return InputConstants.isKeyDown(window, key.getValue());
     }
 
+    /** 自分の剣を振っている・構えからずれているなら true（三人称の腕の動きに使う）。 */
+    public static boolean isSwordOut() {
+        return holding || followThroughLeft > 0
+                || Math.abs(swordYaw - SwingConfig.REST_YAW) > 0.5f
+                || Math.abs(swordPitch - SwingConfig.REST_PITCH) > 0.5f;
+    }
+
+    /** 自分の剣の向き（世界の左右の向き）を返す。 */
+    public static float bladeWorldYaw(LocalPlayer player) {
+        return player.getYRot() + swordYaw;
+    }
+
+    /** 自分の剣の向き（世界の上下の向き）を返す。 */
+    public static float bladeWorldPitch(LocalPlayer player) {
+        return Mth.clamp(player.getXRot() + swordPitch, -90.0f, 90.0f);
+    }
+
     /** サーバーから「当たった・防いだ」と届いたら、剣を一瞬止めて画面をゆらす。 */
     public static void onHit(float strength) {
         hitStopLeft = Math.max(hitStopLeft, SwingConfig.HITSTOP_TICKS * Math.min(strength, 1.5f));
