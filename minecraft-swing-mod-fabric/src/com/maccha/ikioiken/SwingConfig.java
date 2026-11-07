@@ -31,13 +31,13 @@ public final class SwingConfig {
     public static final float MAX_WEIGHT_FACTOR = 1.4f;
 
     // 素材の重さ（1.0 が鉄）。軽いと速く振れ、重いと振りがおそいかわりに 1 回で掘る量が増える（1.0 より軽い物は掘る量は変えない。金は元から掘るのが速い）
-    public static final float WEIGHT_WOOD = 0.8f;
-    public static final float WEIGHT_GOLD = 0.85f;
-    public static final float WEIGHT_STONE = 0.95f;
+    public static final float WEIGHT_WOOD = 0.9f;
+    public static final float WEIGHT_GOLD = 0.9f;
+    public static final float WEIGHT_STONE = 0.97f;
     public static final float WEIGHT_COPPER = 1.0f;
     public static final float WEIGHT_IRON = 1.0f;
-    public static final float WEIGHT_DIAMOND = 1.2f;
-    public static final float WEIGHT_NETHERITE = 1.4f;
+    public static final float WEIGHT_DIAMOND = 1.07f;
+    public static final float WEIGHT_NETHERITE = 1.15f;
 
     // 手をはなしたあと、剣が元の構えにもどる強さ（ふりぬいてからゆっくりもどる）
     public static final float RETURN_STIFFNESS = 0.12f;
@@ -168,9 +168,9 @@ public final class SwingConfig {
 
     // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか
     // （石を鉄のつるはしで約 3 回、丸太を鉄の斧で約 4 回、土を鉄のシャベルで約 1〜2 回）
-    public static final float SWING_MINING_TICKS = 1.0f;
+    public static final float SWING_MINING_TICKS = 2.0f;
 
-    // 同じブロックにもう一度当たるまでの間（tick）。短くすると、ひびが細かく少しずつ広がる（1 回の振りの掘る量は 6 tick ぶんで同じ）
+    // 同じブロックにもう一度当たるまでの間（tick）。短くすると、ひびが細かく少しずつ広がる（1 回の振りの掘る量は 4 tick ぶん）
     public static final int MINING_HIT_COOLDOWN_TICKS = 2;
 
     // この時間（tick）当てなかったブロックのひびは消える
