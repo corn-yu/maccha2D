@@ -84,7 +84,7 @@ public final class PlayerPowers {
         // そのゾンビの能力のうち、まだ持っていないもの（災厄があれば それが先）
         List<Ability> candidates = new ArrayList<>();
         for (Ability ability : Ability.values()) {
-            if (ability.tier >= 1 && ZombieAbilities.has(zombie, ability) && !hasPower(player, ability)) {
+            if (ability.tier >= 1 && !ability.zombieOnly && ZombieAbilities.has(zombie, ability) && !hasPower(player, ability)) {
                 candidates.add(ability);
             }
         }

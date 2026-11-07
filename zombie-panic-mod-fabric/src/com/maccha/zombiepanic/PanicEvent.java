@@ -232,6 +232,7 @@ public final class PanicEvent {
             if (ZombieAbilities.shouldIgnoreDamage(victim, source)) {
                 return false;
             }
+            NewAbilities.onZombieHurt(level, victim, attacker, amount);
             float multiplier = ZombieAbilities.damageTakenMultiplier(victim);
             if (attacker instanceof Player player) {
                 multiplier *= ZombieAbilities.cursedWeaponMultiplier(player);

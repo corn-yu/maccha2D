@@ -69,6 +69,34 @@ public final class ZombieAbilities {
         THUNDER("thunder", "雷", 2),
         FREEZER("freezer", "凍結", 2),
         PULLER("puller", "引きよせ", 2),
+        // ---- ゾンビだけの能力（プレイヤーはもらえない）: 特殊 ----
+        THORNS("thorns", "とげ", 1, true),
+        WEAKENER("weakener", "弱らせ", 1, true),
+        BLINDER("blinder", "目つぶし", 1, true),
+        DIZZY("dizzy", "ふらふら", 1, true),
+        KNOCKER("knocker", "ふっとばし", 1, true),
+        LEAPER("leaper", "飛びかかり", 1, true),
+        SPITTER("spitter", "つばはき", 1, true),
+        FIREBREATH("firebreath", "ほのおのいき", 1, true),
+        HEALER("healer", "癒し", 1, true),
+        SCREAMER("screamer", "さけび", 1, true),
+        STONESKIN("stoneskin", "石の肌", 1, true),
+        THIEF("thief", "どろぼう", 1, true),
+        // ---- ゾンビだけの能力: 強い特殊 ----
+        LASER("laser", "光線", 2, true),
+        GRAVITY("gravity", "重力", 2, true),
+        NECRO("necro", "ネクロ", 2, true),
+        FROSTNOVA("frostnova", "氷の嵐", 2, true),
+        FIRESTORM("firestorm", "火の雨", 2, true),
+        BARRIER("barrier", "バリア", 2, true),
+        BERSERK("berserk", "狂乱", 2, true),
+        DRAIN("drain", "ドレイン", 2, true),
+        LAUNCHER("launcher", "打ち上げ", 2, true),
+        MIRROR("mirror", "反射", 2, true),
+        DARKNESS("darkness", "暗闇", 2, true),
+        // ---- ゾンビだけの能力: 最強 ----
+        DOOMSDAY("doomsday", "終末", 3, true),
+        TIMESTOP("timestop", "時間停止", 3, true),
         // ---- 最強（1000体に1体） ----
         CALAMITY("calamity", "災厄", 3),
         // ---- ボス用（くじでは出ない） ----
@@ -81,12 +109,20 @@ public final class ZombieAbilities {
         public final String id;
         public final String shortName;
         public final int tier;
+        // ゾンビだけの能力か（プレイヤーはうばえない）
+        public final boolean zombieOnly;
 
         /** 能力の名前と強さの段を決める。 */
         Ability(String id, String shortName, int tier) {
+            this(id, shortName, tier, false);
+        }
+
+        /** ゾンビだけの能力かどうかも決める。 */
+        Ability(String id, String shortName, int tier, boolean zombieOnly) {
             this.id = id;
             this.shortName = shortName;
             this.tier = tier;
+            this.zombieOnly = zombieOnly;
         }
 
         /** ゾンビにつける目じるしの名前。 */
@@ -113,13 +149,22 @@ public final class ZombieAbilities {
         }
 
         // 1000体に1体 → 100体に1体 → 10体に1体
+        int tier = 0;
         if (random.nextInt(PanicConfig.STRONGEST_ABILITY_CHANCE) == 0) {
-            makeRareZombie(zombie, 3);
+            tier = 3;
         } else if (random.nextInt(PanicConfig.STRONG_ABILITY_CHANCE) == 0) {
-            makeRareZombie(zombie, 2);
+            tier = 2;
         } else if (random.nextInt(PanicConfig.ABILITY_CHANCE) == 0) {
-            makeRareZombie(zombie, 1);
+            tier = 1;
         }
+
+        // レベルをきめる（レベルが高いと、能力の段も上がる）
+        int level = ZombieLevel.pickLevel(zombie);
+        tier = Math.max(tier, ZombieLevel.tierFor(level));
+        if (tier > 0) {
+            makeRareZombie(zombie, tier);
+        }
+        ZombieLevel.apply(zombie, level);
     }
 
     /** その段のレアゾンビにする（体を強くして、能力をいくつか持たせる）。 */
@@ -141,6 +186,8 @@ public final class ZombieAbilities {
         List<Ability> abilities = new ArrayList<>();
         if (tier == 3) {
             abilities.add(Ability.CALAMITY);
+            addRandomAbility(abilities, 3);
+            addRandomAbility(abilities, 2);
             addRandomAbility(abilities, 2);
             addRandomAbility(abilities, 1);
             addRandomAbility(abilities, 1);
@@ -226,7 +273,7 @@ public final class ZombieAbilities {
     }
 
     /** 能力の元の値を 何倍かにする。 */
-    private static void multiplyBase(Zombie zombie, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute, double factor) {
+    static void multiplyBase(Zombie zombie, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute, double factor) {
         var instance = zombie.getAttribute(attribute);
         if (instance != null) {
             instance.setBaseValue(instance.getBaseValue() * factor);
@@ -253,6 +300,10 @@ public final class ZombieAbilities {
                 multiplyBase(zombie, Attributes.MOVEMENT_SPEED, 0.85);
             }
             case GUARDIAN -> MobUtil.addBaseAttribute(zombie, Attributes.ARMOR, 10.0);
+            case STONESKIN -> {
+                MobUtil.addBaseAttribute(zombie, Attributes.ARMOR, 8.0);
+                MobUtil.addBaseAttribute(zombie, Attributes.KNOCKBACK_RESISTANCE, 0.5);
+            }
             default -> {
             }
         }
@@ -281,6 +332,10 @@ public final class ZombieAbilities {
             case 2 -> Component.literal("【強】" + names + "ゾンビ").withStyle(ChatFormatting.LIGHT_PURPLE);
             default -> Component.literal(names + "ゾンビ").withStyle(ChatFormatting.YELLOW);
         };
+        if (ZombieLevel.levelOf(zombie) > 0) {
+            ZombieLevel.setLevelName(zombie);
+            return;
+        }
         zombie.setCustomName(name);
         // 段2と3はいつも名前を見せる
         zombie.setCustomNameVisible(tier >= 2);
@@ -357,6 +412,7 @@ public final class ZombieAbilities {
             MobUtil.addTimedEffect(target, MobEffects.MINING_FATIGUE, 80, 1);
             target.setTicksFrozen(Math.max(target.getTicksFrozen(), 160));
         }
+        NewAbilities.onZombieHits(attacker, target);
         if (has(attacker, Ability.CALAMITY)) {
             MobUtil.addTimedEffect(target, MobEffects.WITHER, 80, 1);
         }

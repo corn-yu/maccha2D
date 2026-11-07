@@ -55,6 +55,26 @@ public final class PanicConfig {
     public static final int STEAL_CHANCE_TIER2 = 3;
     public static final int STEAL_CHANCE_TIER3 = 1;
 
+    // ---------------- ゾンビのレベル（たくさん遊ぶほど 高いレベルが出る） ----------------
+
+    // たおした数 ○体ごとに、出るレベルの上限が1ふえる
+    public static final int LEVEL_KILLS_PER_STEP = 15;
+    // レベルのかたより（大きいほど 低いレベルが多く、高いレベルはまれ）
+    public static final int LEVEL_LUCK_POWER = 5;
+    // 上限をこえる「とつぜん変異」の確率（○体に1体）
+    public static final int LEVEL_MUTATION_CHANCE = 300;
+    // この数字以上のレベルで、能力の段が上がる（段1・段2・段3）
+    public static final int LEVEL_FOR_TIER1 = 25;
+    public static final int LEVEL_FOR_TIER2 = 60;
+    public static final int LEVEL_FOR_TIER3 = 100;
+    // 1レベルごとの強さ: 体力は +6%、攻撃は +0.08、かたさは +0.12（上限20）、足の速さは +0.3%（上限30%）
+    public static final double LEVEL_HEALTH_PER_LEVEL = 0.06;
+    public static final double LEVEL_ATTACK_PER_LEVEL = 0.08;
+    public static final double LEVEL_ARMOR_PER_LEVEL = 0.12;
+    public static final double LEVEL_SPEED_PER_LEVEL = 0.003;
+    // いちばん高いレベル
+    public static final int LEVEL_MAX = 999;
+
     // ---------------- たおした数で出るボス ----------------
 
     // ボスが出る数（300体ごと。BOSS_KILL_STEP_GROW を足すと だんだん間があく）

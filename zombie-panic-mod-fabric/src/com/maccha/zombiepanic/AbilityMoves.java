@@ -88,10 +88,13 @@ public final class AbilityMoves {
             spawnShadowsIfFew(level, zombie);
         }
 
+        NewAbilities.useSelfMoves(level, zombie, time);
+
         LivingEntity target = zombie.getTarget();
         if (target == null || !target.isAlive()) {
             return;
         }
+        NewAbilities.useTargetMoves(level, zombie, target, time);
         double distance = zombie.distanceTo(target);
         boolean canSee = zombie.hasLineOfSight(target);
 
@@ -375,7 +378,7 @@ public final class AbilityMoves {
     // ---------------- 見た目の道具 ----------------
 
     /** 2点のあいだに つぶつぶの線を引く。 */
-    static void drawLine(ServerLevel level, Vec3 from, Vec3 to, ParticleOptions particle) {
+    public static void drawLine(ServerLevel level, Vec3 from, Vec3 to, ParticleOptions particle) {
         Vec3 step = to.subtract(from);
         int points = (int) Math.max(4, step.length() * 3);
         for (int i = 0; i <= points; i++) {
