@@ -1,0 +1,29 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "zombiepanic"
+version = "1.0.0"
+displayName = "ゾンビパニック"
+authors = "まっちゃ"
+description = '''
+ときどき「ゾンビパニック」が起きて、世界中に ゾンビが大量に あらわれる。
+パニックのあいだは ゾンビ以外のモブは わかない。
+大行進・走るゾンビ・ゾンビ大将 などのイベントがランダムで起きる。
+コマンド: /zombiepanic start | stop | status
+'''
+
+[[dependencies.zombiepanic]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.zombiepanic]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "BOTH"
