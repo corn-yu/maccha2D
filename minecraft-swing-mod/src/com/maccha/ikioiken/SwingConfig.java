@@ -145,11 +145,15 @@ public final class SwingConfig {
 
     // ===== 道具でブロックを壊す =====
 
-    // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか（石を鉄のつるはしで約 1 回）
-    public static final float SWING_MINING_TICKS = 8.0f;
+    // 基準の速さで 1 回当てると、ふつうに何 tick 掘ったのと同じになるか
+    // （石を鉄のつるはしで約 3 回、丸太を鉄の斧で約 4 回、土を鉄のシャベルで約 1〜2 回）
+    public static final float SWING_MINING_TICKS = 3.0f;
+
+    // 同じブロックにもう一度当たるまでの間（tick）。1 回の振りで何度も当たらないようにする
+    public static final int MINING_HIT_COOLDOWN_TICKS = 6;
 
     // この時間（tick）当てなかったブロックのひびは消える
-    public static final int MINING_FORGET_TICKS = 60;
+    public static final int MINING_FORGET_TICKS = 100;
 
     // 1 tick に壊せるブロックの数の上限
     public static final int MAX_BLOCKS_PER_TICK = 3;

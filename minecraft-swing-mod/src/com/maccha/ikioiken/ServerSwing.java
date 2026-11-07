@@ -13,6 +13,7 @@ import org.joml.Vector3f;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -24,6 +25,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -41,12 +43,14 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.vehicle.VehicleEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.ItemAbilities;
 import net.neoforged.neoforge.entity.PartEntity;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -698,16 +702,28 @@ public final class ServerSwing {
             double speedFactor = Math.min(hitSpeed / SwingConfig.REFERENCE_SPEED, SwingConfig.MAX_SPEED_FACTOR);
 
             // ふつうに掘ったときの 1 tick ぶん × 勢い
-            if (hitBlock(player, state, level, pos, speedFactor)) {
+            if (hitBlock(player, state, level, blockHit, speedFactor)) {
                 brokenCount++;
             }
         }
     }
 
     /** 1 つのブロックに道具を当てて、ひびを進める。壊れたら true。 */
-    private static boolean hitBlock(ServerPlayer player, SwingState state, ServerLevel level, BlockPos pos, double speedFactor) {
+    private static boolean hitBlock(ServerPlayer player, SwingState state, ServerLevel level, BlockHitResult blockHit, double speedFactor) {
+        BlockPos pos = blockHit.getBlockPos();
         BlockState blockState = level.getBlockState(pos);
         if (blockState.isAir() || !level.mayInteract(player, pos)) {
+            return false;
+        }
+        ItemStack tool = player.getMainHandItem();
+
+        // クワを土や草ブロックに振りおろしたら、畑にする（右クリックで耕すのと同じ）
+        if (tillWithHoe(player, state, tool, blockHit)) {
+            return false;
+        }
+
+        // その道具の得意なブロックだけ（斧は木、つるはしは石や鉱石、シャベルは土や砂、クワは葉っぱなど）
+        if (tool.getDestroySpeed(blockState) <= 1.0f) {
             return false;
         }
         float progressPerTick = blockState.getDestroyProgress(player, level, pos);
@@ -715,8 +731,13 @@ public final class ServerSwing {
             return false;
         }
 
-        // しばらく当てていなかったブロックのひびは消えている（ふつうに掘るのをやめたときと同じ）
+        // 同じ振りで何回も当たらないように、同じブロックには少しあけないと当たらない（たくさん振るほど早く壊れる）
         Integer lastHitTick = state.blockLastHitTick.get(pos);
+        if (lastHitTick != null && player.tickCount - lastHitTick < SwingConfig.MINING_HIT_COOLDOWN_TICKS) {
+            return false;
+        }
+
+        // しばらく当てていなかったブロックのひびは消えている（ふつうに掘るのをやめたときと同じ）
         if (lastHitTick != null && player.tickCount - lastHitTick > SwingConfig.MINING_FORGET_TICKS) {
             state.blockProgress.remove(pos);
         }
@@ -745,5 +766,29 @@ public final class ServerSwing {
             PacketDistributor.sendToPlayer(player, new HitPayload(0.4f));
         }
         return broken;
+    }
+
+    /** クワが当たった土を耕して畑にする。耕せたら true。 */
+    private static boolean tillWithHoe(ServerPlayer player, SwingState state, ItemStack tool, BlockHitResult blockHit) {
+        // クワでなければ、または下の面に当たったときは耕さない
+        if (!tool.canPerformAction(ItemAbilities.HOE_TILL) || blockHit.getDirection() == Direction.DOWN) {
+            return false;
+        }
+
+        // 同じ振りで何回も耕そうとしない
+        BlockPos pos = blockHit.getBlockPos();
+        Integer lastHitTick = state.blockLastHitTick.get(pos);
+        if (lastHitTick != null && player.tickCount - lastHitTick < SwingConfig.MINING_HIT_COOLDOWN_TICKS) {
+            return false;
+        }
+
+        // 右クリックで耕すのと同じ動き（上が空いているか・音・耐久・ほかの Mod の決まりもそのまま）
+        InteractionResult result = tool.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, blockHit));
+        if (!result.consumesAction()) {
+            return false;
+        }
+        state.blockLastHitTick.put(pos, player.tickCount);
+        state.blockProgress.remove(pos);
+        return true;
     }
 }
