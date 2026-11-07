@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "zombiepanic:item/cursed_iron_helmet"
+  }
+}
