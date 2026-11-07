@@ -117,6 +117,7 @@ public final class PanicEvent {
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
         serverTicks++;
+        AbilityMoves.tickPendingMeteors(server);
         if (!curseActive) {
             return;
         }
@@ -212,8 +213,12 @@ public final class PanicEvent {
             ZombieAbilities.onZombieHits(zombieAttacker, event.getEntity());
         }
 
-        // ゾンビがなぐられた
+        // ゾンビがなぐられた（飛びまわる能力のゾンビは 落ちても平気）
         if (event.getEntity() instanceof Zombie victim) {
+            if (ZombieAbilities.shouldIgnoreDamage(victim, event.getSource())) {
+                event.setCanceled(true);
+                return;
+            }
             float multiplier = ZombieAbilities.damageTakenMultiplier(victim);
             if (attacker instanceof Player player) {
                 multiplier *= ZombieAbilities.cursedWeaponMultiplier(player);
@@ -249,7 +254,7 @@ public final class PanicEvent {
             }
         }
 
-        if (killerPlayer != null && curseActive) {
+        if (killerPlayer != null && curseActive && !ZombieAbilities.isIllusion(zombie)) {
             countKill(server, killerPlayer);
         }
     }
@@ -272,10 +277,11 @@ public final class PanicEvent {
         if (data.killCount >= data.nextBossKills) {
             data.bossKillStep += PanicConfig.BOSS_KILL_STEP_GROW;
             data.nextBossKills = data.killCount + data.bossKillStep;
+            BossZombies.BossKind kind = BossZombies.nextKindInTurn(data);
             killerPlayer.serverLevel().getServer().getPlayerList().broadcastSystemMessage(
                     Component.literal("ゾンビを " + data.killCount + "体 たおした！ 強い気配が 近づいてくる……")
                             .withStyle(ChatFormatting.DARK_RED), false);
-            BossZombies.spawnBossNear(killerPlayer, null);
+            BossZombies.spawnBossNear(killerPlayer, kind);
         }
 
         // 下の文字（アクションバー）
@@ -537,6 +543,7 @@ public final class PanicEvent {
         clearTimeBar();
         BossZombies.clearAll();
         ZombieDragon.reset();
+        AbilityMoves.reset();
         currentPhase = Phase.CALM;
         phaseTicksLeft = 0;
         panicBossSpawned = false;

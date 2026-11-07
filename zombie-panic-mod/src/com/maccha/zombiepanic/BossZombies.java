@@ -47,7 +47,9 @@ public final class BossZombies {
         SEA_LORD("深海の主", ChatFormatting.AQUA),
         ROTTEN_GIANT("腐った巨人", ChatFormatting.DARK_GREEN),
         NECROMANCER("死霊使いゾンビ", ChatFormatting.DARK_PURPLE),
-        STORM_GENERAL("嵐の将軍", ChatFormatting.BLUE);
+        STORM_GENERAL("嵐の将軍", ChatFormatting.BLUE),
+        HUNTER("鉤爪の狩人", ChatFormatting.RED),
+        SKY_TYRANT("空の暴君", ChatFormatting.WHITE);
 
         public final String displayName;
         public final ChatFormatting color;
@@ -63,6 +65,15 @@ public final class BossZombies {
     }
 
     // ---------------- 出す ----------------
+
+    /** 次に出すボスの種類（全種類を順番に。同じボスばかりにならない）。 */
+    public static BossKind nextKindInTurn(WorldData data) {
+        BossKind[] kinds = BossKind.values();
+        BossKind kind = kinds[Math.floorMod(data.bossTurn, kinds.length)];
+        data.bossTurn++;
+        data.setDirty();
+        return kind;
+    }
 
     /** プレイヤーの近くにボスを出す（kind が null ならランダム）。出せたら そのボス。 */
     public static Zombie spawnBossNear(ServerPlayer targetPlayer, BossKind kind) {
@@ -89,6 +100,9 @@ public final class BossZombies {
         // みんなに知らせる
         level.getServer().getPlayerList().broadcastSystemMessage(Component.literal("ボス「" + chosenKind.displayName + "」が "
                 + targetPlayer.getName().getString() + " の近くに あらわれた！").withStyle(chosenKind.color, ChatFormatting.BOLD), false);
+        PanicEvent.showTitleToAll(level.getServer(),
+                Component.literal("ボス出現！").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD),
+                Component.literal(chosenKind.displayName).withStyle(chosenKind.color, ChatFormatting.BOLD));
         for (ServerPlayer player : level.players()) {
             player.playNotifySound(SoundEvents.WITHER_SPAWN, SoundSource.HOSTILE, 0.6f, 1.2f);
         }
@@ -127,6 +141,8 @@ public final class BossZombies {
                 equipNoDrop(boss, EquipmentSlot.HEAD, Items.NETHERITE_HELMET);
                 equipNoDrop(boss, EquipmentSlot.CHEST, Items.DIAMOND_CHESTPLATE);
                 equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.IRON_SWORD);
+                boss.addTag(ZombieAbilities.Ability.CHARGER.tag());
+                boss.addTag(ZombieAbilities.Ability.SUMMONER.tag());
             }
             case DESERT_KING -> {
                 setBossStats(boss, 280.0, 11.0, 0.3, 1.8);
@@ -135,22 +151,27 @@ public final class BossZombies {
                 equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.GOLDEN_AXE);
                 boss.addTag(ZombieAbilities.Ability.HUNGER.tag());
                 boss.addTag(ZombieAbilities.Ability.FIRE.tag());
+                boss.addTag(ZombieAbilities.Ability.METEOR.tag());
             }
             case SEA_LORD -> {
                 setBossStats(boss, 260.0, 12.0, 0.28, 1.8);
                 equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.TRIDENT);
                 equipNoDrop(boss, EquipmentSlot.HEAD, Items.TURTLE_HELMET);
                 boss.addTag(ZombieAbilities.Ability.PULLER.tag());
+                boss.addTag(ZombieAbilities.Ability.TORNADO.tag());
             }
             case ROTTEN_GIANT -> {
-                setBossStats(boss, 450.0, 16.0, 0.2, 3.2);
+                setBossStats(boss, 450.0, 16.0, 0.22, 4.0);
                 boss.addTag(ZombieAbilities.Ability.HUNGER.tag());
+                boss.addTag(ZombieAbilities.Ability.GIANT.tag());
+                MobUtil.setBaseAttribute(boss, Attributes.STEP_HEIGHT, 2.0);
             }
             case NECROMANCER -> {
                 setBossStats(boss, 220.0, 9.0, 0.27, 1.6);
                 equipNoDrop(boss, EquipmentSlot.HEAD, Items.WITHER_SKELETON_SKULL);
                 boss.addTag(ZombieAbilities.Ability.SUMMONER.tag());
                 boss.addTag(ZombieAbilities.Ability.TELEPORTER.tag());
+                boss.addTag(ZombieAbilities.Ability.SHADOW.tag());
             }
             case STORM_GENERAL -> {
                 setBossStats(boss, 260.0, 11.0, 0.32, 1.8);
@@ -159,6 +180,23 @@ public final class BossZombies {
                 equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.DIAMOND_SWORD);
                 boss.addTag(ZombieAbilities.Ability.THUNDER.tag());
                 boss.addTag(ZombieAbilities.Ability.FREEZER.tag());
+                boss.addTag(ZombieAbilities.Ability.GRAPPLE.tag());
+            }
+            case HUNTER -> {
+                setBossStats(boss, 260.0, 12.0, 0.33, 1.7);
+                equipNoDrop(boss, EquipmentSlot.HEAD, Items.LEATHER_HELMET);
+                equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.IRON_AXE);
+                boss.addTag(ZombieAbilities.Ability.GRAPPLE.tag());
+                boss.addTag(ZombieAbilities.Ability.CHARGER.tag());
+                boss.addTag(ZombieAbilities.Ability.CLONE.tag());
+            }
+            case SKY_TYRANT -> {
+                setBossStats(boss, 280.0, 13.0, 0.3, 1.9);
+                equipNoDrop(boss, EquipmentSlot.CHEST, Items.ELYTRA);
+                equipNoDrop(boss, EquipmentSlot.MAINHAND, Items.MACE);
+                boss.addTag(ZombieAbilities.Ability.ROCKET.tag());
+                boss.addTag(ZombieAbilities.Ability.WIND.tag());
+                MobUtil.addForeverEffect(boss, MobEffects.JUMP, 2);
             }
         }
     }

@@ -52,10 +52,10 @@ public final class PanicConfig {
 
     // ---------------- たおした数で出るボス ----------------
 
-    // はじめのボスが出る数と、次のボスまでの数（ボスが出るたびに BOSS_KILL_STEP_GROW ずつふえる）
-    public static final int FIRST_BOSS_KILLS = 40;
-    public static final int BOSS_KILL_STEP = 60;
-    public static final int BOSS_KILL_STEP_GROW = 10;
+    // ボスが出る数（300体ごと。BOSS_KILL_STEP_GROW を足すと だんだん間があく）
+    public static final int FIRST_BOSS_KILLS = 300;
+    public static final int BOSS_KILL_STEP = 300;
+    public static final int BOSS_KILL_STEP_GROW = 0;
     // ボスが出てくるまでの時間（「ゾンビ大将の襲来」のとき、パニック開始から秒）
     public static final int BOSS_APPEAR_SECONDS = 30;
 

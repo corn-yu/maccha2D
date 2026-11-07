@@ -20,6 +20,8 @@ public class WorldData extends SavedData {
     public int bossKillStep = PanicConfig.BOSS_KILL_STEP;
     // たおしたボスの数
     public int bossesDefeated = 0;
+    // 次に出すボスの番号（順番に出す）
+    public int bossTurn = 0;
     // 呪いがとけた（クリアした）か
     public boolean cleared = false;
 
@@ -37,6 +39,12 @@ public class WorldData extends SavedData {
         data.bossKillStep = tag.contains("bossKillStep") ? tag.getInt("bossKillStep") : PanicConfig.BOSS_KILL_STEP;
         data.bossesDefeated = tag.getInt("bossesDefeated");
         data.cleared = tag.getBoolean("cleared");
+        data.bossTurn = tag.getInt("bossTurn");
+        // 前の版（ボスが多かった）の記録は、300体ごとに なおす
+        if (data.bossKillStep < PanicConfig.BOSS_KILL_STEP) {
+            data.bossKillStep = PanicConfig.BOSS_KILL_STEP;
+            data.nextBossKills = (data.killCount / PanicConfig.BOSS_KILL_STEP + 1) * PanicConfig.BOSS_KILL_STEP;
+        }
         return data;
     }
 
@@ -48,6 +56,7 @@ public class WorldData extends SavedData {
         tag.putInt("bossKillStep", bossKillStep);
         tag.putInt("bossesDefeated", bossesDefeated);
         tag.putBoolean("cleared", cleared);
+        tag.putInt("bossTurn", bossTurn);
         return tag;
     }
 }
