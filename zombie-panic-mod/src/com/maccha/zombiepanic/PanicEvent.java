@@ -157,14 +157,10 @@ public final class PanicEvent {
         }
         BossZombies.showBarsTo(player);
 
-        // 入ったときのあいさつ
+        // 入ったときは、パニック中のときだけ知らせる
         if (!curseActive) {
-            player.sendSystemMessage(Component.literal("この世界の ゾンビの呪いは もう とけているよ。").withStyle(ChatFormatting.GREEN));
             return;
         }
-        WorldData data = WorldData.get(player.getServer());
-        player.sendSystemMessage(Component.literal("ここは ゾンビの呪いに おおわれた世界。廃都市をさがして 世界の真実を知ろう。（たおしたゾンビ: "
-                + data.killCount + "体）").withStyle(ChatFormatting.DARK_GREEN));
         if (currentPhase == Phase.PANIC) {
             player.sendSystemMessage(Component.literal("いま「" + currentType.title + "」の真っ最中！ 気をつけて！").withStyle(ChatFormatting.RED));
         }
@@ -305,11 +301,6 @@ public final class PanicEvent {
                             .withStyle(ChatFormatting.DARK_RED), false);
             BossZombies.spawnBossNear(killerPlayer, kind);
         }
-
-        // 下の文字（アクションバー）
-        int left = data.nextBossKills - data.killCount;
-        killerPlayer.displayClientMessage(Component.literal("たおしたゾンビ: " + data.killCount + "体（ボスまで あと " + left + "体）")
-                .withStyle(ChatFormatting.GRAY), true);
     }
 
     // ---------------- 段階ごとの動き ----------------
