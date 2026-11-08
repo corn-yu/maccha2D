@@ -83,8 +83,11 @@ public final class SkillEffects {
             return true;
         }
         Frozen frozen = FROZEN.get(entity.getUUID());
-        if (frozen == null || !frozen.deferDamage || !(source.getEntity() instanceof ServerPlayer attacker)
-                || !attacker.getUUID().equals(frozen.ownerId)) {
+        if (frozen == null || !frozen.deferDamage) {
+            return true;
+        }
+        // 虚空・/kill など無敵もつらぬくダメージだけは通す。ほかはどこからのダメージでも(毒・炎・ほかの敵・ほかのプレイヤーも)止めて、解除後に出す
+        if (source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             return true;
         }
         frozen.pendingDamage += amount;
