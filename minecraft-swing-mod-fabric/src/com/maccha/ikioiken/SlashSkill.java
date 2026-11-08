@@ -63,7 +63,13 @@ public final class SlashSkill {
     // 1 tick に進む長さ（ブロック）・1 回の細かい歩幅・次の斬撃までの間隔（tick）
     private static final double SPEED_PER_TICK = 2.0;
     private static final double STEP = 0.5;
-    private static final int FIRE_INTERVAL_TICKS = 10;
+    private static final int FIRE_INTERVAL_TICKS = 1;
+    private static final int SOUND_INTERVAL_TICKS = 6;
+    private static final int HIT_COOLDOWN_TICKS = 10;
+    private static final int MAX_FLYING = 150;
+
+    // 同じ敵に斬撃が何度も当たらないよう、最近当てた敵を覚えておく(持ち主ごと)
+    private static final java.util.Map<UUID, java.util.Map<Integer, Long>> RECENT_HITS = new java.util.HashMap<>();
 
     /** 武器を速く振ったとき、斬撃を飛ばす（間隔があくまで次は出ない）。 */
     public static void fire(ServerPlayer player, int tier, SkillEffects.SwingArc arc) {
@@ -71,6 +77,7 @@ public final class SlashSkill {
         if (last != null && tickCounter - last < FIRE_INTERVAL_TICKS) {
             return;
         }
+        boolean playSound = last == null || tickCounter - last >= SOUND_INTERVAL_TICKS;
         LAST_FIRE.put(player.getUUID(), tickCounter);
 
         // 段が上がるほど遠くまで・強く(5 → 10 → 10 ブロック、ダメージ 1 → 1.5 → 2.5 倍)
@@ -80,8 +87,13 @@ public final class SlashSkill {
         // 刃の先の位置から、剣の向きへ飛ばす(切ったときの軌跡がそのまま飛んでいく)
         Vec3 direction = arc.newDir().normalize();
         Vec3 tip = arc.shoulder().add(direction.scale(arc.bladeLength()));
+        if (FLYING.size() >= MAX_FLYING) {
+            return;
+        }
         FLYING.add(new Slash(player.getUUID(), (ServerLevel) player.level(), tip, direction, tier, range, damage, arc));
-        player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.0f, 1.4f);
+        if (playSound) {
+            player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.0f, 1.4f);
+        }
     }
 
     /** 毎 tick 呼ぶ。飛んでいる斬撃を進めて、当たった敵とブロックを処理する。 */
@@ -153,6 +165,12 @@ public final class SlashSkill {
             if (target instanceof TamableAnimal pet && pet.isOwnedBy(owner)) {
                 continue;
             }
+            java.util.Map<Integer, Long> recent = RECENT_HITS.computeIfAbsent(owner.getUUID(), id -> new java.util.HashMap<>());
+            Long lastHit = recent.get(target.getId());
+            if (lastHit != null && tickCounter - lastHit < HIT_COOLDOWN_TICKS) {
+                continue;
+            }
+            recent.put(target.getId(), tickCounter);
             slash.hitEntities.add(target.getId());
             target.setInvulnerableTime(0);
             target.hurtServer(slash.level, slash.level.damageSources().indirectMagic(owner, owner), slash.damage);
@@ -204,5 +222,6 @@ public final class SlashSkill {
     public static void onServerStopped(MinecraftServer server) {
         FLYING.clear();
         LAST_FIRE.clear();
+        RECENT_HITS.clear();
     }
 }
