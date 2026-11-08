@@ -89,15 +89,22 @@ public final class MasterSkill {
             // どの部位に当たったか：高さで頭・胴・足、胴の高さで体の真ん中から横にはなれていれば腕
             double heightRatio = (hitPoint.y - target.getY()) / Math.max(0.1, target.getBbHeight());
             double sideways = Math.hypot(hitPoint.x - target.getX(), hitPoint.z - target.getZ());
+            // 敵から見て右か左か(右側なら正、左側なら負)
+            double bodyYaw = Math.toRadians(target.yBodyRot);
+            double rightSide = (hitPoint.x - target.getX()) * -Math.cos(bodyYaw) + (hitPoint.z - target.getZ()) * -Math.sin(bodyYaw);
+            boolean isRight = rightSide >= 0.0;
             String partName;
             if (heightRatio >= 0.8) {
                 partName = "頭";
+                CutParts.add(target, CutParts.HEAD);
                 cutHead(player, level, target);
             } else if (heightRatio < 0.4) {
                 partName = "足";
+                CutParts.add(target, isRight ? CutParts.RIGHT_LEG : CutParts.LEFT_LEG);
                 weaken(target, Attributes.MOVEMENT_SPEED, "leg_cut");
             } else if (sideways > target.getBbWidth() * 0.3) {
                 partName = "腕";
+                CutParts.add(target, isRight ? CutParts.RIGHT_ARM : CutParts.LEFT_ARM);
                 weaken(target, Attributes.ATTACK_DAMAGE, "arm_cut");
             } else {
                 partName = "胴体";

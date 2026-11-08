@@ -24,6 +24,7 @@ public class IkioiKen implements ModInitializer {
         // スキルの記録(プレイヤーに付く)を、ワールドを読みこむ前に登録しておく
         SkillTree.NODES.size();
         SkillEffects.register();
+        CutParts.MASK.identifier();
 
         // パケットの登録（剣の向きは本人 → サーバー、それ以外はサーバー → 本人の画面）
         PayloadTypeRegistry.serverboundPlay().register(BladePayload.TYPE, BladePayload.STREAM_CODEC);

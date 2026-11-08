@@ -19,5 +19,8 @@ public abstract class HumanoidModelMixin {
     @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/HumanoidRenderState;)V", at = @At("TAIL"))
     private void ikioiken$afterSetupAnim(HumanoidRenderState state, CallbackInfo callbackInfo) {
         MotionClient.adjustModel((HumanoidModel<?>) (Object) this, state);
+
+        // 切り落とされた部位は見えなくする
+        com.maccha.ikioiken.client.CutClient.hideCutParts((HumanoidModel<?>) (Object) this, state);
     }
 }
