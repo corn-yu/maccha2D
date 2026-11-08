@@ -24,6 +24,11 @@ public final class WeaponForge {
     public static Item item;
     public static ExtendedMenuType<WeaponForgeMenu, BlockPos> menuType;
 
+    // 自動合成機
+    public static Block autoBlock;
+    public static Item autoItem;
+    public static ExtendedMenuType<WeaponAutoMenu, BlockPos> autoMenuType;
+
     private WeaponForge() {
     }
 
@@ -45,8 +50,22 @@ public final class WeaponForge {
         menuType = Registry.register(BuiltInRegistries.MENU, id,
                 new ExtendedMenuType<>(WeaponForgeMenu::new, BlockPos.STREAM_CODEC));
 
+        // 自動合成機（ブロック・アイテム・画面の種類）
+        Identifier autoId = Identifier.fromNamespaceAndPath(IkioiKen.MOD_ID, "auto_weapon_forge");
+        ResourceKey<Block> autoBlockKey = ResourceKey.create(Registries.BLOCK, autoId);
+        autoBlock = Registry.register(BuiltInRegistries.BLOCK, autoBlockKey,
+                new WeaponAutoForgeBlock(BlockBehaviour.Properties.of().strength(4.0f).sound(SoundType.ANVIL).setId(autoBlockKey)));
+        ResourceKey<Item> autoItemKey = ResourceKey.create(Registries.ITEM, autoId);
+        autoItem = Registry.register(BuiltInRegistries.ITEM, autoItemKey,
+                new BlockItem(autoBlock, new Item.Properties().setId(autoItemKey).useBlockDescriptionPrefix()));
+        autoMenuType = Registry.register(BuiltInRegistries.MENU, autoId,
+                new ExtendedMenuType<>(WeaponAutoMenu::new, BlockPos.STREAM_CODEC));
+
         // クリエイティブのタブに並べる
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.parse("functional_blocks"));
-        CreativeModeTabEvents.modifyOutputEvent(tabKey).register(output -> output.accept(item));
+        CreativeModeTabEvents.modifyOutputEvent(tabKey).register(output -> {
+            output.accept(item);
+            output.accept(autoItem);
+        });
     }
 }

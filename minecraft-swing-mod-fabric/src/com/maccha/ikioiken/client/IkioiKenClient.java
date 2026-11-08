@@ -5,6 +5,7 @@ import com.maccha.ikioiken.HitPayload;
 import com.maccha.ikioiken.IkioiKen;
 import com.maccha.ikioiken.MotionPayload;
 import com.maccha.ikioiken.WeaponForge;
+import com.maccha.ikioiken.WeaponAutoMenu;
 import com.maccha.ikioiken.WeaponForgeMenu;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -34,7 +35,8 @@ public class IkioiKenClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(SwingClient::onClientTickEnd);
 
         // 武器合体台の画面を登録する
-        registerForgeScreen();
+        registerScreen(WeaponForge.menuType, (menu, inventory, title) -> new WeaponForgeScreen((WeaponForgeMenu) menu, inventory, title));
+        registerScreen(WeaponForge.autoMenuType, (menu, inventory, title) -> new WeaponAutoScreen((WeaponAutoMenu) menu, inventory, title));
 
         // 武器の説明文に攻撃力などを足す
         ItemTooltipCallback.EVENT.register(WeaponTooltip::onTooltip);
@@ -44,14 +46,21 @@ public class IkioiKenClient implements ClientModInitializer {
                 DamageNumbers::onRenderGui);
     }
 
-    /** 武器合体台の画面を登録する（登録の入り口が公開されていないので、reflection で呼ぶ）。 */
-    private static void registerForgeScreen() {
+    /** 画面を作る関数。 */
+    private interface ScreenMaker {
+        net.minecraft.client.gui.screens.Screen make(net.minecraft.world.inventory.AbstractContainerMenu menu,
+                                                      net.minecraft.world.entity.player.Inventory inventory,
+                                                      net.minecraft.network.chat.Component title);
+    }
+
+    /** 画面を登録する（登録の入り口が公開されていないので、reflection で呼ぶ）。 */
+    private static void registerScreen(net.minecraft.world.inventory.MenuType<?> menuType, ScreenMaker maker) {
         try {
             Class<?> constructorType = Class.forName("net.minecraft.client.gui.screens.MenuScreens$ScreenConstructor");
             Object constructor = java.lang.reflect.Proxy.newProxyInstance(constructorType.getClassLoader(),
                     new Class<?>[] { constructorType }, (proxy, method, args) -> {
                         if (method.getName().equals("create") && args != null && args.length == 3) {
-                            return new WeaponForgeScreen((WeaponForgeMenu) args[0],
+                            return maker.make((net.minecraft.world.inventory.AbstractContainerMenu) args[0],
                                     (net.minecraft.world.entity.player.Inventory) args[1],
                                     (net.minecraft.network.chat.Component) args[2]);
                         }
@@ -64,14 +73,14 @@ public class IkioiKenClient implements ClientModInitializer {
                         if (method.getName().equals("equals")) {
                             return proxy == args[0];
                         }
-                        return "ikioiken forge screen";
+                        return "ikioiken screen";
                     });
             java.lang.reflect.Method register = Class.forName("net.minecraft.client.gui.screens.MenuScreens")
                     .getDeclaredMethod("register", net.minecraft.world.inventory.MenuType.class, constructorType);
             register.setAccessible(true);
-            register.invoke(null, WeaponForge.menuType, constructor);
+            register.invoke(null, menuType, constructor);
         } catch (ReflectiveOperationException | RuntimeException exception) {
-            throw new IllegalStateException("武器合体台の画面を登録できませんでした", exception);
+            throw new IllegalStateException("画面を登録できませんでした", exception);
         }
     }
 }
