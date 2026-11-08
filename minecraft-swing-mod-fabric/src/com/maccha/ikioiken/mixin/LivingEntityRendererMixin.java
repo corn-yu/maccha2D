@@ -36,6 +36,9 @@ public abstract class LivingEntityRendererMixin {
     private void ikioiken$beginLean(LivingEntityRenderState state, PoseStack poseStack,
                                     SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo callbackInfo) {
         MotionClient.beginLean(state, poseStack);
+
+        // 切り落とされた部位を見えなくする(どんな形の生き物でも)
+        com.maccha.ikioiken.client.CutClient.hideCutPartsGeneric(((LivingEntityRenderer<?, ?, ?>) (Object) this).getModel(), state);
     }
 
     /** 描き終わったら、かたむけたのをもとにもどす。 */
