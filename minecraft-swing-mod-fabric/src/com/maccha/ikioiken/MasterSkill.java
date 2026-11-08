@@ -29,7 +29,7 @@ public final class MasterSkill {
     private static final int FULL_CHARGE_TICKS = 60;
     private static final double STILL_SPEED = 2.0;
     private static final double MAX_BONUS = 1.5;
-    private static final float SPLIT_DAMAGE_LIMIT = 10.0f;
+    private static final float SPLIT_DAMAGE_LIMIT = 6.0f;
 
     private static final Map<UUID, Integer> CHARGE = new HashMap<>();
 
@@ -81,7 +81,7 @@ public final class MasterSkill {
         SkillEffects.freeze(target, 20, player.getUUID(), false);
         target.addEffect(new MobEffectInstance(MobEffects.WITHER, 80, 0, false, true, false));
 
-        // 10 ダメージをこえた一撃は、当てた部位から先が切り落とされる
+        // 6 ダメージをこえた一撃は、当てた部位から先が切り落とされる
         if (tier >= 3 && dealt > SPLIT_DAMAGE_LIMIT) {
             ServerLevel level = (ServerLevel) player.level();
             level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1.2f, 0.6f);
