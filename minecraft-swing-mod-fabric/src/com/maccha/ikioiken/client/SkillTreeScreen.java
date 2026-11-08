@@ -11,7 +11,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /**
- * スキルツリーの画面。自分の経験値レベルを使って、時間・斬撃の道を下へ進めて覚える。
+ * スキルツリーの画面。自分の経験値レベルを使って、時間・斬撃・剣の達人の道を下へ進めて覚える。
  */
 public class SkillTreeScreen extends Screen {
 

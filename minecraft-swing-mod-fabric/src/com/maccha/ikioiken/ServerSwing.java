@@ -292,6 +292,11 @@ public final class ServerSwing {
         // 止めて構えているか（ガード）・さっき速く振ったか（パリィ）
         updateGuard(player, state, bladeDir, tipSpeed);
 
+        // 剣の達人：止めて構えているほど力がたまる
+        if (!processingSecondBlade) {
+            MasterSkill.onBladeTick(player, tipSpeed);
+        }
+
         // 速く振ったら「ブンッ」と鳴らして、通り道に軌跡を出す
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
@@ -343,6 +348,9 @@ public final class ServerSwing {
     /** 剣の記録を消す（掘りかけのひびは残す）。 */
     private static void clearState(ServerPlayer player) {
         SwingState state = STATES.remove(stateKey(player));
+        if (!processingSecondBlade) {
+            MasterSkill.reset(player.getUUID());
+        }
         if (state == null) {
             return;
         }
@@ -764,6 +772,9 @@ public final class ServerSwing {
         // 武器のレベルが高いほどダメージが上がる
         momentumFactor *= 1.0 + SwingConfig.WEAPON_LEVEL_DAMAGE_BONUS * (WeaponAbilities.weaponLevel(player.getMainHandItem()) - 1);
 
+        // 剣の達人：たまった力で一撃が強くなる
+        momentumFactor *= MasterSkill.takeChargeMultiplier(player);
+
         // パリィのすぐあとなら反撃ボーナス
         boolean isCounter = player.tickCount <= state.counterUntilTick;
         if (isCounter) {
@@ -849,6 +860,7 @@ public final class ServerSwing {
         // 武器についている能力（当てたとき・倒したとき）
         if (rootTarget instanceof LivingEntity struck) {
             WeaponAbilities.onHit(player, player.getMainHandItem(), struck, dealtDamage, hitPoint);
+            MasterSkill.onHit(player, struck, dealtDamage, hitPoint);
             if (!struck.isAlive()) {
                 WeaponAbilities.onKill(player, player.getMainHandItem(), struck);
             }

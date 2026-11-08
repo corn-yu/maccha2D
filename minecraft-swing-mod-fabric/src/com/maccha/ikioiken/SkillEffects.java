@@ -87,7 +87,7 @@ public final class SkillEffects {
                 continue;
             }
             if (tier == 3) {
-                freeze(entity);
+                freeze(entity, 8);
             } else if (entity instanceof LivingEntity living) {
                 // 1 段目はすこし遅く、2 段目はほとんど動けない
                 living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, tier == 1 ? 1 : 5, true, false, false));
@@ -110,9 +110,9 @@ public final class SkillEffects {
     }
 
     /** 相手の時間を止める(動き・頭・重力を止める。終わったら元にもどす)。 */
-    private static void freeze(Entity entity) {
+    static void freeze(Entity entity, int ticks) {
         Frozen frozen = FROZEN.get(entity.getUUID());
-        long until = tickCounter + 8;
+        long until = tickCounter + ticks;
         if (frozen != null) {
             frozen.untilTick = until;
         } else {

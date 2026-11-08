@@ -24,7 +24,7 @@ public final class SkillTree {
 
     /** 道の種類。 */
     public enum Branch {
-        TIME("時間"), SLASH("斬撃");
+        TIME("時間"), SLASH("斬撃"), MASTER("剣の達人");
 
         private final String label;
 
@@ -61,6 +61,11 @@ public final class SkillTree {
         add("slash1", Branch.SLASH, 1, "飛ぶ斬撃", "武器を速く振ると、斬撃が5ブロック飛んで、当たった敵にダメージ");
         add("slash2", Branch.SLASH, 2, "大斬撃", "斬撃が10ブロック飛び、ダメージも上がる。ブロックもドロップアイテムごと消す");
         add("slash3", Branch.SLASH, 3, "極太斬撃", "斬撃が太くなってもっと強く。ブロックは壊れてドロップアイテムも出る");
+
+        // 剣の達人の道：溜め → 動けなくして継続ダメージ → 真っ二つ
+        add("master1", Branch.MASTER, 1, "気合いの溜め", "剣を止めて構えているとパワーがたまり、次の一撃が最大2.5倍になる");
+        add("master2", Branch.MASTER, 2, "封じの一撃", "さらに、当てた敵が少し動けなくなり、しばらく継続ダメージを受ける");
+        add("master3", Branch.MASTER, 3, "真っ二つ", "さらに、10ダメージをこえる一撃で、当てた場所が真っ二つ(追加で同じだけのダメージ)");
 
     }
 
