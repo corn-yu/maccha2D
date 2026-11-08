@@ -1,9 +1,0 @@
-{
-  "required": true,
-  "package": "com.maccha.zombiepanic.mixin",
-  "compatibilityLevel": "JAVA_21",
-  "mixins": ["MobMixin"],
-  "injectors": {
-    "defaultRequire": 1
-  }
-}
