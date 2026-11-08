@@ -50,7 +50,17 @@ public class SkillTreeScreen extends Screen {
             int column = node.branch().ordinal();
             int x = panelLeft + (PANEL_WIDTH - (SkillTree.Branch.values().length * 87 - 9)) / 2 + column * 87;
             int y = panelTop + 50 + (node.tier() - 1) * 42;
-            Button button = Button.builder(Component.literal(node.name()), pressed -> ClientPlayNetworking.send(new SkillUnlockPayload(node.id())))
+            Button button = Button.builder(Component.literal(node.name()), pressed -> {
+                // 覚えているスキルは、Shift を押しながら押すと無料で解除。まだなら覚える
+                boolean learned = minecraft != null && minecraft.player != null && SkillTree.unlockedIds(minecraft.player).contains(node.id());
+                if (learned) {
+                    if (com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_LSHIFT) || com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_RSHIFT)) {
+                        ClientPlayNetworking.send(new SkillUnlockPayload("forget:" + node.id()));
+                    }
+                } else {
+                    ClientPlayNetworking.send(new SkillUnlockPayload(node.id()));
+                }
+            })
                     .bounds(x, y, NODE_WIDTH, NODE_HEIGHT).build();
             nodeButtons.put(node.id(), button);
             addRenderableWidget(button);
@@ -65,7 +75,7 @@ public class SkillTreeScreen extends Screen {
             boolean canLearn = SkillTree.whyNot(weapon, node) == null;
             String mark = learned ? "✔ " : canLearn ? "▶ " : "🔒 ";
             button.setMessage(Component.literal(mark + node.name()));
-            button.active = canLearn;
+            button.active = canLearn || learned;
         }
     }
 
@@ -103,7 +113,7 @@ public class SkillTreeScreen extends Screen {
         }
 
         // 説明(ポインターを合わせたスキルの)
-        String help = "スキルにポインターを合わせると説明が出るよ。▶のスキルを押して覚えよう(武器ではなく自分に付くよ)。";
+        String help = "スキルにポインターを合わせると説明が出るよ。▶を押して覚える。覚えたスキルは Shift を押しながら押すと無料で解除できる。";
         int helpColor = COLOR_TEXT_DIM;
         String cost = "";
         for (SkillTree.Node node : SkillTree.NODES) {

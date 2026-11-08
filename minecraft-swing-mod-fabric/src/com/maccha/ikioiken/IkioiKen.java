@@ -56,8 +56,16 @@ public class IkioiKen implements ModInitializer {
     /** 「このスキルを覚えたい」と言われたとき、プレイヤーに覚えさせる。 */
     private static void onSkillUnlock(SkillUnlockPayload payload, ServerPlayNetworking.Context context) {
         net.minecraft.server.level.ServerPlayer player = context.player();
-        SkillTree.Node node = SkillTree.find(payload.skillId());
+        // 「forget:」で始まるときは、解除のお願い(無料)
+        boolean forget = payload.skillId().startsWith("forget:");
+        SkillTree.Node node = SkillTree.find(forget ? payload.skillId().substring("forget:".length()) : payload.skillId());
         if (node == null) {
+            return;
+        }
+        if (forget) {
+            if (SkillTree.forget(player, node)) {
+                player.sendOverlayMessage(net.minecraft.network.chat.Component.literal("スキル「" + node.name() + "」を解除した"));
+            }
             return;
         }
 

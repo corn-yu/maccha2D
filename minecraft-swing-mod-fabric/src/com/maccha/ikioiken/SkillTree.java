@@ -129,4 +129,19 @@ public final class SkillTree {
         ((net.fabricmc.fabric.api.attachment.v1.AttachmentTarget) player).setAttached(LEARNED, new ArrayList<>(ids));
         return true;
     }
+
+    /** スキルを無料で解除する(それより上の段のスキルも一緒に外れる。使った経験値レベルはもどらない)。 */
+    public static boolean forget(ServerPlayer player, Node node) {
+        Set<String> ids = unlockedIds(player);
+        if (!ids.contains(node.id())) {
+            return false;
+        }
+        for (Node other : NODES) {
+            if (other.branch() == node.branch() && other.tier() >= node.tier()) {
+                ids.remove(other.id());
+            }
+        }
+        ((net.fabricmc.fabric.api.attachment.v1.AttachmentTarget) player).setAttached(LEARNED, new ArrayList<>(ids));
+        return true;
+    }
 }
