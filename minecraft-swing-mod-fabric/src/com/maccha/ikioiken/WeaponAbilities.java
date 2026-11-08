@@ -205,9 +205,10 @@ public final class WeaponAbilities {
     private static final String ROOT = "ikioiken";
 
     // 1 本に付けられる能力の数の上限、強さの上限、武器のレベルの上限
-    public static final int MAX_ABILITIES = 4;
-    public static final int MAX_ABILITY_LEVEL = 5;
-    public static final int MAX_WEAPON_LEVEL = 10;
+    // （上限はなくした。数字が大きくなりすぎないための、とても大きな技術的な上限だけ残してある）
+    public static final int MAX_ABILITIES = Integer.MAX_VALUE;
+    public static final int MAX_ABILITY_LEVEL = 1_000_000;
+    public static final int MAX_WEAPON_LEVEL = 1_000_000;
 
     /** 持ち物についている能力 1 つぶん（能力と強さ）。 */
     public record Entry(Ability ability, int level) {
@@ -305,6 +306,11 @@ public final class WeaponAbilities {
         return (1.0 + 0.4 * (entry.level() - 1)) * (1.0 + 0.08 * (weaponLevel - 1));
     }
 
+    /** 状態異常などの長さ（tick）を、大きくなりすぎないように 10 分までにして返す。 */
+    private static int cappedTicks(double ticks) {
+        return (int) Math.min(ticks, 20.0 * 60.0 * 10.0);
+    }
+
     /** 出る確率（強さレベルで少し上がる）。 */
     private static double chanceOf(Entry entry) {
         return Math.min(1.0, entry.ability().chance() * (1.0 + 0.25 * (entry.level() - 1)));
@@ -338,14 +344,14 @@ public final class WeaponAbilities {
         switch (ability.kind()) {
             case EFFECT -> {
                 if (target.isAlive()) {
-                    target.addEffect(new MobEffectInstance(ability.effect(), (int) (ability.a() * 20 * power),
+                    target.addEffect(new MobEffectInstance(ability.effect(), cappedTicks(ability.a() * 20 * power),
                             (int) ability.b()), player);
                 }
             }
-            case IGNITE -> target.igniteForSeconds((float) (ability.a() * power));
+            case IGNITE -> target.igniteForSeconds((float) Math.min(ability.a() * power, 60.0));
             case FREEZE -> {
-                target.setTicksFrozen(target.getTicksRequiredToFreeze() + (int) (ability.a() * 20 * power));
-                target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, (int) (ability.a() * 20 * power), 2), player);
+                target.setTicksFrozen(target.getTicksRequiredToFreeze() + cappedTicks(ability.a() * 20 * power));
+                target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, cappedTicks(ability.a() * 20 * power), 2), player);
                 level.sendParticles(ParticleTypes.SNOWFLAKE, center.x, center.y, center.z, 12, 0.3, 0.4, 0.3, 0.02);
             }
             case EXPLODE -> {
@@ -364,8 +370,8 @@ public final class WeaponAbilities {
                     extraDamage(player, level, target, dealt * 0.5f);
                 }
             }
-            case LIFESTEAL -> player.heal((float) (dealt * ability.a() * power));
-            case KNOCK -> push(player, target, ability.a() * power, 0.25);
+            case LIFESTEAL -> player.heal((float) (dealt * ability.a() * Math.min(power, 6.0)));
+            case KNOCK -> push(player, target, ability.a() * Math.min(power, 5.0), 0.25);
             case LAUNCH -> target.setDeltaMovement(target.getDeltaMovement().add(0.0, ability.a() * Math.min(power, 1.6), 0.0));
             case PULL -> {
                 Vec3 toward = player.position().subtract(target.position());
@@ -377,7 +383,7 @@ public final class WeaponAbilities {
             case SHOCK -> area(player, level, target, center, ability.a() * Math.min(power, 1.5), dealt * ability.b() * power, true);
             case SWEEP -> area(player, level, target, player.position().add(0.0, 1.0, 0.0), ability.a() * Math.min(power, 1.5),
                     dealt * ability.b() * power, false);
-            case CHAIN -> chain(player, level, target, center, (int) (ability.a() + (power - 1.0) * 2), dealt * (float) (ability.b() * power));
+            case CHAIN -> chain(player, level, target, center, Math.min(12, (int) (ability.a() + (power - 1.0) * 2)), dealt * (float) (ability.b() * power));
             case EXECUTE -> {
                 float ratio = target.getHealth() / target.getMaxHealth();
                 if (target.isAlive() && ratio <= ability.a()) {
@@ -512,12 +518,12 @@ public final class WeaponAbilities {
             double power = power(entry, weaponLevel);
             switch (ability.kind()) {
                 case KILL_HEAL -> player.heal((float) (ability.a() * power));
-                case KILL_XP -> ExperienceOrb.award(level, center, (int) (ability.a() * power));
+                case KILL_XP -> ExperienceOrb.award(level, center, (int) Math.min(ability.a() * power, 1000.0));
                 case KILL_EXPLODE -> explode(player, level, center, (float) (ability.a() * Math.min(power, 2.0)));
-                case KILL_EFFECT -> player.addEffect(new MobEffectInstance(ability.effect(), (int) (ability.a() * 20 * power), (int) ability.b()));
+                case KILL_EFFECT -> player.addEffect(new MobEffectInstance(ability.effect(), cappedTicks(ability.a() * 20 * power), (int) ability.b()));
                 case KILL_ABSORB -> player.setAbsorptionAmount(Math.min(player.getAbsorptionAmount() + (float) (ability.a() * power), 20.0f));
-                case KILL_MEND -> weapon.setDamageValue(Math.max(0, weapon.getDamageValue() - (int) (ability.a() * power)));
-                case KILL_FOOD -> player.getFoodData().eat((int) (ability.a() * power), 0.4f);
+                case KILL_MEND -> weapon.setDamageValue(Math.max(0, weapon.getDamageValue() - (int) Math.min(ability.a() * power, 100000.0)));
+                case KILL_FOOD -> player.getFoodData().eat((int) Math.min(ability.a() * power, 40.0), 0.4f);
                 default -> {
                 }
             }
@@ -542,7 +548,7 @@ public final class WeaponAbilities {
                 if (ability.kind() != Kind.PASSIVE) {
                     continue;
                 }
-                int amplifier = (int) ability.b() + (entry.level() - 1) / 2 + (weaponLevel - 1) / 4;
+                int amplifier = Math.min(9, (int) ability.b() + (entry.level() - 1) / 2 + (weaponLevel - 1) / 4);
                 player.addEffect(new MobEffectInstance(ability.effect(), 80, amplifier, true, false, true));
             }
         }

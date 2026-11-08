@@ -85,18 +85,27 @@ public final class ForgeRules {
         ItemStack result = weapon.copy();
         result.setCount(1);
         WeaponAbilities.write(result, merged, WeaponAbilities.weaponLevel(weapon));
-        int cost = 2 + 2 * otherEntries.size();
-        return new Preview(result, cost, 0, true, "合体できるよ！ 経験値レベル " + cost + " 必要");
+        repairLikeAnvilFusion(result, other);
+
+        // 代金：能力 1 つにつき、2 + 合体後のその能力の強さ（強い能力ほど高い）
+        int cost = 2;
+        for (WeaponAbilities.Entry added : otherEntries) {
+            int resultLevel = 1;
+            for (WeaponAbilities.Entry entry : merged) {
+                if (entry.ability().id().equals(added.ability().id())) {
+                    resultLevel = entry.level();
+                }
+            }
+            cost += 2 + resultLevel;
+        }
+        return new Preview(result, cost, 0, true, "合体できるよ！ 耐久は金床と同じだけ回復。経験値レベル " + cost + " 必要");
     }
 
     /** レベルアップの結果を調べる。経験値レベルと、武器の材料を払う。 */
     private static Preview previewLevelUp(ItemStack weapon, ItemStack material) {
         int level = WeaponAbilities.weaponLevel(weapon);
-        if (level >= WeaponAbilities.MAX_WEAPON_LEVEL) {
-            return none("この武器はもう最大レベルだよ");
-        }
-
-        int need = 1 + level / 2;
+        // 材料の数は 1 + レベル÷2（ただし 1 スタックの 64 個まで）
+        int need = Math.min(64, 1 + level / 2);
         int cost = 3 + level * 2;
         if (material.getCount() < need) {
             return none("材料が足りないよ（" + materialLabel(weapon) + " を " + need + " 個）");
@@ -105,8 +114,31 @@ public final class ForgeRules {
         ItemStack result = weapon.copy();
         result.setCount(1);
         WeaponAbilities.write(result, WeaponAbilities.abilitiesOf(weapon), level + 1);
+        repairLikeAnvilMaterial(result, need);
         return new Preview(result, cost, need, false,
-                "Lv" + level + " → Lv" + (level + 1) + "！ 経験値レベル " + cost + " と " + materialLabel(weapon) + " " + need + " 個");
+                "Lv" + level + " → Lv" + (level + 1) + "！ 耐久は金床と同じだけ回復。経験値レベル " + cost + " と " + materialLabel(weapon) + " " + need + " 個");
+    }
+
+    /** 金床で二つを合わせるときと同じ回復：二つの残りの耐久をたして、最大耐久の 12% をおまけする。 */
+    private static void repairLikeAnvilFusion(ItemStack result, ItemStack other) {
+        if (!result.isDamageableItem() || !other.isDamageableItem()) {
+            return;
+        }
+        int maxDurability = result.getMaxDamage();
+        int remainingA = maxDurability - result.getDamageValue();
+        int remainingB = other.getMaxDamage() - other.getDamageValue();
+        int bonus = maxDurability * 12 / 100;
+        int newRemaining = Math.min(maxDurability, remainingA + remainingB + bonus);
+        result.setDamageValue(Math.max(0, maxDurability - newRemaining));
+    }
+
+    /** 金床で材料を使うときと同じ回復：材料 1 個につき、最大耐久の 25% ずつ回復する。 */
+    private static void repairLikeAnvilMaterial(ItemStack result, int materialCount) {
+        if (!result.isDamageableItem()) {
+            return;
+        }
+        int perMaterial = result.getMaxDamage() / 4;
+        result.setDamageValue(Math.max(0, result.getDamageValue() - perMaterial * materialCount));
     }
 
     /** その物が、武器のレベルアップに使える材料なら true。 */

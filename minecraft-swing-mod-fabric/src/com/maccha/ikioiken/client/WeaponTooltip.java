@@ -53,8 +53,8 @@ public final class WeaponTooltip {
                     .append(Component.literal("×" + format(SwordCheck.materialDigSpeed(stack))).withStyle(ChatFormatting.WHITE)));
         }
         if (WeaponAbilities.canHaveAbilities(stack)) {
-            lines.add(Component.literal("武器レベル " + WeaponAbilities.weaponLevel(stack) + " / " + WeaponAbilities.MAX_WEAPON_LEVEL
-                    + "  能力 " + WeaponAbilities.abilitiesOf(stack).size() + " / " + WeaponAbilities.MAX_ABILITIES)
+            lines.add(Component.literal("武器レベル " + WeaponAbilities.weaponLevel(stack)
+                    + "  能力 " + WeaponAbilities.abilitiesOf(stack).size() + " 個")
                     .withStyle(ChatFormatting.GOLD));
         }
     }

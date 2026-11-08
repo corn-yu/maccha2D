@@ -178,14 +178,19 @@ public class WeaponForgeScreen extends AbstractContainerScreen<WeaponForgeMenu> 
                 x, y, COLOR_TEXT, true);
         y += 13;
 
-        // 能力 4 つぶん（空きは薄く）
+        // 能力を 4 行ぶん見せる（多いときは最後の行に「ほか n 個」）
         List<WeaponAbilities.Entry> now = WeaponAbilities.abilitiesOf(shown);
         List<WeaponAbilities.Entry> before = WeaponAbilities.abilitiesOf(weapon);
-        for (int row = 0; row < WeaponAbilities.MAX_ABILITIES; row++) {
+        final int rows = 4;
+        for (int row = 0; row < rows; row++) {
             int rowY = y + row * 14;
             g.fill(x - 2, rowY - 2, x + PANEL_W - 6, rowY + 11, 0xFF181826);
             if (row >= now.size()) {
                 g.text(font, "（空き）", x + 2, rowY, 0xFF55556A, false);
+                continue;
+            }
+            if (row == rows - 1 && now.size() > rows) {
+                g.text(font, "ほか " + (now.size() - rows + 1) + " 個の能力", x + 2, rowY, COLOR_AQUA, false);
                 continue;
             }
             WeaponAbilities.Entry entry = now.get(row);
@@ -202,22 +207,33 @@ public class WeaponForgeScreen extends AbstractContainerScreen<WeaponForgeMenu> 
                 name = name.substring(0, 6) + "…";
             }
             g.text(font, name, x + 2, rowY, changed ? COLOR_GREEN : COLOR_TEXT, false);
-            // 強さの目もり（5 つ）
-            for (int pip = 0; pip < WeaponAbilities.MAX_ABILITY_LEVEL; pip++) {
-                int pipX = x + PANEL_W - 6 - 5 * 6 - 1 + pip * 6;
-                int pipColor = pip < entry.level() ? (pip >= oldLevel && changed ? COLOR_GREEN : COLOR_YELLOW) : 0xFF33334A;
-                g.fill(pipX, rowY + 2, pipX + 5, rowY + 8, pipColor);
+
+            // 強さ：5 までは目もり、それより大きいときは数字
+            if (entry.level() <= 5) {
+                for (int pip = 0; pip < 5; pip++) {
+                    int pipX = x + PANEL_W - 6 - 5 * 6 - 1 + pip * 6;
+                    int pipColor = pip < entry.level() ? (pip >= oldLevel && changed ? COLOR_GREEN : COLOR_YELLOW) : 0xFF33334A;
+                    g.fill(pipX, rowY + 2, pipX + 5, rowY + 8, pipColor);
+                }
+            } else {
+                String levelText = "Lv" + entry.level();
+                g.text(font, levelText, x + PANEL_W - 8 - font.width(levelText), rowY, changed ? COLOR_GREEN : COLOR_YELLOW, false);
             }
         }
 
-        // 武器レベルのメーター（10 目もり）
-        int meterY = y + WeaponAbilities.MAX_ABILITIES * 14 + 6;
+        // 武器レベル：10 までは 10 目もりのメーター、それより大きいときは数字だけ
+        int meterY = y + rows * 14 + 6;
         int level = WeaponAbilities.weaponLevel(shown);
         int oldWeaponLevel = WeaponAbilities.weaponLevel(weapon);
         g.text(font, "武器Lv " + level + (level != oldWeaponLevel ? "  ↑" : ""), x, meterY, level != oldWeaponLevel ? COLOR_GREEN : COLOR_YELLOW, false);
-        for (int step = 0; step < WeaponAbilities.MAX_WEAPON_LEVEL; step++) {
+        for (int step = 0; step < 10; step++) {
             int stepX = x + step * 9;
-            int stepColor = step < oldWeaponLevel ? COLOR_YELLOW : (step < level ? COLOR_GREEN : 0xFF33334A);
+            int stepColor;
+            if (level > 10) {
+                stepColor = level != oldWeaponLevel ? COLOR_GREEN : COLOR_GOLD;
+            } else {
+                stepColor = step < oldWeaponLevel ? COLOR_YELLOW : (step < level ? COLOR_GREEN : 0xFF33334A);
+            }
             g.fill(stepX, meterY + 11, stepX + 8, meterY + 16, stepColor);
         }
     }
