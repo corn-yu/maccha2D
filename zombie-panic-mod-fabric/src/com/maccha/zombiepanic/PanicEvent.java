@@ -155,6 +155,7 @@ public final class PanicEvent {
             timeBar.addPlayer(player);
         }
         BossZombies.showBarsTo(player);
+        StarterKit.giveIfFirstTime(player);
 
         // 入ったときは、パニック中のときだけ知らせる
         if (!curseActive) {
