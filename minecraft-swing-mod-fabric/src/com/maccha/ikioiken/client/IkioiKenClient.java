@@ -33,9 +33,6 @@ public class IkioiKenClient implements ClientModInitializer {
         ClientTickEvents.START_CLIENT_TICK.register(SwingClient::onClientTickStart);
         ClientTickEvents.END_CLIENT_TICK.register(SwingClient::onClientTickEnd);
 
-        // 弓を引いている間の視点の動きを送る（矢をカーブさせる）
-        ClientTickEvents.END_CLIENT_TICK.register(BowClient::onClientTick);
-
         // 武器合体台の画面を登録する
         registerForgeScreen();
 

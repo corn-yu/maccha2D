@@ -273,16 +273,4 @@ public final class SwingConfig {
 
     // 動作の確認用に、ログ(latest.log)へ「ikioiken:」から始まる行を出す
     public static final boolean DEBUG_LOG = false;
-
-    // ===== 弓のカーブする矢 =====
-
-    // 弓を引いている間にマウスがこの速さ（度/tick）以上で動いていたら、矢が曲がる
-    public static final double BOW_CURVE_MIN_SPEED = 0.8;
-    // マウスの速さを、矢の曲がる速さ（度/tick）にする倍率と、曲がる速さの上限
-    public static final double BOW_CURVE_GAIN = 0.5;
-    public static final double BOW_CURVE_MAX_RATE = 4.0;
-    // 曲がり続ける時間（tick）。だんだん弱くなる
-    public static final int BOW_CURVE_TICKS = 30;
-    // 引いたときの動きの情報が、矢が出たときに有効な古さ（tick）
-    public static final int BOW_INPUT_FRESH_TICKS = 6;
 }
