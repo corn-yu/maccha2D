@@ -1,6 +1,8 @@
 package com.maccha.ikioiken;
 
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -20,6 +22,7 @@ public final class WeaponForge {
 
     public static Block block;
     public static Item item;
+    public static ExtendedMenuType<WeaponForgeMenu, BlockPos> menuType;
 
     private WeaponForge() {
     }
@@ -37,6 +40,10 @@ public final class WeaponForge {
         ResourceKey<Item> itemKey = ResourceKey.create(Registries.ITEM, id);
         item = Registry.register(BuiltInRegistries.ITEM, itemKey,
                 new BlockItem(block, new Item.Properties().setId(itemKey).useBlockDescriptionPrefix()));
+
+        // 画面の種類（どの場所のブロックかを画面に伝える）
+        menuType = Registry.register(BuiltInRegistries.MENU, id,
+                new ExtendedMenuType<>(WeaponForgeMenu::new, BlockPos.STREAM_CODEC));
 
         // クリエイティブのタブに並べる
         ResourceKey<CreativeModeTab> tabKey = ResourceKey.create(Registries.CREATIVE_MODE_TAB, Identifier.parse("functional_blocks"));

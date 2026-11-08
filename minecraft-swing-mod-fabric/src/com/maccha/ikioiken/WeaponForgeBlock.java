@@ -3,7 +3,10 @@ package com.maccha.ikioiken;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.SimpleMenuProvider;
+import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -26,9 +29,22 @@ public class WeaponForgeBlock extends Block {
         if (level.isClientSide()) {
             return InteractionResult.SUCCESS;
         }
-        player.openMenu(new SimpleMenuProvider(
-                (containerId, inventory, menuPlayer) -> new WeaponForgeMenu(containerId, inventory, level, pos),
-                Component.literal("武器合体台")));
+        player.openMenu(new ExtendedMenuProvider<BlockPos>() {
+            @Override
+            public BlockPos getScreenOpeningData(ServerPlayer serverPlayer) {
+                return pos;
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.literal("武器合体台");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int containerId, Inventory inventory, Player menuPlayer) {
+                return new WeaponForgeMenu(containerId, inventory, pos);
+            }
+        });
         return InteractionResult.CONSUME;
     }
 }
