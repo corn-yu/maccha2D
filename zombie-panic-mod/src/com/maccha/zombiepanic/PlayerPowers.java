@@ -618,6 +618,9 @@ public final class PlayerPowers {
 
     /** 生きかえったとき（エンドから帰ったときも）、能力を 新しい体にうつす。 */
     public static void onPlayerClone(PlayerEvent.Clone event) {
+        if (event.getOriginal() instanceof ServerPlayer oldPlayer && event.getEntity() instanceof ServerPlayer newPlayer) {
+            PlayerLevel.copyOnClone(oldPlayer, newPlayer);
+        }
         CompoundTag oldData = event.getOriginal().getPersistentData().getCompound(DATA_KEY);
         if (!oldData.isEmpty()) {
             event.getEntity().getPersistentData().put(DATA_KEY, oldData.copy());
@@ -626,6 +629,9 @@ public final class PlayerPowers {
 
     /** 生きかえったとき、大技を持っていて 石がなければ もう一度わたす。 */
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer levelPlayer) {
+            PlayerLevel.reapply(levelPlayer);
+        }
         if (event.getEntity() instanceof ServerPlayer player && !activePowers(player).isEmpty() && !event.isEndConquered()) {
             giveStoneIfMissing(player);
         }

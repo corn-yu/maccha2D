@@ -29,7 +29,10 @@ public class ZombiePanic implements ModInitializer {
         // 途中で入ってきた人・ぬけた人・生きかえった人
         ServerPlayerEvents.JOIN.register(PanicEvent::onPlayerLogin);
         ServerPlayerEvents.LEAVE.register(PanicEvent::onPlayerLogout);
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> PlayerPowers.onPlayerRespawn(newPlayer));
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            PlayerPowers.onPlayerRespawn(newPlayer);
+            PlayerLevel.reapply(newPlayer);
+        });
 
         // ゾンビが出てきたとき・なぐり合い・たおされたとき
         ServerEntityEvents.ENTITY_LOAD.register(PanicEvent::onEntityJoin);

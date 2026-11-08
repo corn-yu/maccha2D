@@ -78,6 +78,18 @@ public final class PanicConfig {
     // いちばん高いレベル
     public static final int LEVEL_MAX = 999;
 
+    // ---------------- プレイヤーのレベル ----------------
+
+    // いちばん高いレベル
+    public static final int PLAYER_LEVEL_MAX = 100;
+    // レベルLから次へ行くのに必要な経験値 = PLAYER_EXP_BASE + PLAYER_EXP_PER_LEVEL × L
+    public static final int PLAYER_EXP_BASE = 8;
+    public static final int PLAYER_EXP_PER_LEVEL = 4;
+    // 1レベルごとにふえる強さ: 体力（半ハート=1）・攻撃・かたさ
+    public static final double PLAYER_HEALTH_PER_LEVEL = 0.5;
+    public static final double PLAYER_ATTACK_PER_LEVEL = 0.05;
+    public static final double PLAYER_ARMOR_PER_LEVEL = 0.1;
+
     // ---------------- たおした数で出るボス ----------------
 
     // ボスが出る数（300体ごと。BOSS_KILL_STEP_GROW を足すと だんだん間があく）

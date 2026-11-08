@@ -157,6 +157,7 @@ public final class PanicEvent {
         }
         BossZombies.showBarsTo(player);
         StarterKit.giveIfFirstTime(player);
+        PlayerLevel.reapply(player);
 
         // 入ったときは、パニック中のときだけ知らせる
         if (!curseActive) {
@@ -272,6 +273,10 @@ public final class PanicEvent {
         // 能力ゾンビをたおした人は、ときどき その能力をもらえる
         if (killerPlayer != null && !ZombieAbilities.isIllusion(zombie) && !BossZombies.isBoss(zombie)) {
             PlayerPowers.tryStealAbility(killerPlayer, zombie);
+        }
+
+        if (killerPlayer != null && !ZombieAbilities.isIllusion(zombie)) {
+            PlayerLevel.addExpForKill(killerPlayer, ZombieLevel.levelOf(zombie));
         }
 
         if (killerPlayer != null && curseActive && !ZombieAbilities.isIllusion(zombie)) {
