@@ -12,12 +12,13 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * スキルツリー「剣の達人の道」。剣を止めて構えると力がたまり、次の一撃が強くなる。
- * 2段目＝当てた敵が少し動けなくなり、継続ダメージ。3段目＝10ダメージをこえる一撃で、当てた場所が真っ二つ。
+ * 2段目＝当てた敵が少し動けなくなり、継続ダメージ。3段目＝10ダメージをこえる一撃で、当てた部位から先が切り落とされる。
  */
 public final class MasterSkill {
 
@@ -80,16 +81,71 @@ public final class MasterSkill {
         SkillEffects.freeze(target, 20, player.getUUID(), false);
         target.addEffect(new MobEffectInstance(MobEffects.WITHER, 80, 0, false, true, false));
 
-        // 10 ダメージをこえた一撃は、当てた場所が真っ二つ(同じだけの追加ダメージ)
+        // 10 ダメージをこえた一撃は、当てた部位から先が切り落とされる
         if (tier >= 3 && dealt > SPLIT_DAMAGE_LIMIT) {
             ServerLevel level = (ServerLevel) player.level();
-            for (double dy = -1.2; dy <= 1.2; dy += 0.2) {
-                level.sendParticles(ParticleTypes.CRIT, hitPoint.x, hitPoint.y + dy, hitPoint.z, 3, 0.05, 0.0, 0.05, 0.3);
-                level.sendParticles(ParticleTypes.SWEEP_ATTACK, hitPoint.x, hitPoint.y + dy, hitPoint.z, 1, 0.0, 0.0, 0.0, 0.0);
-            }
             level.playSound(null, hitPoint.x, hitPoint.y, hitPoint.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1.2f, 0.6f);
+
+            // どの部位に当たったか：高さで頭・胴・足、胴の高さで体の真ん中から横にはなれていれば腕
+            double heightRatio = (hitPoint.y - target.getY()) / Math.max(0.1, target.getBbHeight());
+            double sideways = Math.hypot(hitPoint.x - target.getX(), hitPoint.z - target.getZ());
+            String partName;
+            if (heightRatio >= 0.8) {
+                partName = "頭";
+                cutHead(player, level, target);
+            } else if (heightRatio < 0.4) {
+                partName = "足";
+                weaken(target, Attributes.MOVEMENT_SPEED, "leg_cut");
+            } else if (sideways > target.getBbWidth() * 0.3) {
+                partName = "腕";
+                weaken(target, Attributes.ATTACK_DAMAGE, "arm_cut");
+            } else {
+                partName = "胴体";
+            }
+
+            // 切り口に赤い粒と斬撃(胴体はそのままダメージが倍、ほかは半分の追加ダメージ)
+            level.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK,
+                    net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState()),
+                    hitPoint.x, hitPoint.y, hitPoint.z, 30, 0.25, 0.25, 0.25, 0.1);
+            level.sendParticles(ParticleTypes.SWEEP_ATTACK, hitPoint.x, hitPoint.y, hitPoint.z, 2, 0.2, 0.2, 0.2, 0.0);
+            player.sendOverlayMessage(Component.literal(partName + "を切り落とした！"));
             target.setInvulnerableTime(0);
-            target.hurtServer(level, level.damageSources().indirectMagic(player, player), dealt);
+            float extra = partName.equals("胴体") ? dealt : dealt * 0.5f;
+            target.hurtServer(level, level.damageSources().indirectMagic(player, player), extra);
         }
+    }
+
+    /** 切り落とした部位の分、能力を弱くする(足＝移動速度、腕＝攻撃力。くりかえすほど弱くなる)。 */
+    private static void weaken(LivingEntity target, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute, String name) {
+        net.minecraft.world.entity.ai.attributes.AttributeInstance instance = target.getAttribute(attribute);
+        if (instance == null) {
+            return;
+        }
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(IkioiKen.MOD_ID, name);
+        net.minecraft.world.entity.ai.attributes.AttributeModifier old = instance.getModifier(id);
+        double cut = old == null ? -0.5 : Math.max(-0.9, old.amount() - 0.25);
+        instance.addOrUpdateTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                id, cut, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+    }
+
+    /** 頭を切り落とされた敵は、前が見えなくなり、近くの別の敵や、てきとうな場所へ向かって暴れだす。 */
+    private static void cutHead(ServerPlayer player, ServerLevel level, LivingEntity target) {
+        target.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 200, 0, false, false, false));
+        if (!(target instanceof net.minecraft.world.entity.Mob mob)) {
+            return;
+        }
+
+        // 近くにほかの敵がいれば、それを攻撃しはじめる
+        java.util.List<LivingEntity> others = level.getEntitiesOfClass(LivingEntity.class, target.getBoundingBox().inflate(12.0),
+                other -> other != target && other != player && !(other instanceof Player) && other.isAlive());
+        if (!others.isEmpty()) {
+            mob.setTarget(others.get(target.getRandom().nextInt(others.size())));
+            return;
+        }
+
+        // いなければ、てきとうな場所へ歩きだす(プレイヤーを見失う)
+        mob.setTarget(null);
+        double angle = target.getRandom().nextDouble() * Math.PI * 2.0;
+        mob.getNavigation().moveTo(target.getX() + Math.cos(angle) * 8.0, target.getY(), target.getZ() + Math.sin(angle) * 8.0, 1.2);
     }
 }
