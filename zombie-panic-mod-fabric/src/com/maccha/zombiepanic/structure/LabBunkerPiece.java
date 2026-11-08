@@ -8,7 +8,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.EndPortalFrameBlock;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
@@ -17,7 +16,7 @@ import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 
 /**
- * 研究所の地下室（エンドへの門・研究日誌・宝箱）と、地上へのたて穴。
+ * 研究所の地下室（研究日誌・宝箱）と、地上へのたて穴。
  */
 public class LabBunkerPiece extends StructurePiece {
 
@@ -69,7 +68,6 @@ public class LabBunkerPiece extends StructurePiece {
     public void postProcess(WorldGenLevel level, StructureManager structureManager, ChunkGenerator generator,
                             RandomSource random, BoundingBox chunkBox, net.minecraft.world.level.ChunkPos chunkPos, BlockPos pivot) {
         buildRoom(level, chunkBox);
-        buildPortalFrame(level, chunkBox);
         buildShaft(level, chunkBox);
         placeDiariesAndChests(level, chunkBox, random);
     }
@@ -97,26 +95,6 @@ public class LabBunkerPiece extends StructurePiece {
                 }
             }
         }
-    }
-
-    /** エンドへの門のわく（3×3 のまわりに12こ、エンダーアイは ときどき はまっている）。 */
-    private void buildPortalFrame(WorldGenLevel level, BoundingBox chunkBox) {
-        int frameY = bunkerY + 1;
-        for (int offset = -1; offset <= 1; offset++) {
-            placeFrame(level, chunkBox, centerX + offset, frameY, centerZ - 2, Direction.SOUTH);
-            placeFrame(level, chunkBox, centerX + offset, frameY, centerZ + 2, Direction.NORTH);
-            placeFrame(level, chunkBox, centerX - 2, frameY, centerZ + offset, Direction.EAST);
-            placeFrame(level, chunkBox, centerX + 2, frameY, centerZ + offset, Direction.WEST);
-        }
-    }
-
-    /** わくを1つ置く（内がわを向く）。 */
-    private void placeFrame(WorldGenLevel level, BoundingBox chunkBox, int x, int y, int z, Direction facing) {
-        boolean hasEye = StructureHelper.hash01(seed, x, y, z) < 0.15f;
-        BlockState frame = Blocks.END_PORTAL_FRAME.defaultBlockState()
-                .setValue(EndPortalFrameBlock.FACING, facing)
-                .setValue(EndPortalFrameBlock.HAS_EYE, hasEye);
-        placeBlock(level, frame, x, y, z, chunkBox);
     }
 
     /** 地上の建物から地下室へ おりる たて穴と はしご。 */

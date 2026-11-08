@@ -10,7 +10,7 @@ import net.minecraft.world.level.levelgen.structure.StructureType;
 import java.util.Optional;
 
 /**
- * 研究所（地上の白い建物と、エンドへの門がある地下室）。世界の真実の さいごの日誌がある。
+ * 研究所（地上の白い建物と、日誌がある地下室）。世界の真実の さいごの日誌がある。
  */
 public class ResearchLabStructure extends Structure {
 
