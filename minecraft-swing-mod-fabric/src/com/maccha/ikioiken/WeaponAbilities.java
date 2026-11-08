@@ -202,7 +202,7 @@ public final class WeaponAbilities {
     // ===== 持ち物のデータ =====
 
     // 持ち物のカスタムデータに入れる名前
-    private static final String ROOT = "ikioiken";
+    public static final String ROOT = "ikioiken";
 
     // 1 本に付けられる能力の数の上限、強さの上限、武器のレベルの上限
     // （上限はなくした。数字の入れ物（int）の最大値 2,147,483,647 だけが技術的な限界）
@@ -261,6 +261,15 @@ public final class WeaponAbilities {
             list.add(tag);
         }
         root.put("ab", list);
+
+        // 覚えたスキル(スキルツリー)は消さずに引きつぐ
+        ListTag keptSkills = new ListTag();
+        for (String skillId : SkillTree.unlockedIds(stack)) {
+            keptSkills.add(net.minecraft.nbt.StringTag.valueOf(skillId));
+        }
+        if (!keptSkills.isEmpty()) {
+            root.put("sk", keptSkills);
+        }
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.put(ROOT, root));
         refreshLore(stack, entries, weaponLevel);
     }

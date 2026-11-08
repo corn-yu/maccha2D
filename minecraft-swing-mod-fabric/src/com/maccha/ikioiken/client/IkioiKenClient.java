@@ -38,6 +38,18 @@ public class IkioiKenClient implements ClientModInitializer {
         registerScreen(WeaponForge.menuType, (menu, inventory, title) -> new WeaponForgeScreen((WeaponForgeMenu) menu, inventory, title));
         registerScreen(WeaponForge.autoMenuType, (menu, inventory, title) -> new WeaponAutoScreen((WeaponAutoMenu) menu, inventory, title));
 
+        // スキルツリーの画面を開くキー（K）
+        net.minecraft.client.KeyMapping skillKey = net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper.registerKeyMapping(
+                new net.minecraft.client.KeyMapping("key.ikioiken.skills", com.mojang.blaze3d.platform.InputConstants.KEY_K,
+                        net.minecraft.client.KeyMapping.Category.GAMEPLAY));
+        ClientTickEvents.END_CLIENT_TICK.register(minecraft -> {
+            while (skillKey.consumeClick()) {
+                if (minecraft.player != null && minecraft.gui.screen() == null) {
+                    minecraft.gui.setScreen(new SkillTreeScreen());
+                }
+            }
+        });
+
         // 武器の説明文に攻撃力などを足す
         ItemTooltipCallback.EVENT.register(WeaponTooltip::onTooltip);
 

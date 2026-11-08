@@ -1,0 +1,190 @@
+package com.maccha.ikioiken;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * スキルツリーの特殊能力を、武器を速く振っている間だけ発動するクラス（時間・命・風の道）。
+ */
+public final class SkillEffects {
+
+    private SkillEffects() {
+    }
+
+    /** 時間を止められている物の記録（終わったら元にもどすため）。 */
+    private static final class Frozen {
+        final Entity entity;
+        long untilTick;
+        final boolean hadNoAi;
+        final boolean hadNoGravity;
+
+        Frozen(Entity entity, long untilTick, boolean hadNoAi, boolean hadNoGravity) {
+            this.entity = entity;
+            this.untilTick = untilTick;
+            this.hadNoAi = hadNoAi;
+            this.hadNoGravity = hadNoGravity;
+        }
+    }
+
+    private static final Map<UUID, Frozen> FROZEN = new HashMap<>();
+    private static final Map<UUID, Long> LAST_APPLY = new HashMap<>();
+    private static long tickCounter = 0;
+
+    /** 武器を速く振っているとき毎 tick 呼ぶ。持っている武器のスキルに合わせて効果をかける。 */
+    public static void onFastSwing(ServerPlayer player, ItemStack weapon) {
+        // 2 tick に 1 回だけ（まわりを調べるのは少し重いので）
+        Long last = LAST_APPLY.get(player.getUUID());
+        if (last != null && tickCounter - last < 2) {
+            return;
+        }
+        LAST_APPLY.put(player.getUUID(), tickCounter);
+
+        // 時間の道：近くの敵を遅くする・止める
+        int timeTier = SkillTree.tierOf(weapon, SkillTree.Branch.TIME);
+        if (timeTier > 0) {
+            applyTime(player, timeTier);
+        }
+
+        // 命の道：ダメージ軽減・回復・黄色いハート
+        int lifeTier = SkillTree.tierOf(weapon, SkillTree.Branch.LIFE);
+        if (lifeTier >= 1) {
+            giveEffect(player, MobEffects.RESISTANCE, lifeTier == 3 ? 2 : lifeTier == 2 ? 1 : 0);
+        }
+        if (lifeTier >= 2) {
+            giveEffect(player, MobEffects.REGENERATION, lifeTier == 3 ? 2 : 0);
+        }
+        if (lifeTier == 3) {
+            giveEffect(player, MobEffects.ABSORPTION, 3);
+        }
+
+        // 風の道：足が速くなる・高く跳べる・落下ダメージなし
+        int windTier = SkillTree.tierOf(weapon, SkillTree.Branch.WIND);
+        if (windTier >= 1) {
+            giveEffect(player, MobEffects.SPEED, windTier == 3 ? 2 : windTier == 2 ? 1 : 0);
+        }
+        if (windTier >= 2) {
+            giveEffect(player, MobEffects.JUMP_BOOST, windTier == 3 ? 2 : 0);
+        }
+        if (windTier == 3) {
+            player.resetFallDistance();
+        }
+    }
+
+    /** 自分に効果をかける(見た目の粒は出さない、短い時間なので振るのをやめるとすぐ切れる)。 */
+    private static void giveEffect(ServerPlayer player, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect, int amplifier) {
+        MobEffectInstance current = player.getEffect(effect);
+        if (current != null && current.getAmplifier() > amplifier) {
+            return;
+        }
+        player.addEffect(new MobEffectInstance(effect, 25, amplifier, true, false, false));
+    }
+
+    /** 時間の道の効果：まわりの敵を遅くする、または止める。 */
+    private static void applyTime(ServerPlayer player, int tier) {
+        double radius = tier == 1 ? 8.0 : tier == 2 ? 16.0 : 20.0;
+        AABB area = player.getBoundingBox().inflate(radius);
+        List<Entity> nearby = player.level().getEntities(player, area, entity -> canAffect(player, entity));
+        for (Entity entity : nearby) {
+            if (entity.distanceTo(player) > radius) {
+                continue;
+            }
+            if (tier == 3) {
+                freeze(entity);
+            } else if (entity instanceof LivingEntity living) {
+                // 1 段目はすこし遅く、2 段目はほとんど動けない
+                living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, tier == 1 ? 1 : 5, true, false, false));
+                if (tier == 2) {
+                    living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 20, 2, true, false, false));
+                }
+            }
+        }
+    }
+
+    /** 時間を遅くできる相手か（自分・ほかのプレイヤー・自分のペット・アイテムなどはのぞく）。 */
+    private static boolean canAffect(ServerPlayer owner, Entity entity) {
+        if (entity instanceof Player || !entity.isAlive()) {
+            return false;
+        }
+        if (entity instanceof TamableAnimal pet && pet.isOwnedBy(owner)) {
+            return false;
+        }
+        return entity instanceof Mob || entity instanceof Projectile;
+    }
+
+    /** 相手の時間を止める(動き・頭・重力を止める。終わったら元にもどす)。 */
+    private static void freeze(Entity entity) {
+        Frozen frozen = FROZEN.get(entity.getUUID());
+        long until = tickCounter + 8;
+        if (frozen != null) {
+            frozen.untilTick = until;
+        } else {
+            boolean hadNoAi = entity instanceof Mob mob && mob.isNoAi();
+            frozen = new Frozen(entity, until, hadNoAi, entity.isNoGravity());
+            FROZEN.put(entity.getUUID(), frozen);
+        }
+        if (entity instanceof Mob mob) {
+            mob.setNoAi(true);
+        }
+        entity.setNoGravity(true);
+        entity.setDeltaMovement(Vec3.ZERO);
+    }
+
+    /** 毎 tick 呼ぶ。時間停止が終わった物を元にもどす。 */
+    public static void onServerTick(MinecraftServer server) {
+        tickCounter++;
+        if (FROZEN.isEmpty()) {
+            return;
+        }
+        List<UUID> finished = new ArrayList<>();
+        for (Map.Entry<UUID, Frozen> entry : FROZEN.entrySet()) {
+            Frozen frozen = entry.getValue();
+            if (frozen.entity.isRemoved()) {
+                finished.add(entry.getKey());
+            } else if (frozen.untilTick <= tickCounter) {
+                restore(frozen);
+                finished.add(entry.getKey());
+            } else {
+                // 止めている間は、動きもゼロにしつづける
+                frozen.entity.setDeltaMovement(Vec3.ZERO);
+            }
+        }
+        for (UUID id : finished) {
+            FROZEN.remove(id);
+        }
+    }
+
+    /** 止めていた物を動けるようにもどす。 */
+    private static void restore(Frozen frozen) {
+        if (frozen.entity instanceof Mob mob) {
+            mob.setNoAi(frozen.hadNoAi);
+        }
+        frozen.entity.setNoGravity(frozen.hadNoGravity);
+    }
+
+    /** サーバーが止まるとき、止めていた物を全部もどす(止まったまま保存されないように)。 */
+    public static void onServerStopped(MinecraftServer server) {
+        for (Frozen frozen : FROZEN.values()) {
+            if (!frozen.entity.isRemoved()) {
+                restore(frozen);
+            }
+        }
+        FROZEN.clear();
+        LAST_APPLY.clear();
+    }
+}

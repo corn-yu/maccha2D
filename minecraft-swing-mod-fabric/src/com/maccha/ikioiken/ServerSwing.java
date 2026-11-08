@@ -295,6 +295,8 @@ public final class ServerSwing {
         // 速く振ったら「ブンッ」と鳴らして、通り道に軌跡を出す
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
+            // スキルツリーの特殊能力（時間を遅くする・止めるなど）
+            SkillEffects.onFastSwing(player, heldItem);
             TrailStyle.Style trailStyle = TrailStyle.of(heldItem);
             spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength, trailStyle);
 
@@ -761,6 +763,9 @@ public final class ServerSwing {
 
         // 武器のレベルが高いほどダメージが上がる
         momentumFactor *= 1.0 + SwingConfig.WEAPON_LEVEL_DAMAGE_BONUS * (WeaponAbilities.weaponLevel(player.getMainHandItem()) - 1);
+
+        // スキルツリー（力の道）でダメージが上がる
+        momentumFactor *= SkillTree.damageMultiplier(player.getMainHandItem());
 
         // パリィのすぐあとなら反撃ボーナス
         boolean isCounter = player.tickCount <= state.counterUntilTick;
