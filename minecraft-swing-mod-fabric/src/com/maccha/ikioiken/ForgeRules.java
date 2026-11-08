@@ -68,7 +68,7 @@ public final class ForgeRules {
             if (foundIndex >= 0) {
                 // 同じ能力は強さが 1 上がる
                 WeaponAbilities.Entry current = merged.get(foundIndex);
-                int newLevel = Math.min(WeaponAbilities.MAX_ABILITY_LEVEL, Math.max(current.level(), added.level()) + 1);
+                int newLevel = (int) Math.min((long) WeaponAbilities.MAX_ABILITY_LEVEL, (long) Math.max(current.level(), added.level()) + 1L);
                 if (newLevel > current.level()) {
                     merged.set(foundIndex, new WeaponAbilities.Entry(current.ability(), newLevel));
                     changed = true;
@@ -88,7 +88,7 @@ public final class ForgeRules {
         repairLikeAnvilFusion(result, other);
 
         // 代金：能力 1 つにつき、2 + 合体後のその能力の強さ（強い能力ほど高い）
-        int cost = 2;
+        long totalCost = 2;
         for (WeaponAbilities.Entry added : otherEntries) {
             int resultLevel = 1;
             for (WeaponAbilities.Entry entry : merged) {
@@ -96,8 +96,9 @@ public final class ForgeRules {
                     resultLevel = entry.level();
                 }
             }
-            cost += 2 + resultLevel;
+            totalCost += 2L + resultLevel;
         }
+        int cost = (int) Math.min(Integer.MAX_VALUE, totalCost);
         return new Preview(result, cost, 0, true, "合体できるよ！ 耐久は金床と同じだけ回復。経験値レベル " + cost + " 必要");
     }
 
@@ -106,17 +107,17 @@ public final class ForgeRules {
         int level = WeaponAbilities.weaponLevel(weapon);
         // 材料の数は 1 + レベル÷2（ただし 1 スタックの 64 個まで）
         int need = Math.min(64, 1 + level / 2);
-        int cost = 3 + level * 2;
+        int cost = (int) Math.min(Integer.MAX_VALUE, 3L + 2L * level);
         if (material.getCount() < need) {
             return none("材料が足りないよ（" + materialLabel(weapon) + " を " + need + " 個）");
         }
 
         ItemStack result = weapon.copy();
         result.setCount(1);
-        WeaponAbilities.write(result, WeaponAbilities.abilitiesOf(weapon), level + 1);
+        WeaponAbilities.write(result, WeaponAbilities.abilitiesOf(weapon), level == Integer.MAX_VALUE ? level : level + 1);
         repairLikeAnvilMaterial(result, need);
         return new Preview(result, cost, need, false,
-                "Lv" + level + " → Lv" + (level + 1) + "！ 耐久は金床と同じだけ回復。経験値レベル " + cost + " と " + materialLabel(weapon) + " " + need + " 個");
+                "Lv" + level + " → Lv" + (level == Integer.MAX_VALUE ? level : level + 1) + "！ 耐久は金床と同じだけ回復。経験値レベル " + cost + " と " + materialLabel(weapon) + " " + need + " 個");
     }
 
     /** 金床で二つを合わせるときと同じ回復：二つの残りの耐久をたして、最大耐久の 12% をおまけする。 */

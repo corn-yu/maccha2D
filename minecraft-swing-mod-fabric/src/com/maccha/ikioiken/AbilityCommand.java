@@ -42,10 +42,10 @@ public final class AbilityCommand {
                                 .executes(context -> setLevel(context.getSource(), IntegerArgumentType.getInteger(context, "level")))))
                 // 全部の能力をつけたネザライト武器一式をもらう（強さ・武器レベルは省略できる）
                 .then(Commands.literal("kit")
-                        .executes(context -> giveKit(context.getSource(), 10, 100))
+                        .executes(context -> giveKit(context.getSource(), Integer.MAX_VALUE, Integer.MAX_VALUE))
                         .then(Commands.argument("abilityLevel", IntegerArgumentType.integer(1, WeaponAbilities.MAX_ABILITY_LEVEL))
                                 .executes(context -> giveKit(context.getSource(),
-                                        IntegerArgumentType.getInteger(context, "abilityLevel"), 100))
+                                        IntegerArgumentType.getInteger(context, "abilityLevel"), Integer.MAX_VALUE))
                                 .then(Commands.argument("weaponLevel", IntegerArgumentType.integer(1, WeaponAbilities.MAX_WEAPON_LEVEL))
                                         .executes(context -> giveKit(context.getSource(),
                                                 IntegerArgumentType.getInteger(context, "abilityLevel"),

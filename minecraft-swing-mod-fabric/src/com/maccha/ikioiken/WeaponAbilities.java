@@ -205,10 +205,10 @@ public final class WeaponAbilities {
     private static final String ROOT = "ikioiken";
 
     // 1 本に付けられる能力の数の上限、強さの上限、武器のレベルの上限
-    // （上限はなくした。数字が大きくなりすぎないための、とても大きな技術的な上限だけ残してある）
+    // （上限はなくした。数字の入れ物（int）の最大値 2,147,483,647 だけが技術的な限界）
     public static final int MAX_ABILITIES = Integer.MAX_VALUE;
-    public static final int MAX_ABILITY_LEVEL = 1_000_000;
-    public static final int MAX_WEAPON_LEVEL = 1_000_000;
+    public static final int MAX_ABILITY_LEVEL = Integer.MAX_VALUE;
+    public static final int MAX_WEAPON_LEVEL = Integer.MAX_VALUE;
 
     /** 持ち物についている能力 1 つぶん（能力と強さ）。 */
     public record Entry(Ability ability, int level) {
