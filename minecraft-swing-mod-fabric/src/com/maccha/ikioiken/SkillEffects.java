@@ -56,7 +56,7 @@ public final class SkillEffects {
     /** 斬撃などの進む速さの倍率。時間の道が働いている間は、1段目＝0.6倍・2段目＝0.25倍・3段目＝止まる(0倍)。 */
     public static double timeScaleFor(UUID playerId) {
         long[] active = TIME_ACTIVE.get(playerId);
-        if (active == null || tickCounter - active[0] > 3) {
+        if (active == null || tickCounter - active[0] > 20) {
             return 1.0;
         }
         return active[1] == 1 ? 0.6 : active[1] == 2 ? 0.25 : 0.0;
@@ -108,9 +108,9 @@ public final class SkillEffects {
                 freeze(entity, 8);
             } else if (entity instanceof LivingEntity living) {
                 // 1 段目はすこし遅く、2 段目はほとんど動けない
-                living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 20, tier == 1 ? 1 : 5, true, false, false));
+                living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, tier == 1 ? 1 : 5, true, false, false));
                 if (tier == 2) {
-                    living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 20, 2, true, false, false));
+                    living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 40, 2, true, false, false));
                 }
             }
         }
@@ -130,7 +130,7 @@ public final class SkillEffects {
     /** 相手の時間を止める(動き・頭・重力を止める。終わったら元にもどす)。 */
     static void freeze(Entity entity, int ticks) {
         Frozen frozen = FROZEN.get(entity.getUUID());
-        long until = tickCounter + ticks;
+        long until = tickCounter + Math.max(ticks, 24);
         if (frozen != null) {
             frozen.untilTick = until;
         } else {

@@ -299,10 +299,12 @@ public final class ServerSwing {
 
         // 速く振ったら「ブンッ」と鳴らして、通り道に軌跡を出す
         playWhooshIfFast(player, state, tipSpeed);
-        if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
-            // スキルツリーの特殊能力（時間を遅くする・止めるなど）
+        if (tipSpeed >= SwingConfig.MIN_HIT_SPEED) {
+            // スキルツリーの特殊能力（時間を遅くする・止める・斬撃など）。ゆっくりめに振っていても働く
             SkillEffects.onFastSwing(player, new SkillEffects.SwingArc(state.lastBladeDir, bladeDir, state.lastShoulder, shoulder,
                     tipSpeed, state.bladeLength, TrailStyle.of(heldItem)));
+        }
+        if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
             TrailStyle.Style trailStyle = TrailStyle.of(heldItem);
             spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength, trailStyle);
 
