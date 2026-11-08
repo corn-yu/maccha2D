@@ -41,6 +41,7 @@ public final class SkillEffects {
         UUID ownerId;
         boolean deferDamage;
         float pendingDamage;
+        final List<Runnable> pendingFeedback = new ArrayList<>();
 
         Frozen(Entity entity, long untilTick, boolean hadNoAi, boolean hadNoGravity) {
             this.entity = entity;
@@ -55,6 +56,16 @@ public final class SkillEffects {
     // 時間停止中に受けたダメージを後回しにする：この一撃で後回しにした量・解除後のダメージを出しているところか
     private static float deferredThisHit = 0.0f;
     private static boolean releasing = false;
+
+    /** 時間停止中の敵に当てた手ごたえ・ダメージの数字を、解除後に出すためにためておく。 */
+    public static void addDeferredFeedback(UUID entityId, Runnable feedback) {
+        Frozen frozen = FROZEN.get(entityId);
+        if (frozen == null) {
+            feedback.run();
+            return;
+        }
+        frozen.pendingFeedback.add(feedback);
+    }
 
     /** 一撃の前に呼ぶ。この一撃で後回しにした量を 0 にもどす。 */
     public static void resetDeferred() {
@@ -263,6 +274,11 @@ public final class SkillEffects {
 
     /** 時間停止が解けたとき、ためていたダメージを一気に出す。 */
     private static void releaseDamage(MinecraftServer server, Frozen frozen) {
+        // ためていた手ごたえとダメージの数字を、まとめて出す
+        for (Runnable feedback : frozen.pendingFeedback) {
+            feedback.run();
+        }
+        frozen.pendingFeedback.clear();
         if (frozen.pendingDamage <= 0.0f || !(frozen.entity instanceof LivingEntity target) || !target.isAlive()
                 || !(target.level() instanceof net.minecraft.server.level.ServerLevel level)) {
             return;

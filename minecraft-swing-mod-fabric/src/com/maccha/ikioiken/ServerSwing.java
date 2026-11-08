@@ -855,11 +855,22 @@ public final class ServerSwing {
         pushTarget(rootTarget, relativeVelocity, speedFactor);
 
         // 粒で手ごたえを出して、本人の画面をゆらす
-        showHitEffects(player.level(), hitPoint, speedFactor);
-        if (superCritical) {
-            showCriticalEffects(player.level(), hitPoint);
+        // （時間停止中に後回しになったダメージのときは、手ごたえも数字も、時間停止が解けたときにまとめて出す）
+        final boolean feedbackDeferred = SkillEffects.deferredAmount() > 0.0f;
+        final boolean criticalNow = superCritical;
+        final double speedNow = speedFactor;
+        Runnable hitFeedback = () -> {
+            showHitEffects(player.level(), hitPoint, speedNow);
+            if (criticalNow) {
+                showCriticalEffects(player.level(), hitPoint);
+            }
+            Net.sendToPlayer(player, new HitPayload((float) Math.min(speedNow, 1.5) + (criticalNow ? 0.6f : 0.0f)));
+        };
+        if (feedbackDeferred) {
+            SkillEffects.addDeferredFeedback(rootTarget.getUUID(), hitFeedback);
+        } else {
+            hitFeedback.run();
         }
-        Net.sendToPlayer(player, new HitPayload((float) Math.min(speedFactor, 1.5) + (superCritical ? 0.6f : 0.0f)));
 
         // 武器についている能力（当てたとき・倒したとき）
         if (rootTarget instanceof LivingEntity struck) {
@@ -873,7 +884,14 @@ public final class ServerSwing {
         // 当てた相手からダメージの数字を出す
         int numberStyle = superCritical ? DamagePayload.CRITICAL
                 : hitSpeed >= SwingConfig.REFERENCE_SPEED ? DamagePayload.STRONG : DamagePayload.NORMAL;
-        sendDamageNumber(player, hitPoint, dealtDamage, numberStyle);
+        final float numberDamage = dealtDamage;
+        final int numberStyleNow = numberStyle;
+        Runnable numberFeedback = () -> sendDamageNumber(player, hitPoint, numberDamage, numberStyleNow);
+        if (feedbackDeferred) {
+            SkillEffects.addDeferredFeedback(rootTarget.getUUID(), numberFeedback);
+        } else {
+            numberFeedback.run();
+        }
 
         // 当てたあとに出る能力（シャベル＝打ち上げ、クワ＝命刈り、重い武器＝衝撃波、つるはし＝鎧くだきの音）
         boolean strongHit = hitSpeed >= SwingConfig.REFERENCE_SPEED;
