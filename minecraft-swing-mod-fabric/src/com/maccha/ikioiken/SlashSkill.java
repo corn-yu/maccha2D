@@ -85,8 +85,9 @@ public final class SlashSkill {
         float baseDamage = (float) Math.max(4.0, player.getAttributeValue(Attributes.ATTACK_DAMAGE));
         float damage = baseDamage * (tier == 1 ? 1.0f : tier == 2 ? 1.5f : 2.5f);
         // 刃の先の位置から、剣の向きへ飛ばす(切ったときの軌跡がそのまま飛んでいく)
-        Vec3 direction = arc.newDir().normalize();
-        Vec3 tip = arc.shoulder().add(direction.scale(arc.bladeLength()));
+        // 飛ぶ向きは、プレイヤーが見ている向き(まっすぐ前の敵に当たるように)。出す位置は刃の先
+        Vec3 direction = player.getLookAngle().normalize();
+        Vec3 tip = arc.shoulder().add(arc.newDir().normalize().scale(arc.bladeLength()));
         if (FLYING.size() >= MAX_FLYING) {
             return;
         }
@@ -156,7 +157,7 @@ public final class SlashSkill {
 
     /** 斬撃の太さのなかにいる敵にダメージを与える。 */
     private static void hitEntities(Slash slash, ServerPlayer owner) {
-        double thickness = slash.tier == 3 ? 2.5 : slash.tier == 2 ? 1.5 : 1.0;
+        double thickness = slash.tier == 3 ? 2.5 : slash.tier == 2 ? 2.0 : 1.5;
         AABB box = new AABB(slash.position, slash.position).inflate(thickness);
         for (LivingEntity target : slash.level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (target == owner || target instanceof Player || !target.isAlive() || slash.hitEntities.contains(target.getId())) {
@@ -184,7 +185,8 @@ public final class SlashSkill {
 
         // 1 段目：かたいブロックにぶつかったら消える
         if (slash.tier == 1) {
-            return !centerState.getCollisionShape(slash.level, center).isEmpty();
+            // 出した直後(1ブロックまで)は、手元が地面やかべに近くても止まらない
+            return slash.travelled > 1.0 && !centerState.getCollisionShape(slash.level, center).isEmpty();
         }
 
         // 2 段目以上：まんなかが壊せないブロックなら止まる
