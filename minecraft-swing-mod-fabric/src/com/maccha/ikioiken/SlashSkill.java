@@ -38,10 +38,12 @@ public final class SlashSkill {
         final int tier;
         final double range;
         final float damage;
+        final SkillEffects.SwingArc arc;
+        final Vec3 startPosition;
         final Set<Integer> hitEntities = new HashSet<>();
         double travelled = 0.0;
 
-        Slash(UUID ownerId, ServerLevel level, Vec3 position, Vec3 direction, int tier, double range, float damage) {
+        Slash(UUID ownerId, ServerLevel level, Vec3 position, Vec3 direction, int tier, double range, float damage, SkillEffects.SwingArc arc) {
             this.ownerId = ownerId;
             this.level = level;
             this.position = position;
@@ -49,6 +51,8 @@ public final class SlashSkill {
             this.tier = tier;
             this.range = range;
             this.damage = damage;
+            this.arc = arc;
+            this.startPosition = position;
         }
     }
 
@@ -62,7 +66,7 @@ public final class SlashSkill {
     private static final int FIRE_INTERVAL_TICKS = 10;
 
     /** 武器を速く振ったとき、斬撃を飛ばす（間隔があくまで次は出ない）。 */
-    public static void fire(ServerPlayer player, int tier, Vec3 origin, Vec3 direction) {
+    public static void fire(ServerPlayer player, int tier, SkillEffects.SwingArc arc) {
         Long last = LAST_FIRE.get(player.getUUID());
         if (last != null && tickCounter - last < FIRE_INTERVAL_TICKS) {
             return;
@@ -73,7 +77,10 @@ public final class SlashSkill {
         double range = tier == 1 ? 5.0 : 10.0;
         float baseDamage = (float) Math.max(4.0, player.getAttributeValue(Attributes.ATTACK_DAMAGE));
         float damage = baseDamage * (tier == 1 ? 1.0f : tier == 2 ? 1.5f : 2.5f);
-        FLYING.add(new Slash(player.getUUID(), (ServerLevel) player.level(), origin, direction.normalize(), tier, range, damage));
+        // 刃の先の位置から、剣の向きへ飛ばす(切ったときの軌跡がそのまま飛んでいく)
+        Vec3 direction = arc.newDir().normalize();
+        Vec3 tip = arc.shoulder().add(direction.scale(arc.bladeLength()));
+        FLYING.add(new Slash(player.getUUID(), (ServerLevel) player.level(), tip, direction, tier, range, damage, arc));
         player.level().playSound(null, player.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.0f, 1.4f);
     }
 
@@ -106,13 +113,6 @@ public final class SlashSkill {
             slash.position = slash.position.add(slash.direction.scale(STEP));
             slash.travelled += STEP;
 
-            // 見た目：通ったところに白い斬撃の粒（太いほどたくさん）
-            ServerLevel level = slash.level;
-            int count = slash.tier == 3 ? 4 : 1;
-            double spread = slash.tier == 3 ? 0.8 : 0.2;
-            level.sendParticles(ParticleTypes.SWEEP_ATTACK, slash.position.x, slash.position.y, slash.position.z, count, spread, spread, spread, 0.0);
-            level.sendParticles(ParticleTypes.CRIT, slash.position.x, slash.position.y, slash.position.z, 2, spread, spread, spread, 0.05);
-
             // 敵にダメージ（1 体につき 1 回）
             hitEntities(slash, owner);
 
@@ -121,12 +121,28 @@ public final class SlashSkill {
                 return true;
             }
         }
+        showArc(slash);
         return false;
+    }
+
+    /** 切ったときの軌跡(色と形)を、いまの位置に出す。3段目は太く見えるよう上下にもう 2 本。 */
+    private static void showArc(Slash slash) {
+        SkillEffects.SwingArc arc = slash.arc;
+        Vec3 offset = slash.position.subtract(slash.startPosition);
+        ServerSwing.spawnTrail(slash.level, arc.lastDir(), arc.newDir(), arc.lastShoulder().add(offset), arc.shoulder().add(offset),
+                arc.tipSpeed(), arc.bladeLength(), arc.style());
+        if (slash.tier == 3) {
+            for (double gap : new double[] {0.5, -0.5}) {
+                Vec3 shifted = offset.add(0.0, gap, 0.0);
+                ServerSwing.spawnTrail(slash.level, arc.lastDir(), arc.newDir(), arc.lastShoulder().add(shifted), arc.shoulder().add(shifted),
+                        arc.tipSpeed(), arc.bladeLength(), arc.style());
+            }
+        }
     }
 
     /** 斬撃の太さのなかにいる敵にダメージを与える。 */
     private static void hitEntities(Slash slash, ServerPlayer owner) {
-        double thickness = slash.tier == 3 ? 1.2 : 0.5;
+        double thickness = slash.tier == 3 ? 2.5 : slash.tier == 2 ? 1.5 : 1.0;
         AABB box = new AABB(slash.position, slash.position).inflate(thickness);
         for (LivingEntity target : slash.level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (target == owner || target instanceof Player || !target.isAlive() || slash.hitEntities.contains(target.getId())) {

@@ -301,7 +301,8 @@ public final class ServerSwing {
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
             // スキルツリーの特殊能力（時間を遅くする・止めるなど）
-            SkillEffects.onFastSwing(player, shoulder, bladeDir);
+            SkillEffects.onFastSwing(player, new SkillEffects.SwingArc(state.lastBladeDir, bladeDir, state.lastShoulder, shoulder,
+                    tipSpeed, state.bladeLength, TrailStyle.of(heldItem)));
             TrailStyle.Style trailStyle = TrailStyle.of(heldItem);
             spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength, trailStyle);
 
@@ -578,7 +579,7 @@ public final class ServerSwing {
     }
 
     /** 剣の通り道に、武器のスタイル（色と形）の軌跡を出す。 */
-    private static void spawnTrail(ServerLevel level, Vec3 lastDir, Vec3 newDir,
+    static void spawnTrail(ServerLevel level, Vec3 lastDir, Vec3 newDir,
                                    Vec3 lastShoulder, Vec3 shoulder, double tipSpeed, double bladeLength,
                                    TrailStyle.Style style) {
         // 速いほど太く明るく

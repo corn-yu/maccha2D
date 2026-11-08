@@ -27,6 +27,11 @@ public final class SkillEffects {
     private SkillEffects() {
     }
 
+    /** 今の振りの軌跡(前の向き・今の向き・肩の位置・速さ・刃の長さ・色と形)。斬撃がこれをそのまま飛ばす。 */
+    public record SwingArc(Vec3 lastDir, Vec3 newDir, Vec3 lastShoulder, Vec3 shoulder,
+                           double tipSpeed, double bladeLength, TrailStyle.Style style) {
+    }
+
     /** 時間を止められている物の記録（終わったら元にもどすため）。 */
     private static final class Frozen {
         final Entity entity;
@@ -47,11 +52,11 @@ public final class SkillEffects {
     private static long tickCounter = 0;
 
     /** 武器を速く振っているとき毎 tick 呼ぶ。覚えているスキルに合わせて効果をかける。 */
-    public static void onFastSwing(ServerPlayer player, Vec3 shoulder, Vec3 bladeDir) {
+    public static void onFastSwing(ServerPlayer player, SwingArc arc) {
         // 斬撃の道：斬撃を飛ばす
         int slashTier = SkillTree.tierOf(player, SkillTree.Branch.SLASH);
         if (slashTier > 0) {
-            SlashSkill.fire(player, slashTier, shoulder, bladeDir);
+            SlashSkill.fire(player, slashTier, arc);
         }
 
         // 2 tick に 1 回だけ（まわりを調べるのは少し重いので）
