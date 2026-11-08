@@ -23,6 +23,10 @@ public record MotionPayload(int entityId, int kind, float first, float second) i
     public static final int PLAYER_BLADE_TWO = 5;
     public static final int PLAYER_BLADE_LEFT_TWO = 6;
 
+    // 二刀流の 2 本目（左手側）の剣の向き（右腕 / 左腕）と、おろしたとき
+    public static final int PLAYER_BLADE_SECOND = 7;
+    public static final int PLAYER_BLADE_SECOND_LEFT = 8;
+    public static final int PLAYER_BLADE_SECOND_END = 9;
     // パケットの名前
     public static final Type<MotionPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(IkioiKen.MOD_ID, "motion"));

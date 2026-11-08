@@ -103,8 +103,21 @@ public final class ServerSwing {
         return CRACKS.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
     }
 
-    // プレイヤーごとの剣の状態
+    // プレイヤーごとの剣の状態（二刀流の左手の剣は、別の鍵で持つ）
     private static final Map<UUID, SwingState> STATES = new HashMap<>();
+
+    // いま調べている剣が、二刀流の「左手側の 2 本目」なら true
+    private static boolean processingSecondBlade = false;
+
+    /** 二刀流の 2 本目の剣の状態をしまう鍵（プレイヤーの番号を 1 ビットだけ変えたもの）。 */
+    private static UUID secondKey(UUID playerId) {
+        return new UUID(playerId.getMostSignificantBits() ^ 1L, playerId.getLeastSignificantBits());
+    }
+
+    /** いま調べている剣の状態をしまう鍵を返す。 */
+    private static UUID stateKey(ServerPlayer player) {
+        return processingSecondBlade ? secondKey(player.getUUID()) : player.getUUID();
+    }
 
     /** トライデントの、あとから出る斬撃 1 本ぶん。 */
     private record PendingSlash(UUID playerId, int targetId, long dueTick, double momentumFactor, int slashIndex) {
@@ -153,6 +166,7 @@ public final class ServerSwing {
     /** ログアウトした人の剣の記録を消す。 */
     public static void onPlayerLogout(ServerGamePacketListenerImpl handler, MinecraftServer server) {
         STATES.remove(handler.getPlayer().getUUID());
+        STATES.remove(secondKey(handler.getPlayer().getUUID()));
         HOE_COMBOS.remove(handler.getPlayer().getUUID());
     }
 
@@ -168,6 +182,7 @@ public final class ServerSwing {
 
     /** 届いた剣の向きで、前の向きからの振りを調べる（左手に持っているときは、そのあいだだけ左右の手を入れかえる）。 */
     private static void handleBlade(ServerPlayer player, BladePayload payload) {
+        processingSecondBlade = false;
         if (!payload.offhand()) {
             handleBladeInMainHand(player, payload);
             return;
@@ -185,9 +200,13 @@ public final class ServerSwing {
         inventory.setItem(selectedSlot, realOff);
         inventory.setItem(Inventory.SLOT_OFFHAND, realMain);
         moveHandModifiers(player, realMain, realOff);
+
+        // メインの手にも振れる物があれば二刀流：左手の剣は 2 本目として別に記録する
+        processingSecondBlade = SwordCheck.isSwingItem(realMain);
         try {
             handleBladeInMainHand(player, payload);
         } finally {
+            processingSecondBlade = false;
             // 入れかえをもとにもどす（耐久がへった・こわれた持ち物も、そのまま元の手にもどる）
             ItemStack nowMain = inventory.getItem(selectedSlot);
             ItemStack nowOff = inventory.getItem(Inventory.SLOT_OFFHAND);
@@ -215,7 +234,7 @@ public final class ServerSwing {
 
     /** メインの手に持っている物（左手持ちのときは入れかえたあと）で、前の向きからの振りを調べる。 */
     private static void handleBladeInMainHand(ServerPlayer player, BladePayload payload) {
-        UUID playerId = player.getUUID();
+        UUID playerId = stateKey(player);
 
         // 長押しをやめた・振れる物を持っていない・観戦中なら記録を消して終わり
         ItemStack heldItem = player.getMainHandItem();
@@ -307,6 +326,9 @@ public final class ServerSwing {
         int motionKind = bladeInLeftArm
                 ? (twoHandedNow ? MotionPayload.PLAYER_BLADE_LEFT_TWO : MotionPayload.PLAYER_BLADE_LEFT)
                 : (twoHandedNow ? MotionPayload.PLAYER_BLADE_TWO : MotionPayload.PLAYER_BLADE);
+        if (processingSecondBlade) {
+            motionKind = bladeInLeftArm ? MotionPayload.PLAYER_BLADE_SECOND_LEFT : MotionPayload.PLAYER_BLADE_SECOND;
+        }
         Net.sendToPlayersTrackingEntity(player, new MotionPayload(player.getId(), motionKind, payload.yaw(), bladePitch));
 
         // 次の tick のために覚えておく
@@ -316,12 +338,12 @@ public final class ServerSwing {
 
     /** 剣の記録を消す（掘りかけのひびは残す）。 */
     private static void clearState(ServerPlayer player) {
-        SwingState state = STATES.remove(player.getUUID());
+        SwingState state = STATES.remove(stateKey(player));
         if (state == null) {
             return;
         }
-        Net.sendToPlayersTrackingEntity(player,
-                new MotionPayload(player.getId(), MotionPayload.PLAYER_BLADE_END, 0.0f, 0.0f));
+        Net.sendToPlayersTrackingEntity(player, new MotionPayload(player.getId(),
+                processingSecondBlade ? MotionPayload.PLAYER_BLADE_SECOND_END : MotionPayload.PLAYER_BLADE_END, 0.0f, 0.0f));
         // 掘りかけのひびは、すぐには消さない（また振れば続きから広がる。しばらく当てなければ消える）
     }
 

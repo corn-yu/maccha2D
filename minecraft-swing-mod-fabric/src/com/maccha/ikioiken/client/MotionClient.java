@@ -52,6 +52,8 @@ public final class MotionClient {
     // 敵ごとの攻撃の動き、プレイヤーごとの剣の向き
     private static final Map<Integer, EnemyMotion> ENEMY_MOTIONS = new HashMap<>();
     private static final Map<Integer, PlayerBlade> PLAYER_BLADES = new HashMap<>();
+    // 二刀流の 2 本目（左手側）の剣の向き
+    private static final Map<Integer, PlayerBlade> SECOND_BLADES = new HashMap<>();
 
     // 体をかたむけて描いている途中の生き物（描き終わりでもとにもどす）
     private static final java.util.Set<Integer> LEANING_NOW = new java.util.HashSet<>();
@@ -88,6 +90,11 @@ public final class MotionClient {
             case MotionPayload.PLAYER_BLADE_LEFT_TWO -> PLAYER_BLADES.put(payload.entityId(),
                     new PlayerBlade(payload.first(), payload.second(), currentTime, true, true));
             case MotionPayload.PLAYER_BLADE_END -> PLAYER_BLADES.remove(payload.entityId());
+            case MotionPayload.PLAYER_BLADE_SECOND -> SECOND_BLADES.put(payload.entityId(),
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, false, false));
+            case MotionPayload.PLAYER_BLADE_SECOND_LEFT -> SECOND_BLADES.put(payload.entityId(),
+                    new PlayerBlade(payload.first(), payload.second(), currentTime, true, false));
+            case MotionPayload.PLAYER_BLADE_SECOND_END -> SECOND_BLADES.remove(payload.entityId());
             default -> {
             }
         }
@@ -205,12 +212,8 @@ public final class MotionClient {
         humanoid.rightArm.yRot = Mth.lerp(pose.blend(), humanoid.rightArm.yRot, 0.35f * pose.twist());
     }
 
-    /** プレイヤーの剣をにぎっている腕（ふつうは右、左手持ちなら左）を、剣の向きに向ける（自分は三人称のとき、ほかの人はいつも）。 */
+    /** プレイヤーの剣をにぎっている腕（ふつうは右、左手持ちなら左）を、剣の向きに向ける（自分は三人称のとき、ほかの人はいつも）。二刀流なら 2 本目の腕も向ける。 */
     private static void pointArmAlongBlade(HumanoidModel<?> humanoid, HumanoidRenderState state, Player player, float partialTick) {
-        float bladeYaw;
-        float bladePitch;
-        boolean useLeftArm;
-        boolean twoHanded;
         Minecraft minecraft = Minecraft.getInstance();
         if (player == minecraft.player) {
             // 自分：画面側の剣の向きをそのまま使う
@@ -218,27 +221,38 @@ public final class MotionClient {
                 return;
             }
             LocalPlayer localPlayer = (LocalPlayer) player;
-            bladeYaw = SwingClient.bladeWorldYaw(localPlayer);
-            bladePitch = SwingClient.bladeWorldPitch(localPlayer);
-            useLeftArm = SwingClient.isBladeInLeftArm();
-            twoHanded = SwingClient.isTwoHanded();
-        } else {
-            // ほかの人：サーバーから届いた剣の向き（しばらく届かなければやめる）
-            PlayerBlade blade = PLAYER_BLADES.get(player.getId());
-            if (blade == null) {
-                return;
+            pointOneArm(humanoid, state, SwingClient.bladeWorldYaw(localPlayer), SwingClient.bladeWorldPitch(localPlayer),
+                    SwingClient.isBladeInLeftArm(), SwingClient.isTwoHanded());
+            if (SwingClient.isSecondBladeOut()) {
+                pointOneArm(humanoid, state, SwingClient.secondBladeWorldYaw(localPlayer),
+                        SwingClient.secondBladeWorldPitch(localPlayer), SwingClient.isSecondBladeInLeftArm(), false);
             }
-            if (now(partialTick) - blade.receivedTime() > 10.0f) {
-                PLAYER_BLADES.remove(player.getId());
-                return;
-            }
-            bladeYaw = blade.yaw();
-            bladePitch = blade.pitch();
-            useLeftArm = blade.leftArm();
-            twoHanded = blade.twoHanded();
+            return;
         }
 
-        // 体の向きから見た剣の向きに、右腕を向ける
+        // ほかの人：サーバーから届いた剣の向き（しばらく届かなければやめる）
+        PlayerBlade blade = PLAYER_BLADES.get(player.getId());
+        if (blade != null && now(partialTick) - blade.receivedTime() > 10.0f) {
+            PLAYER_BLADES.remove(player.getId());
+            blade = null;
+        }
+        if (blade != null) {
+            pointOneArm(humanoid, state, blade.yaw(), blade.pitch(), blade.leftArm(), blade.twoHanded());
+        }
+        PlayerBlade second = SECOND_BLADES.get(player.getId());
+        if (second != null && now(partialTick) - second.receivedTime() > 10.0f) {
+            SECOND_BLADES.remove(player.getId());
+            second = null;
+        }
+        if (second != null) {
+            pointOneArm(humanoid, state, second.yaw(), second.pitch(), second.leftArm(), false);
+        }
+    }
+
+    /** 剣 1 本ぶんの腕を、剣の向きに向ける。 */
+    private static void pointOneArm(HumanoidModel<?> humanoid, HumanoidRenderState state,
+                                    float bladeYaw, float bladePitch, boolean useLeftArm, boolean twoHanded) {
+        // 体の向きから見た剣の向きに、腕を向ける
         float bodyYaw = state.bodyRot;
         float relativeYaw = Mth.clamp(Mth.wrapDegrees(bladeYaw - bodyYaw), -100.0f, 100.0f);
         net.minecraft.client.model.geom.ModelPart bladeArm = useLeftArm ? humanoid.leftArm : humanoid.rightArm;
