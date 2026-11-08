@@ -1,1 +1,1 @@
-{"type":"minecraft:crafting_shaped","category":"misc","key":{"D":"minecraft:diamond","I":"minecraft:iron_ingot","S":"minecraft:smithing_table"},"pattern":[" D ","ISI","III"],"result":{"id":"ikioiken:weapon_forge","count":1}}
+{"type":"minecraft:crafting_shapeless","category":"misc","ingredients":["minecraft:iron_ingot","minecraft:iron_ingot","minecraft:iron_ingot","minecraft:crafting_table"],"result":{"id":"ikioiken:weapon_forge","count":1}}
