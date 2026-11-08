@@ -16,6 +16,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ColorParticleOption;
+import net.minecraft.core.particles.DustColorTransitionOptions;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -294,13 +295,14 @@ public final class ServerSwing {
         // 速く振ったら「ブンッ」と鳴らして、通り道に軌跡を出す
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
-            spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength);
+            TrailStyle.Style trailStyle = TrailStyle.of(heldItem);
+            spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength, trailStyle);
 
             // トライデントは上と下にもう 1 本ずつ、三本の斬撃の軌跡
             if (WeaponSkill.skillOf(heldItem) == WeaponSkill.TRIDENT) {
                 Vec3 gap = new Vec3(0.0, 0.35, 0.0);
-                spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder.add(gap), shoulder.add(gap), tipSpeed, state.bladeLength);
-                spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder.subtract(gap), shoulder.subtract(gap), tipSpeed, state.bladeLength);
+                spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder.add(gap), shoulder.add(gap), tipSpeed, state.bladeLength, trailStyle);
+                spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder.subtract(gap), shoulder.subtract(gap), tipSpeed, state.bladeLength, trailStyle);
             }
         }
 
@@ -565,22 +567,67 @@ public final class ServerSwing {
         state.wasFast = tipSpeed >= SwingConfig.WHOOSH_SPEED * 0.6;
     }
 
-    /** 剣の通り道（剣先の弧）に白い軌跡の粒を出す（みんなに見える）。 */
+    /** 剣の通り道に、武器のスタイル（色と形）の軌跡を出す。 */
     private static void spawnTrail(ServerLevel level, Vec3 lastDir, Vec3 newDir,
-                                   Vec3 lastShoulder, Vec3 shoulder, double tipSpeed, double bladeLength) {
+                                   Vec3 lastShoulder, Vec3 shoulder, double tipSpeed, double bladeLength,
+                                   TrailStyle.Style style) {
         // 速いほど太く明るく
-        float trailSize = (float) Mth.clamp(tipSpeed / SwingConfig.REFERENCE_SPEED, 0.6, 1.6);
-        DustParticleOptions trailDust = new DustParticleOptions(0xF2F7FF, trailSize);
+        float trailSize = (float) Mth.clamp(tipSpeed / SwingConfig.REFERENCE_SPEED, 0.6, 1.6) * style.sizeBoost();
+        if (style.shape() == TrailStyle.Shape.SHORT) {
+            trailSize *= 0.8f;
+        } else if (style.shape() == TrailStyle.Shape.WIDE) {
+            trailSize *= 1.3f;
+        }
+        DustColorTransitionOptions trailDust = new DustColorTransitionOptions(style.colorFrom(), style.colorTo(), trailSize);
 
-        // 弧にそって、剣の先の方 3 か所に点を打つ
-        int pointCount = 6;
+        // 剣先からどこまで（根もとからの割合）に点を打つか
+        double alongStart = style.shape() == TrailStyle.Shape.SHORT ? 0.8 : (style.shape() == TrailStyle.Shape.WIDE ? 0.5 : 0.65);
+        double alongStep = style.shape() == TrailStyle.Shape.WIDE ? 0.125 : 0.175;
+
+        // 弧の向きに直角な、横ゆれの向き（ギザギザ・2 本ならびに使う）
+        Vec3 side = lastDir.cross(newDir);
+        if (side.lengthSqr() < 1.0e-6) {
+            side = new Vec3(0.0, 1.0, 0.0);
+        }
+        side = side.normalize();
+
+        // 弧にそって点を打つ
+        int pointCount = style.shape() == TrailStyle.Shape.STAB ? 3 : 6;
         for (int point = 0; point <= pointCount; point++) {
             double progress = (double) point / pointCount;
             Vec3 dir = lastDir.lerp(newDir, progress).normalize();
             Vec3 center = lastShoulder.lerp(shoulder, progress);
-            for (double along = 0.65; along <= 1.0; along += 0.175) {
+
+            if (style.shape() == TrailStyle.Shape.STAB) {
+                // 槍：肩から剣先まで、まっすぐ線を引く
+                for (double along = 0.3; along <= 1.0; along += 0.1) {
+                    Vec3 spot = center.add(dir.scale(bladeLength * along));
+                    level.sendParticles(trailDust, spot.x, spot.y, spot.z, 1, 0.0, 0.0, 0.0, 0.0);
+                }
+                continue;
+            }
+
+            for (double along = alongStart; along <= 1.0; along += alongStep) {
                 Vec3 spot = center.add(dir.scale(bladeLength * along));
+
+                // 雷：点ごとに横へギザギザにずらす
+                if (style.shape() == TrailStyle.Shape.ZIGZAG) {
+                    double jitter = ((point + (int) (along * 10)) % 2 == 0 ? 1.0 : -1.0) * 0.12;
+                    spot = spot.add(side.scale(jitter));
+                }
                 level.sendParticles(trailDust, spot.x, spot.y, spot.z, 1, 0.0, 0.0, 0.0, 0.0);
+
+                // 2 本ならび：少し横にもう 1 本
+                if (style.shape() == TrailStyle.Shape.DOUBLE) {
+                    Vec3 second = spot.add(side.scale(0.22));
+                    level.sendParticles(trailDust, second.x, second.y, second.z, 1, 0.0, 0.0, 0.0, 0.0);
+                }
+            }
+
+            // まぜる粒（炎・雪・火花など）。多すぎないように、弧の 1 か所ずつ
+            if (style.extra() != null) {
+                Vec3 spot = center.add(dir.scale(bladeLength * 0.9));
+                level.sendParticles(style.extra(), spot.x, spot.y, spot.z, 1, 0.05, 0.05, 0.05, 0.01);
             }
         }
     }
