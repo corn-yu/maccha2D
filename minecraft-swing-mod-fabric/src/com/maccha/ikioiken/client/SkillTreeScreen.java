@@ -11,7 +11,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /**
- * スキルツリーの画面。自分の経験値レベルを使って、時間の道を下へ進めて覚える。
+ * スキルツリーの画面。自分の経験値レベルを使って、時間・斬撃の道を下へ進めて覚える。
  */
 public class SkillTreeScreen extends Screen {
 
@@ -48,7 +48,7 @@ public class SkillTreeScreen extends Screen {
         nodeButtons.clear();
         for (SkillTree.Node node : SkillTree.NODES) {
             int column = node.branch().ordinal();
-            int x = panelLeft + (PANEL_WIDTH - NODE_WIDTH) / 2 + column * 87;
+            int x = panelLeft + (PANEL_WIDTH - (SkillTree.Branch.values().length * 87 - 9)) / 2 + column * 87;
             int y = panelTop + 50 + (node.tier() - 1) * 42;
             Button button = Button.builder(Component.literal(node.name()), pressed -> ClientPlayNetworking.send(new SkillUnlockPayload(node.id())))
                     .bounds(x, y, NODE_WIDTH, NODE_HEIGHT).build();
@@ -93,7 +93,7 @@ public class SkillTreeScreen extends Screen {
         // 道の名前と、スキルをつなぐ線
         for (SkillTree.Branch branch : SkillTree.Branch.values()) {
             int column = branch.ordinal();
-            int x = panelLeft + (PANEL_WIDTH - NODE_WIDTH) / 2 + column * 87;
+            int x = panelLeft + (PANEL_WIDTH - (SkillTree.Branch.values().length * 87 - 9)) / 2 + column * 87;
             int color = BRANCH_COLORS[column];
             g.text(font, branch.label() + "の道", x + 4, panelTop + 38, color, true);
             for (int tier = 1; tier <= 2; tier++) {

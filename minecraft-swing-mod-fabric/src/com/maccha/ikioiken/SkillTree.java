@@ -24,7 +24,7 @@ public final class SkillTree {
 
     /** 道の種類。 */
     public enum Branch {
-        TIME("時間");
+        TIME("時間"), SLASH("斬撃");
 
         private final String label;
 
@@ -56,6 +56,11 @@ public final class SkillTree {
         add("time1", Branch.TIME, 1, "ゆっくり時間", "武器を速く振っている間、近く(8マス)の敵が少し遅くなる");
         add("time2", Branch.TIME, 2, "自分以外スロー", "武器を速く振っている間、自分以外の時間がぐっと遅くなる(16マス)");
         add("time3", Branch.TIME, 3, "ザ・ワールド", "武器を速く振っている間、自分以外の時間が止まる(20マス)");
+
+        // 斬撃の道：飛ぶ斬撃 → 遠くまで・ブロックも消す → 太くなり、ドロップありで壊す
+        add("slash1", Branch.SLASH, 1, "飛ぶ斬撃", "武器を速く振ると、斬撃が5ブロック飛んで、当たった敵にダメージ");
+        add("slash2", Branch.SLASH, 2, "大斬撃", "斬撃が10ブロック飛び、ダメージも上がる。ブロックもドロップアイテムごと消す");
+        add("slash3", Branch.SLASH, 3, "極太斬撃", "斬撃が太くなってもっと強く。ブロックは壊れてドロップアイテムも出る");
 
     }
 

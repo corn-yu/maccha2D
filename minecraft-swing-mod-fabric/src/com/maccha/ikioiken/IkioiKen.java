@@ -38,6 +38,7 @@ public class IkioiKen implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(ServerSwing::onServerStopped);
         ServerLifecycleEvents.SERVER_STOPPED.register(EnemyStrike::onServerStopped);
         ServerLifecycleEvents.SERVER_STOPPED.register(SkillEffects::onServerStopped);
+        ServerLifecycleEvents.SERVER_STOPPED.register(SlashSkill::onServerStopped);
 
         // 敵の殴りの変更とガード・パリィは mixin（LivingEntityMixin）で差しこむ。
 
@@ -48,6 +49,7 @@ public class IkioiKen implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(EnemyStrike::onServerTick);
         ServerTickEvents.END_SERVER_TICK.register(ServerSwing::onServerTick);
         ServerTickEvents.END_SERVER_TICK.register(SkillEffects::onServerTick);
+        ServerTickEvents.END_SERVER_TICK.register(SlashSkill::onServerTick);
     }
 
     /** 「このスキルを覚えたい」と言われたとき、プレイヤーに覚えさせる。 */

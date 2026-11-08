@@ -47,7 +47,13 @@ public final class SkillEffects {
     private static long tickCounter = 0;
 
     /** 武器を速く振っているとき毎 tick 呼ぶ。覚えているスキルに合わせて効果をかける。 */
-    public static void onFastSwing(ServerPlayer player) {
+    public static void onFastSwing(ServerPlayer player, Vec3 shoulder, Vec3 bladeDir) {
+        // 斬撃の道：斬撃を飛ばす
+        int slashTier = SkillTree.tierOf(player, SkillTree.Branch.SLASH);
+        if (slashTier > 0) {
+            SlashSkill.fire(player, slashTier, shoulder, bladeDir);
+        }
+
         // 2 tick に 1 回だけ（まわりを調べるのは少し重いので）
         Long last = LAST_APPLY.get(player.getUUID());
         if (last != null && tickCounter - last < 2) {
