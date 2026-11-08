@@ -40,6 +40,16 @@ public final class AbilityCommand {
                 .then(Commands.literal("level")
                         .then(Commands.argument("level", IntegerArgumentType.integer(1, WeaponAbilities.MAX_WEAPON_LEVEL))
                                 .executes(context -> setLevel(context.getSource(), IntegerArgumentType.getInteger(context, "level")))))
+                // 全部の能力をつけたネザライト武器一式をもらう（強さ・武器レベルは省略できる）
+                .then(Commands.literal("kit")
+                        .executes(context -> giveKit(context.getSource(), 10, 100))
+                        .then(Commands.argument("abilityLevel", IntegerArgumentType.integer(1, WeaponAbilities.MAX_ABILITY_LEVEL))
+                                .executes(context -> giveKit(context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "abilityLevel"), 100))
+                                .then(Commands.argument("weaponLevel", IntegerArgumentType.integer(1, WeaponAbilities.MAX_WEAPON_LEVEL))
+                                        .executes(context -> giveKit(context.getSource(),
+                                                IntegerArgumentType.getInteger(context, "abilityLevel"),
+                                                IntegerArgumentType.getInteger(context, "weaponLevel"))))))
                 // 能力をぜんぶ消す
                 .then(Commands.literal("clear")
                         .executes(context -> clear(context.getSource())))
@@ -98,5 +108,41 @@ public final class AbilityCommand {
         WeaponAbilities.write(stack, new ArrayList<>(), 1);
         source.sendSuccess(() -> Component.literal("能力を消しました"), false);
         return 1;
+    }
+
+    /** 全部の能力をつけた、こわれないネザライト武器一式を持ち物に入れる。 */
+    private static int giveKit(CommandSourceStack source, int abilityLevel, int weaponLevel) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            return 0;
+        }
+
+        // 一式：剣・斧・つるはし・シャベル・クワ・槍・メイス・トライデント
+        net.minecraft.world.item.Item[] items = {
+                net.minecraft.world.item.Items.NETHERITE_SWORD, net.minecraft.world.item.Items.NETHERITE_AXE,
+                net.minecraft.world.item.Items.NETHERITE_PICKAXE, net.minecraft.world.item.Items.NETHERITE_SHOVEL,
+                net.minecraft.world.item.Items.NETHERITE_HOE, net.minecraft.world.item.Items.NETHERITE_SPEAR,
+                net.minecraft.world.item.Items.MACE, net.minecraft.world.item.Items.TRIDENT };
+
+        // 能力は全部（強さはそろえる）
+        List<WeaponAbilities.Entry> entries = new ArrayList<>();
+        for (WeaponAbilities.Ability ability : WeaponAbilities.all()) {
+            entries.add(new WeaponAbilities.Entry(ability, abilityLevel));
+        }
+
+        int given = 0;
+        for (net.minecraft.world.item.Item item : items) {
+            ItemStack stack = new ItemStack(item);
+            WeaponAbilities.write(stack, entries, weaponLevel);
+            stack.set(net.minecraft.core.component.DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
+            if (!player.getInventory().add(stack)) {
+                player.getInventory().placeItemBackInInventory(stack, net.minecraft.util.Prediction.SERVER_ONLY);
+            }
+            given++;
+        }
+        int count = given;
+        source.sendSuccess(() -> Component.literal("全部の能力（強さ " + abilityLevel + "）・武器レベル " + weaponLevel
+                + " の、こわれないネザライト武器 " + count + " 本をわたしました"), false);
+        return count;
     }
 }
