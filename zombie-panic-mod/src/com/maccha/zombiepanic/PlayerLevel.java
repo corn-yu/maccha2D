@@ -31,8 +31,13 @@ public final class PlayerLevel {
     }
 
     /** いまのレベル（はじめは 1）。 */
-    private static int levelOf(ServerPlayer player) {
+    public static int levelOf(ServerPlayer player) {
         return Math.max(1, player.getPersistentData().getCompound(DATA_KEY).getInt("level"));
+    }
+
+    /** 生きのびた時間でも少しずつ経験値がたまる（1分ごと）。 */
+    public static void addPassiveExp(ServerPlayer player) {
+        addExpForKill(player, PanicConfig.PLAYER_PASSIVE_EXP_BASE + levelOf(player) / PanicConfig.PLAYER_PASSIVE_EXP_DIVISOR);
     }
 
     /** ゾンビをたおして経験値をもらう（ゾンビのレベルぶん）。 */

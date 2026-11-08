@@ -3,6 +3,7 @@ package com.maccha.zombiepanic;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -12,7 +13,7 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 /**
  * ゾンビのレベル。レベルが高いほど 体力・攻撃・かたさ・速さが上がる。
  * 遊ぶ人には「Lv.数字」だけが見える（くわしい強さや能力は見えない）。
- * 時間がたつほど、高いレベルが出やすくなる。
+ * 近くのプレイヤーのレベルが 出てくるゾンビの平均レベルになる。
  */
 public final class ZombieLevel {
 
@@ -38,32 +39,39 @@ public final class ZombieLevel {
         return 0;
     }
 
-    /** あそんだ時間から、出てよいレベルの上限を出す（時間がたつほど 高くなる）。 */
-    public static int maxLevelNow(Zombie zombie) {
+    /** 近くのプレイヤーのレベルを、基準にする（だれも近くにいなければ 全員の平均）。 */
+    public static int baseLevelNear(Zombie zombie) {
         if (!(zombie.level() instanceof ServerLevel level)) {
             return 1;
         }
-        long playedTicks = level.getServer().overworld().getGameTime();
-        return 1 + (int) (playedTicks / PanicConfig.LEVEL_TICKS_PER_STEP);
+        net.minecraft.world.entity.player.Player nearest = level.getNearestPlayer(zombie, 128.0);
+        if (nearest instanceof ServerPlayer player) {
+            return PlayerLevel.levelOf(player);
+        }
+        int sum = 0;
+        int count = 0;
+        for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            sum += PlayerLevel.levelOf(player);
+            count++;
+        }
+        return count == 0 ? 1 : Math.max(1, sum / count);
     }
 
-    /** くじびきでレベルをきめる（低いレベルが多く、高いレベルはまれ）。 */
+    /** くじびきでレベルをきめる（平均が 近くのプレイヤーのレベルになる）。 */
     public static int pickLevel(Zombie zombie) {
-        int maxLevel = maxLevelNow(zombie);
-        double luck = Math.pow(random.nextDouble(), PanicConfig.LEVEL_LUCK_POWER);
-        int level = 1 + (int) (maxLevel * luck);
-        // ごくたまに 上限をこえて変異する
+        int base = baseLevelNear(zombie);
+        double spread = Math.max(1.0, base * PanicConfig.LEVEL_SPREAD);
+        int level = (int) Math.round(base + random.nextGaussian() * spread);
+        // ごくたまに 大きく変異する
         if (random.nextInt(PanicConfig.LEVEL_MUTATION_CHANCE) == 0) {
-            level = (int) (maxLevel * (1.0 + random.nextDouble() * 0.5));
+            level = (int) (base * (1.5 + random.nextDouble()));
         }
         return Math.max(1, Math.min(PanicConfig.LEVEL_MAX, level));
     }
 
     /** レベルに合った能力の段（0〜3）。 */
     public static int tierFor(int level) {
-        if (level >= PanicConfig.LEVEL_FOR_TIER3) {
-            return 3;
-        }
+        // 災厄(Lv100以上)は呼び名だけ。能力の段は 2までにする
         if (level >= PanicConfig.LEVEL_FOR_TIER2) {
             return 2;
         }
@@ -85,14 +93,6 @@ public final class ZombieLevel {
         if (level >= PanicConfig.LEVEL_FOR_TIER2) {
             MobUtil.addBaseAttribute(zombie, Attributes.KNOCKBACK_RESISTANCE, 0.3);
             MobUtil.addForeverEffect(zombie, MobEffects.REGENERATION, 0);
-        }
-        // 100レベをこえたら 見た目も大きく、とても強い
-        if (level >= PanicConfig.LEVEL_FOR_TIER3) {
-            MobUtil.addForeverEffect(zombie, MobEffects.STRENGTH, 1);
-            MobUtil.addForeverEffect(zombie, MobEffects.RESISTANCE, 0);
-            MobUtil.addForeverEffect(zombie, MobEffects.GLOWING, 0);
-            MobUtil.setBaseAttribute(zombie, Attributes.SCALE, Math.max(1.6, scaleOf(zombie)));
-            zombie.setPersistenceRequired();
         }
         setLevelName(zombie);
     }

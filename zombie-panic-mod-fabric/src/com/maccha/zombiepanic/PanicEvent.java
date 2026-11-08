@@ -124,6 +124,12 @@ public final class PanicEvent {
         if (serverTicks % TICKS_PER_SECOND == 0) {
             PlayerPowers.tickEverySecond(server);
         }
+        // 1分ごと: 生きのびた時間の経験値
+        if (serverTicks % (TICKS_PER_SECOND * 60) == 0) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                PlayerLevel.addPassiveExp(player);
+            }
+        }
         if (!curseActive) {
             return;
         }

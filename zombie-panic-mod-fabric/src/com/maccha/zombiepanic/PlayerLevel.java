@@ -26,6 +26,16 @@ public final class PlayerLevel {
         return PanicConfig.PLAYER_EXP_BASE + PanicConfig.PLAYER_EXP_PER_LEVEL * level;
     }
 
+    /** いまのレベル（はじめは 1）。 */
+    public static int levelOf(ServerPlayer player) {
+        return PlayerLevelData.get(player.level().getServer()).entryOf(player.getUUID()).level;
+    }
+
+    /** 生きのびた時間でも少しずつ経験値がたまる（1分ごと）。 */
+    public static void addPassiveExp(ServerPlayer player) {
+        addExpForKill(player, PanicConfig.PLAYER_PASSIVE_EXP_BASE + levelOf(player) / PanicConfig.PLAYER_PASSIVE_EXP_DIVISOR);
+    }
+
     /** ゾンビをたおして経験値をもらう（ゾンビのレベルぶん）。 */
     public static void addExpForKill(ServerPlayer player, int zombieLevel) {
         PlayerLevelData data = PlayerLevelData.get(player.level().getServer());

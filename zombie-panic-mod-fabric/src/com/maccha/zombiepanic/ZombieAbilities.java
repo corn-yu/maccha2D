@@ -166,6 +166,10 @@ public final class ZombieAbilities {
 
         // レベルをきめる（レベルが高いと、能力の段も上がる）
         int level = ZombieLevel.pickLevel(zombie);
+        // 災厄は「Lv100以上のゾンビの呼び名」だけ。災厄の力（段3の能力）は くじでは出さない
+        if (tier == 3) {
+            tier = 2;
+        }
         tier = Math.max(tier, ZombieLevel.tierFor(level));
         if (tier > 0) {
             makeRareZombie(zombie, tier);

@@ -57,10 +57,8 @@ public final class PanicConfig {
 
     // ---------------- ゾンビのレベル（たくさん遊ぶほど 高いレベルが出る） ----------------
 
-    // あそんだ時間 ○tick（20tick = 1秒）ごとに、出るレベルの上限が1ふえる（1200 = 1分）
-    public static final int LEVEL_TICKS_PER_STEP = 20 * 60;
-    // レベルのかたより（大きいほど 低いレベルが多く、高いレベルはまれ）
-    public static final int LEVEL_LUCK_POWER = 5;
+    // 出るレベルのばらつき（近くのプレイヤーのレベル × この割合）。平均は プレイヤーのレベル
+    public static final double LEVEL_SPREAD = 0.35;
     // 上限をこえる「とつぜん変異」の確率（○体に1体）
     public static final int LEVEL_MUTATION_CHANCE = 300;
     // この数字以上のレベルで、能力の段が上がる（段1・段2・段3）
@@ -80,6 +78,9 @@ public final class PanicConfig {
 
     // ---------------- プレイヤーのレベル ----------------
 
+    // 生きのびた時間の経験値（1分ごとに BASE + レベル / DIVISOR）
+    public static final int PLAYER_PASSIVE_EXP_BASE = 2;
+    public static final int PLAYER_PASSIVE_EXP_DIVISOR = 4;
     // いちばん高いレベル
     public static final int PLAYER_LEVEL_MAX = 100;
     // レベルLから次へ行くのに必要な経験値 = PLAYER_EXP_BASE + PLAYER_EXP_PER_LEVEL × L
