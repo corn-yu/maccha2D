@@ -1,1 +1,0 @@
-{"type":"minecraft:block","pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"ikioiken:auto_weapon_forge"}],"conditions":[{"condition":"minecraft:survives_explosion"}]}],"random_sequence":"ikioiken:blocks/auto_weapon_forge"}
