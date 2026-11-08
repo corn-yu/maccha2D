@@ -4,16 +4,18 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
+import com.mojang.serialization.Codec;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentSyncPredicate;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /**
- * スキルツリー。武器ごとに「時間」の道があり、下へ進むほど特殊能力が強くなる。
- * スキルポイントは武器レベルが1上がるごとに1点。覚えたスキルは武器の中に記録する。
+ * スキルツリー。プレイヤーが覚える特殊能力で、「時間」の道を下へ進むほど強くなる。
+ * 覚えるには経験値レベルを使う。覚えたスキルはプレイヤー本人に記録され、死んでも消えない。
  */
 public final class SkillTree {
 
@@ -36,11 +38,18 @@ public final class SkillTree {
         }
     }
 
-    /** スキル 1 つ分（段が上がるほど強く、ポイントも多くいる）。 */
+    /** スキル 1 つ分（段が上がるほど強く、使う経験値レベルも多い）。 */
     public record Node(String id, Branch branch, int tier, String name, String description, int cost) {
     }
 
     public static final List<Node> NODES = new ArrayList<>();
+
+    // 覚えたスキルをプレイヤーに記録する(ワールドに保存・死んでも残る・本人の画面にも届ける)
+    public static final AttachmentType<List<String>> LEARNED = AttachmentRegistry.create(
+            Identifier.fromNamespaceAndPath(IkioiKen.MOD_ID, "learned_skills"),
+            builder -> builder.persistent(Codec.STRING.listOf())
+                    .copyOnDeath()
+                    .syncWith(ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), AttachmentSyncPredicate.targetOnly()));
 
     static {
         // 時間の道：スロー → 自分以外がスロー → 時間停止
@@ -50,9 +59,9 @@ public final class SkillTree {
 
     }
 
-    /** スキルを登録する（段が上がるほどポイントが多い）。 */
+    /** スキルを登録する（使う経験値レベルは 5・10・20）。 */
     private static void add(String id, Branch branch, int tier, String name, String description) {
-        NODES.add(new Node(id, branch, tier, name, description, tier));
+        NODES.add(new Node(id, branch, tier, name, description, tier == 1 ? 5 : tier == 2 ? 10 : 20));
     }
 
     /** 名前からスキルを探す（なければ null）。 */
@@ -65,26 +74,15 @@ public final class SkillTree {
         return null;
     }
 
-    /** 武器に記録されている、覚えたスキルの名前一覧を返す。 */
-    public static Set<String> unlockedIds(ItemStack stack) {
-        Set<String> ids = new LinkedHashSet<>();
-        if (stack.isEmpty()) {
-            return ids;
-        }
-        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data == null) {
-            return ids;
-        }
-        ListTag list = data.copyTag().getCompoundOrEmpty(WeaponAbilities.ROOT).getListOrEmpty("sk");
-        for (int index = 0; index < list.size(); index++) {
-            ids.add(list.getStringOr(index, ""));
-        }
-        return ids;
+    /** プレイヤーが覚えているスキルの名前一覧を返す。 */
+    public static Set<String> unlockedIds(Player player) {
+        List<String> saved = ((net.fabricmc.fabric.api.attachment.v1.AttachmentTarget) player).getAttached(LEARNED);
+        return saved == null ? new LinkedHashSet<>() : new LinkedHashSet<>(saved);
     }
 
     /** その道で、どこまで覚えたか（0〜3）を返す。 */
-    public static int tierOf(ItemStack stack, Branch branch) {
-        Set<String> ids = unlockedIds(stack);
+    public static int tierOf(Player player, Branch branch) {
+        Set<String> ids = unlockedIds(player);
         int best = 0;
         for (Node node : NODES) {
             if (node.branch() == branch && ids.contains(node.id())) {
@@ -94,57 +92,31 @@ public final class SkillTree {
         return best;
     }
 
-    /** 使ったポイントの合計。 */
-    public static int spentPoints(ItemStack stack) {
-        int total = 0;
-        Set<String> ids = unlockedIds(stack);
-        for (Node node : NODES) {
-            if (ids.contains(node.id())) {
-                total += node.cost();
-            }
-        }
-        return total;
-    }
-
-    /** のこりのスキルポイント（武器レベル − 1 − 使った分）。 */
-    public static int freePoints(ItemStack stack) {
-        long total = (long) WeaponAbilities.weaponLevel(stack) - 1L - spentPoints(stack);
-        return (int) Math.max(0L, Math.min(Integer.MAX_VALUE, total));
-    }
-
-    /** 覚えられるかを調べて、だめな理由を返す(覚えられるなら null)。 */
-    public static String whyNot(ItemStack stack, Node node) {
-        if (!WeaponAbilities.canHaveAbilities(stack)) {
-            return "手に武器を持ってね";
-        }
-        if (unlockedIds(stack).contains(node.id())) {
+    /** 覚えられない理由を返す(覚えられるなら null)。 */
+    public static String whyNot(Player player, Node node) {
+        if (unlockedIds(player).contains(node.id())) {
             return "もう覚えているよ";
         }
-        if (node.tier() > 1 && tierOf(stack, node.branch()) < node.tier() - 1) {
+        if (node.tier() > 1 && tierOf(player, node.branch()) < node.tier() - 1) {
             return "ひとつ上のスキルを先に覚えてね";
         }
-        if (freePoints(stack) < node.cost()) {
-            return "スキルポイントが足りないよ(あと " + (node.cost() - freePoints(stack)) + " 点)";
+        if (!player.getAbilities().instabuild && player.experienceLevel < node.cost()) {
+            return "経験値レベルが足りないよ(あと " + (node.cost() - player.experienceLevel) + " レベル)";
         }
         return null;
     }
 
-    /** スキルを覚えて武器に記録する(だめな理由があれば何もしない)。 */
-    public static boolean unlock(ItemStack stack, Node node) {
-        if (whyNot(stack, node) != null) {
+    /** スキルを覚えて、経験値レベルを使う(だめな理由があれば何もしない)。 */
+    public static boolean unlock(ServerPlayer player, Node node) {
+        if (whyNot(player, node) != null) {
             return false;
         }
-        Set<String> ids = unlockedIds(stack);
+        if (!player.getAbilities().instabuild) {
+            player.giveExperienceLevels(-node.cost());
+        }
+        Set<String> ids = unlockedIds(player);
         ids.add(node.id());
-        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-            CompoundTag root = tag.getCompoundOrEmpty(WeaponAbilities.ROOT);
-            ListTag list = new ListTag();
-            for (String id : ids) {
-                list.add(StringTag.valueOf(id));
-            }
-            root.put("sk", list);
-            tag.put(WeaponAbilities.ROOT, root);
-        });
+        ((net.fabricmc.fabric.api.attachment.v1.AttachmentTarget) player).setAttached(LEARNED, new ArrayList<>(ids));
         return true;
     }
 }

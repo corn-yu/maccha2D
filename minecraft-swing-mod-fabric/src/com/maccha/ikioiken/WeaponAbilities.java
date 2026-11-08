@@ -262,14 +262,6 @@ public final class WeaponAbilities {
         }
         root.put("ab", list);
 
-        // 覚えたスキル(スキルツリー)は消さずに引きつぐ
-        ListTag keptSkills = new ListTag();
-        for (String skillId : SkillTree.unlockedIds(stack)) {
-            keptSkills.add(net.minecraft.nbt.StringTag.valueOf(skillId));
-        }
-        if (!keptSkills.isEmpty()) {
-            root.put("sk", keptSkills);
-        }
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.put(ROOT, root));
         refreshLore(stack, entries, weaponLevel);
     }

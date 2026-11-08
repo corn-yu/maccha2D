@@ -296,7 +296,7 @@ public final class ServerSwing {
         playWhooshIfFast(player, state, tipSpeed);
         if (tipSpeed >= SwingConfig.TRAIL_SPEED) {
             // スキルツリーの特殊能力（時間を遅くする・止めるなど）
-            SkillEffects.onFastSwing(player, heldItem);
+            SkillEffects.onFastSwing(player);
             TrailStyle.Style trailStyle = TrailStyle.of(heldItem);
             spawnTrail(player.level(), state.lastBladeDir, bladeDir, state.lastShoulder, shoulder, tipSpeed, state.bladeLength, trailStyle);
 

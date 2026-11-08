@@ -21,6 +21,9 @@ public class IkioiKen implements ModInitializer {
         // 武器合体台のブロックとアイテム
         WeaponForge.register();
 
+        // スキルの記録(プレイヤーに付く)を、ワールドを読みこむ前に登録しておく
+        SkillTree.NODES.size();
+
         // パケットの登録（剣の向きは本人 → サーバー、それ以外はサーバー → 本人の画面）
         PayloadTypeRegistry.serverboundPlay().register(BladePayload.TYPE, BladePayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(HitPayload.TYPE, HitPayload.STREAM_CODEC);
@@ -47,22 +50,21 @@ public class IkioiKen implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(SkillEffects::onServerTick);
     }
 
-    /** 「このスキルを覚えたい」と言われたとき、手に持っている武器に覚えさせる。 */
+    /** 「このスキルを覚えたい」と言われたとき、プレイヤーに覚えさせる。 */
     private static void onSkillUnlock(SkillUnlockPayload payload, ServerPlayNetworking.Context context) {
         net.minecraft.server.level.ServerPlayer player = context.player();
-        net.minecraft.world.item.ItemStack weapon = player.getMainHandItem();
         SkillTree.Node node = SkillTree.find(payload.skillId());
         if (node == null) {
             return;
         }
 
         // 覚えられない理由があれば、やさしく伝える
-        String reason = SkillTree.whyNot(weapon, node);
+        String reason = SkillTree.whyNot(player, node);
         if (reason != null) {
             player.sendOverlayMessage(net.minecraft.network.chat.Component.literal(reason));
             return;
         }
-        SkillTree.unlock(weapon, node);
+        SkillTree.unlock(player, node);
         player.sendOverlayMessage(net.minecraft.network.chat.Component.literal(
                 "スキル「" + node.name() + "」を覚えた！"));
         player.level().playSound(null, player.blockPosition(),

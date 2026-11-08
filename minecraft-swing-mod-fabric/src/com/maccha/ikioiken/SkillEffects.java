@@ -46,8 +46,8 @@ public final class SkillEffects {
     private static final Map<UUID, Long> LAST_APPLY = new HashMap<>();
     private static long tickCounter = 0;
 
-    /** 武器を速く振っているとき毎 tick 呼ぶ。持っている武器のスキルに合わせて効果をかける。 */
-    public static void onFastSwing(ServerPlayer player, ItemStack weapon) {
+    /** 武器を速く振っているとき毎 tick 呼ぶ。覚えているスキルに合わせて効果をかける。 */
+    public static void onFastSwing(ServerPlayer player) {
         // 2 tick に 1 回だけ（まわりを調べるのは少し重いので）
         Long last = LAST_APPLY.get(player.getUUID());
         if (last != null && tickCounter - last < 2) {
@@ -56,7 +56,7 @@ public final class SkillEffects {
         LAST_APPLY.put(player.getUUID(), tickCounter);
 
         // 時間の道：近くの敵を遅くする・止める
-        int timeTier = SkillTree.tierOf(weapon, SkillTree.Branch.TIME);
+        int timeTier = SkillTree.tierOf(player, SkillTree.Branch.TIME);
         if (timeTier > 0) {
             applyTime(player, timeTier);
         }
