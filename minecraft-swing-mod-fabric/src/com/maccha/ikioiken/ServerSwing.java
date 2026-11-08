@@ -292,6 +292,9 @@ public final class ServerSwing {
         // 止めて構えているか（ガード）・さっき速く振ったか（パリィ）
         updateGuard(player, state, bladeDir, tipSpeed);
 
+        // 構えている間は、振っていなくても時間のスロー・停止がかかる
+        SkillEffects.onBladeHeld(player);
+
         // 剣の達人：止めて構えているほど力がたまる
         if (!processingSecondBlade) {
             MasterSkill.onBladeTick(player, tipSpeed);

@@ -183,6 +183,10 @@ public final class SkillEffects {
             SlashSkill.fire(player, slashTier, arc);
         }
 
+    }
+
+    /** 左クリックで武器を構えている間(振っていなくても)毎 tick 呼ぶ。時間の道のスロー・停止がかかる。 */
+    public static void onBladeHeld(ServerPlayer player) {
         // 2 tick に 1 回だけ（まわりを調べるのは少し重いので）
         Long last = LAST_APPLY.get(player.getUUID());
         if (last != null && tickCounter - last < 2) {
