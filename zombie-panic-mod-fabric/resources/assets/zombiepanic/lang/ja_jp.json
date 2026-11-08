@@ -8,5 +8,19 @@
   "item.zombiepanic.cursed_iron_chestplate": "呪鉄のチェストプレート",
   "item.zombiepanic.cursed_iron_leggings": "呪鉄のレギンス",
   "item.zombiepanic.cursed_iron_boots": "呪鉄のブーツ",
-  "item.zombiepanic.ability_stone": "能力の石"
+  "item.zombiepanic.ability_stone": "能力の石",
+  "item.zombiepanic.flame_blade": "炎の剣",
+  "item.zombiepanic.frost_blade": "氷の剣",
+  "item.zombiepanic.thunder_blade": "雷の剣",
+  "item.zombiepanic.vampire_blade": "吸血の剣",
+  "item.zombiepanic.venom_blade": "毒の剣",
+  "item.zombiepanic.gravity_blade": "重力の剣",
+  "item.zombiepanic.blast_blade": "爆発の剣",
+  "item.zombiepanic.wind_blade": "風の剣",
+  "item.zombiepanic.holy_blade": "聖なる剣",
+  "item.zombiepanic.shadow_blade": "影の剣",
+  "item.zombiepanic.time_blade": "時の剣",
+  "item.zombiepanic.meteor_blade": "隕石の剣",
+  "item.zombiepanic.reaper_blade": "死神の鎌",
+  "item.zombiepanic.chain_blade": "連鎖の剣"
 }

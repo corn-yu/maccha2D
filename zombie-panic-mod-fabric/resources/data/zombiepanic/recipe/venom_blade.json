@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " M ",
+    "MSM",
+    " M "
+  ],
+  "key": {
+    "M": "minecraft:spider_eye",
+    "S": "zombiepanic:cursed_iron_sword"
+  },
+  "result": {
+    "id": "zombiepanic:venom_blade",
+    "count": 1
+  }
+}

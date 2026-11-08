@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " M ",
+    "MSM",
+    " M "
+  ],
+  "key": {
+    "M": "minecraft:blue_ice",
+    "S": "zombiepanic:cursed_iron_sword"
+  },
+  "result": {
+    "id": "zombiepanic:frost_blade",
+    "count": 1
+  }
+}
