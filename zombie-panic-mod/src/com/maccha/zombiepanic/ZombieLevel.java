@@ -108,8 +108,8 @@ public final class ZombieLevel {
             name = Component.literal("Lv." + level + " 災厄ゾンビ").withStyle(color, ChatFormatting.BOLD);
         }
         zombie.setCustomName(name);
-        // 高いレベルは、いつも名前を見せる（ふつうは 見つめたときだけ）
-        zombie.setCustomNameVisible(level >= PanicConfig.LEVEL_FOR_TIER2);
+        // 名前（レベル）は、いつも見えるようにする
+        zombie.setCustomNameVisible(true);
     }
 
     /** いまの大きさ。 */

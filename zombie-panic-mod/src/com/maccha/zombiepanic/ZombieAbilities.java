@@ -136,6 +136,12 @@ public final class ZombieAbilities {
     /** 新しく出てきたゾンビに、くじびきで能力をきめる（1体につき1回だけ）。 */
     public static void rollAbility(Zombie zombie) {
         if (zombie.getTags().contains(ROLLED_TAG)) {
+            // 前の版で出たゾンビには、あとからレベルをつける
+            if (ZombieLevel.levelOf(zombie) == 0 && !isIllusion(zombie) && !zombie.getTags().contains(BossZombies.BOSS_TAG)) {
+                int oldLevel = ZombieLevel.pickLevel(zombie);
+                addLevelAbilities(zombie, oldLevel);
+                ZombieLevel.apply(zombie, oldLevel);
+            }
             return;
         }
         zombie.addTag(ROLLED_TAG);
