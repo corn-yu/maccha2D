@@ -26,12 +26,18 @@ public class IkioiKen implements ModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(HitPayload.TYPE, HitPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MotionPayload.TYPE, MotionPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(DamagePayload.TYPE, DamagePayload.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(BowCurvePayload.TYPE, BowCurvePayload.STREAM_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(BladePayload.TYPE, ServerSwing::onBladePayload);
+        ServerPlayNetworking.registerGlobalReceiver(BowCurvePayload.TYPE, BowCurve::onPayload);
 
         // ログアウト・サーバー終了のとき、剣の記録を消す
         ServerPlayConnectionEvents.DISCONNECT.register(ServerSwing::onPlayerLogout);
         ServerLifecycleEvents.SERVER_STOPPED.register(ServerSwing::onServerStopped);
         ServerLifecycleEvents.SERVER_STOPPED.register(EnemyStrike::onServerStopped);
+        ServerLifecycleEvents.SERVER_STOPPED.register(BowCurve::onServerStopped);
+
+        // 弓の矢が出たとき、曲がる矢にする
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register(BowCurve::onEntityLoad);
 
         // 敵の殴りの変更とガード・パリィは mixin（LivingEntityMixin）で差しこむ。
 
@@ -41,5 +47,6 @@ public class IkioiKen implements ModInitializer {
         // 毎 tick の処理（敵のため → 振り、トライデントの斬撃）
         ServerTickEvents.END_SERVER_TICK.register(EnemyStrike::onServerTick);
         ServerTickEvents.END_SERVER_TICK.register(ServerSwing::onServerTick);
+        ServerTickEvents.END_SERVER_TICK.register(BowCurve::onServerTick);
     }
 }
