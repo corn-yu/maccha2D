@@ -49,6 +49,18 @@ public final class SkillEffects {
 
     private static final Map<UUID, Frozen> FROZEN = new HashMap<>();
     private static final Map<UUID, Long> LAST_APPLY = new HashMap<>();
+
+    // 時間の道が働いている最後の tick と段(斬撃の速さを合わせるため)
+    private static final Map<UUID, long[]> TIME_ACTIVE = new HashMap<>();
+
+    /** 斬撃などの進む速さの倍率。時間の道が働いている間は、1段目＝0.6倍・2段目＝0.25倍・3段目＝止まる(0倍)。 */
+    public static double timeScaleFor(UUID playerId) {
+        long[] active = TIME_ACTIVE.get(playerId);
+        if (active == null || tickCounter - active[0] > 3) {
+            return 1.0;
+        }
+        return active[1] == 1 ? 0.6 : active[1] == 2 ? 0.25 : 0.0;
+    }
     private static long tickCounter = 0;
 
     /** 武器を速く振っているとき毎 tick 呼ぶ。覚えているスキルに合わせて効果をかける。 */
@@ -69,6 +81,7 @@ public final class SkillEffects {
         // 時間の道：近くの敵を遅くする・止める
         int timeTier = SkillTree.tierOf(player, SkillTree.Branch.TIME);
         if (timeTier > 0) {
+            TIME_ACTIVE.put(player.getUUID(), new long[] {tickCounter, timeTier});
             applyTime(player, timeTier);
         }
     }
@@ -173,5 +186,6 @@ public final class SkillEffects {
         }
         FROZEN.clear();
         LAST_APPLY.clear();
+        TIME_ACTIVE.clear();
     }
 }

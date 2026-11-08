@@ -106,7 +106,9 @@ public final class SlashSkill {
 
     /** 斬撃を 1 tick 分進める。終わったら true を返す。 */
     private static boolean advance(Slash slash, ServerPlayer owner) {
-        for (double moved = 0.0; moved < SPEED_PER_TICK; moved += STEP) {
+        // 時間がゆっくり・止まっている間は、斬撃も遅くなる・空中で止まる(振るのをやめると動きだす)
+        double moveLimit = SPEED_PER_TICK * SkillEffects.timeScaleFor(slash.ownerId);
+        for (double moved = 0.0; moved < moveLimit; moved += STEP) {
             if (slash.travelled >= slash.range) {
                 return true;
             }
