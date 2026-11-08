@@ -841,11 +841,12 @@ public final class ServerSwing {
         float healthBefore = rootTarget instanceof LivingEntity living ? living.getHealth() + living.getAbsorptionAmount() : 0.0f;
 
         // ふつうの攻撃と同じしくみで攻撃する（どの Mod のモブにも効く・剣の特殊効果も出る）
+        SkillEffects.resetDeferred();
         attackWithMomentum(player, target, momentumFactor);
 
         // 与えたダメージ
         float dealtDamage = rootTarget instanceof LivingEntity living
-                ? healthBefore - (living.getHealth() + living.getAbsorptionAmount()) : 0.0f;
+                ? healthBefore - (living.getHealth() + living.getAbsorptionAmount()) + SkillEffects.deferredAmount() : 0.0f;
         if (rootTarget instanceof LivingEntity && dealtDamage <= 0.0f && rootTarget.isAlive()) {
             return false;
         }
@@ -1253,6 +1254,10 @@ public final class ServerSwing {
         // 壊す（ドロップ・道具の耐久・保護エリアなどはふつうに掘ったときと同じ）
         playerCracks.remove(pos);
         showCracks(player, level, pos, -1);
+        // 時間停止中は、壊れるのを解除後まで後回しにする
+        if (SkillEffects.deferBlockBreak(player, level, pos)) {
+            return true;
+        }
         boolean broken = player.gameMode.destroyBlock(pos);
         if (broken) {
             Net.sendToPlayer(player, new HitPayload(0.4f));

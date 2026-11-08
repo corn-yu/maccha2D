@@ -77,7 +77,7 @@ public final class MasterSkill {
         }
 
         // 少し動けなくして、毒のような継続ダメージ(ウィザー)を与える
-        SkillEffects.freeze(target, 20);
+        SkillEffects.freeze(target, 20, player.getUUID(), false);
         target.addEffect(new MobEffectInstance(MobEffects.WITHER, 80, 0, false, true, false));
 
         // 10 ダメージをこえた一撃は、当てた場所が真っ二つ(同じだけの追加ダメージ)

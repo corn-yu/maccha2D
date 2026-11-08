@@ -38,6 +38,9 @@ public final class SkillEffects {
         long untilTick;
         final boolean hadNoAi;
         final boolean hadNoGravity;
+        UUID ownerId;
+        boolean deferDamage;
+        float pendingDamage;
 
         Frozen(Entity entity, long untilTick, boolean hadNoAi, boolean hadNoGravity) {
             this.entity = entity;
@@ -48,6 +51,89 @@ public final class SkillEffects {
     }
 
     private static final Map<UUID, Frozen> FROZEN = new HashMap<>();
+
+    // 時間停止中に受けたダメージを後回しにする：この一撃で後回しにした量・解除後のダメージを出しているところか
+    private static float deferredThisHit = 0.0f;
+    private static boolean releasing = false;
+
+    /** 一撃の前に呼ぶ。この一撃で後回しにした量を 0 にもどす。 */
+    public static void resetDeferred() {
+        deferredThisHit = 0.0f;
+    }
+
+    /** この一撃で後回しにしたダメージの量(ダメージの数字や能力に使う)。 */
+    public static float deferredAmount() {
+        return deferredThisHit;
+    }
+
+    /** ダメージを受ける直前に呼ばれる。時間停止中の敵が、停止させた本人から受けるダメージは、いったんためて解除後に出す。 */
+    public static boolean allowDamage(net.minecraft.world.entity.LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        if (releasing || amount <= 0.0f) {
+            return true;
+        }
+        Frozen frozen = FROZEN.get(entity.getUUID());
+        if (frozen == null || !frozen.deferDamage || !(source.getEntity() instanceof ServerPlayer attacker)
+                || !attacker.getUUID().equals(frozen.ownerId)) {
+            return true;
+        }
+        frozen.pendingDamage += amount;
+        deferredThisHit += amount;
+        return false;
+    }
+
+    // 時間停止中に壊すはずだったブロック(持ち主ごと)。解除後にまとめて壊す
+    private record PendingBlock(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) {
+    }
+
+    private static final Map<UUID, List<PendingBlock>> PENDING_BLOCKS = new HashMap<>();
+
+    /** 時間停止中か(ザ・ワールドを使っている間)。 */
+    public static boolean isTimeStopped(UUID playerId) {
+        return timeScaleFor(playerId) == 0.0;
+    }
+
+    /** 時間停止中なら、ブロックを壊すのを後回しにして true を返す(止まっていなければ何もしない)。 */
+    public static boolean deferBlockBreak(ServerPlayer player, net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) {
+        if (!isTimeStopped(player.getUUID())) {
+            return false;
+        }
+        List<PendingBlock> list = PENDING_BLOCKS.computeIfAbsent(player.getUUID(), id -> new ArrayList<>());
+        PendingBlock pending = new PendingBlock(level, pos.immutable());
+        if (!list.contains(pending)) {
+            list.add(pending);
+        }
+        return true;
+    }
+
+    /** 時間停止が解けたら、ためていたブロックをまとめて壊す。 */
+    private static void releaseBlocks(MinecraftServer server) {
+        if (PENDING_BLOCKS.isEmpty()) {
+            return;
+        }
+        List<UUID> done = new ArrayList<>();
+        for (Map.Entry<UUID, List<PendingBlock>> entry : PENDING_BLOCKS.entrySet()) {
+            if (isTimeStopped(entry.getKey())) {
+                continue;
+            }
+            ServerPlayer owner = server.getPlayerList().getPlayer(entry.getKey());
+            if (owner != null) {
+                for (PendingBlock pending : entry.getValue()) {
+                    if (pending.level() == owner.level() && !pending.level().getBlockState(pending.pos()).isAir()) {
+                        owner.gameMode.destroyBlock(pending.pos());
+                    }
+                }
+            }
+            done.add(entry.getKey());
+        }
+        for (UUID id : done) {
+            PENDING_BLOCKS.remove(id);
+        }
+    }
+
+    /** サーバーの起動時に、ダメージを後回しにする仕組みを登録する。 */
+    public static void register() {
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register(SkillEffects::allowDamage);
+    }
     private static final Map<UUID, Long> LAST_APPLY = new HashMap<>();
 
     // 時間の道が働いている最後の tick と段(斬撃の速さを合わせるため)
@@ -105,7 +191,7 @@ public final class SkillEffects {
                 continue;
             }
             if (tier == 3) {
-                freeze(entity, 8);
+                freeze(entity, 8, player.getUUID(), true);
             } else if (entity instanceof LivingEntity living) {
                 // 1 段目はすこし遅く、2 段目はほとんど動けない
                 living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, tier == 1 ? 1 : 5, true, false, false));
@@ -128,7 +214,7 @@ public final class SkillEffects {
     }
 
     /** 相手の時間を止める(動き・頭・重力を止める。終わったら元にもどす)。 */
-    static void freeze(Entity entity, int ticks) {
+    static void freeze(Entity entity, int ticks, UUID ownerId, boolean deferDamage) {
         Frozen frozen = FROZEN.get(entity.getUUID());
         long until = tickCounter + Math.max(ticks, 24);
         if (frozen != null) {
@@ -137,6 +223,10 @@ public final class SkillEffects {
             boolean hadNoAi = entity instanceof Mob mob && mob.isNoAi();
             frozen = new Frozen(entity, until, hadNoAi, entity.isNoGravity());
             FROZEN.put(entity.getUUID(), frozen);
+        }
+        if (deferDamage) {
+            frozen.deferDamage = true;
+            frozen.ownerId = ownerId;
         }
         if (entity instanceof Mob mob) {
             mob.setNoAi(true);
@@ -148,6 +238,7 @@ public final class SkillEffects {
     /** 毎 tick 呼ぶ。時間停止が終わった物を元にもどす。 */
     public static void onServerTick(MinecraftServer server) {
         tickCounter++;
+        releaseBlocks(server);
         if (FROZEN.isEmpty()) {
             return;
         }
@@ -158,6 +249,7 @@ public final class SkillEffects {
                 finished.add(entry.getKey());
             } else if (frozen.untilTick <= tickCounter) {
                 restore(frozen);
+                releaseDamage(server, frozen);
                 finished.add(entry.getKey());
             } else {
                 // 止めている間は、動きもゼロにしつづける
@@ -167,6 +259,25 @@ public final class SkillEffects {
         for (UUID id : finished) {
             FROZEN.remove(id);
         }
+    }
+
+    /** 時間停止が解けたとき、ためていたダメージを一気に出す。 */
+    private static void releaseDamage(MinecraftServer server, Frozen frozen) {
+        if (frozen.pendingDamage <= 0.0f || !(frozen.entity instanceof LivingEntity target) || !target.isAlive()
+                || !(target.level() instanceof net.minecraft.server.level.ServerLevel level)) {
+            return;
+        }
+        ServerPlayer owner = frozen.ownerId == null ? null : server.getPlayerList().getPlayer(frozen.ownerId);
+        releasing = true;
+        try {
+            target.setInvulnerableTime(0);
+            target.hurtServer(level, owner != null ? level.damageSources().indirectMagic(owner, owner) : level.damageSources().magic(), frozen.pendingDamage);
+        } finally {
+            releasing = false;
+        }
+        level.sendParticles(net.minecraft.core.particles.ParticleTypes.CRIT, target.getX(), target.getY() + target.getBbHeight() / 2.0, target.getZ(), 40, 0.5, 0.5, 0.5, 0.4);
+        level.sendParticles(net.minecraft.core.particles.ParticleTypes.EXPLOSION, target.getX(), target.getY() + target.getBbHeight() / 2.0, target.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
+        level.playSound(null, target.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_ATTACK_CRIT, net.minecraft.sounds.SoundSource.PLAYERS, 1.0f, 0.7f);
     }
 
     /** 止めていた物を動けるようにもどす。 */
@@ -187,5 +298,6 @@ public final class SkillEffects {
         FROZEN.clear();
         LAST_APPLY.clear();
         TIME_ACTIVE.clear();
+        PENDING_BLOCKS.clear();
     }
 }
