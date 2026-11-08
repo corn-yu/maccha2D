@@ -193,7 +193,17 @@ public final class PanicEvent {
     /** 毎tick、能力ゾンビ（と、よんだゴーレム）を動かす。 */
     private static void tickAllZombies(MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
+            // 動かしている途中で ゾンビが増えたり消えたりするので、先に写してから回す
+            List<Entity> snapshot = new ArrayList<>();
             for (Entity entity : level.getAllEntities()) {
+                if (entity != null) {
+                    snapshot.add(entity);
+                }
+            }
+            for (Entity entity : snapshot) {
+                if (entity.isRemoved()) {
+                    continue;
+                }
                 if (entity instanceof Zombie zombie) {
                     ZombieAbilities.tickAbilities(zombie);
                 } else if (entity.entityTags().contains(PlayerPowers.HELPER_GOLEM_TAG)) {
