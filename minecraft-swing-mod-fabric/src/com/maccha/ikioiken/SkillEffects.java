@@ -141,9 +141,24 @@ public final class SkillEffects {
         }
     }
 
+    /** ダメージを受けたら、どんなダメージでも(能力・斬撃・毒・落下など)、その生き物から数字を出す。 */
+    private static void showAnyDamage(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source,
+                                      float baseDamage, float damageTaken, boolean blocked) {
+        // ふつうの振りの当たりは、専用の数字を別に出しているので重ねない。解除後のまとめ出しも、数字はすでに出ている
+        if (damageTaken <= 0.0f || releasing || ServerSwing.isAttackingWithMomentum()) {
+            return;
+        }
+        double height = entity.getBbHeight();
+        DamagePayload payload = new DamagePayload(entity.getX() + (entity.getRandom().nextDouble() - 0.5) * 0.6,
+                entity.getY() + height * 0.8, entity.getZ() + (entity.getRandom().nextDouble() - 0.5) * 0.6,
+                damageTaken, damageTaken >= 10.0f ? DamagePayload.STRONG : DamagePayload.NORMAL);
+        Net.sendToPlayersTrackingEntityAndSelf(entity, payload);
+    }
+
     /** サーバーの起動時に、ダメージを後回しにする仕組みを登録する。 */
     public static void register() {
         net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register(SkillEffects::allowDamage);
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.AFTER_DAMAGE.register(SkillEffects::showAnyDamage);
     }
     private static final Map<UUID, Long> LAST_APPLY = new HashMap<>();
 
