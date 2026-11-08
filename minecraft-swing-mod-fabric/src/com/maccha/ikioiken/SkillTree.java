@@ -12,7 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
 /**
- * スキルツリー。武器ごとに「時間・力・命・風」の4本の道があり、下へ進むほど特殊能力が強くなる。
+ * スキルツリー。武器ごとに「時間」の道があり、下へ進むほど特殊能力が強くなる。
  * スキルポイントは武器レベルが1上がるごとに1点。覚えたスキルは武器の中に記録する。
  */
 public final class SkillTree {
@@ -22,7 +22,7 @@ public final class SkillTree {
 
     /** 道の種類。 */
     public enum Branch {
-        TIME("時間"), POWER("力"), LIFE("命"), WIND("風");
+        TIME("時間");
 
         private final String label;
 
@@ -48,20 +48,6 @@ public final class SkillTree {
         add("time2", Branch.TIME, 2, "自分以外スロー", "武器を速く振っている間、自分以外の時間がぐっと遅くなる(16マス)");
         add("time3", Branch.TIME, 3, "ザ・ワールド", "武器を速く振っている間、自分以外の時間が止まる(20マス)");
 
-        // 力の道：当てたときのダメージが上がる
-        add("power1", Branch.POWER, 1, "力の目覚め", "当てたダメージが 1.2 倍");
-        add("power2", Branch.POWER, 2, "剛力", "当てたダメージが 1.5 倍");
-        add("power3", Branch.POWER, 3, "破壊神", "当てたダメージが 2 倍");
-
-        // 命の道：振っている間、体が守られる
-        add("life1", Branch.LIFE, 1, "ねばり強さ", "武器を速く振っている間、ダメージを少し減らす");
-        add("life2", Branch.LIFE, 2, "鉄の心", "さらにダメージを減らし、体力がじわじわ回復する");
-        add("life3", Branch.LIFE, 3, "不死身", "ダメージをぐっと減らし、回復が速くなり、黄色いハートがつく");
-
-        // 風の道：振っている間、身軽になる
-        add("wind1", Branch.WIND, 1, "軽い足", "武器を速く振っている間、足が速くなる");
-        add("wind2", Branch.WIND, 2, "疾風", "足がもっと速くなり、高くジャンプできる");
-        add("wind3", Branch.WIND, 3, "瞬歩", "足がとても速くなり、高く跳べて、落ちてもダメージなし");
     }
 
     /** スキルを登録する（段が上がるほどポイントが多い）。 */
@@ -160,15 +146,5 @@ public final class SkillTree {
             tag.put(WeaponAbilities.ROOT, root);
         });
         return true;
-    }
-
-    /** 当てたダメージにかける倍率(力の道)。 */
-    public static double damageMultiplier(ItemStack stack) {
-        return switch (tierOf(stack, Branch.POWER)) {
-            case 1 -> 1.2;
-            case 2 -> 1.5;
-            case 3 -> 2.0;
-            default -> 1.0;
-        };
     }
 }

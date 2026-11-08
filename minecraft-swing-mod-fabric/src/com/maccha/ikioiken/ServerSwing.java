@@ -764,9 +764,6 @@ public final class ServerSwing {
         // 武器のレベルが高いほどダメージが上がる
         momentumFactor *= 1.0 + SwingConfig.WEAPON_LEVEL_DAMAGE_BONUS * (WeaponAbilities.weaponLevel(player.getMainHandItem()) - 1);
 
-        // スキルツリー（力の道）でダメージが上がる
-        momentumFactor *= SkillTree.damageMultiplier(player.getMainHandItem());
-
         // パリィのすぐあとなら反撃ボーナス
         boolean isCounter = player.tickCount <= state.counterUntilTick;
         if (isCounter) {

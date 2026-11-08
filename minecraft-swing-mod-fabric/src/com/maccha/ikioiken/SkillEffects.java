@@ -60,30 +60,6 @@ public final class SkillEffects {
         if (timeTier > 0) {
             applyTime(player, timeTier);
         }
-
-        // 命の道：ダメージ軽減・回復・黄色いハート
-        int lifeTier = SkillTree.tierOf(weapon, SkillTree.Branch.LIFE);
-        if (lifeTier >= 1) {
-            giveEffect(player, MobEffects.RESISTANCE, lifeTier == 3 ? 2 : lifeTier == 2 ? 1 : 0);
-        }
-        if (lifeTier >= 2) {
-            giveEffect(player, MobEffects.REGENERATION, lifeTier == 3 ? 2 : 0);
-        }
-        if (lifeTier == 3) {
-            giveEffect(player, MobEffects.ABSORPTION, 3);
-        }
-
-        // 風の道：足が速くなる・高く跳べる・落下ダメージなし
-        int windTier = SkillTree.tierOf(weapon, SkillTree.Branch.WIND);
-        if (windTier >= 1) {
-            giveEffect(player, MobEffects.SPEED, windTier == 3 ? 2 : windTier == 2 ? 1 : 0);
-        }
-        if (windTier >= 2) {
-            giveEffect(player, MobEffects.JUMP_BOOST, windTier == 3 ? 2 : 0);
-        }
-        if (windTier == 3) {
-            player.resetFallDistance();
-        }
     }
 
     /** 自分に効果をかける(見た目の粒は出さない、短い時間なので振るのをやめるとすぐ切れる)。 */
