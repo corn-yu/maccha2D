@@ -67,23 +67,6 @@ public final class ModContent {
     public static final Supplier<Item> CURSED_IRON_BOOTS = registerItem("cursed_iron_boots", Item::new,
             props -> props.humanoidArmor(CURSED_ARMOR_MATERIAL, ArmorType.BOOTS));
 
-    // ---------------- 特殊武器（最後の砦） ----------------
-
-    public static final Supplier<Item> FLAME_BLADE = registerSpecial(SpecialWeaponItem.Kind.FLAME_BLADE);
-    public static final Supplier<Item> FROST_BLADE = registerSpecial(SpecialWeaponItem.Kind.FROST_BLADE);
-    public static final Supplier<Item> THUNDER_BLADE = registerSpecial(SpecialWeaponItem.Kind.THUNDER_BLADE);
-    public static final Supplier<Item> VAMPIRE_BLADE = registerSpecial(SpecialWeaponItem.Kind.VAMPIRE_BLADE);
-    public static final Supplier<Item> VENOM_BLADE = registerSpecial(SpecialWeaponItem.Kind.VENOM_BLADE);
-    public static final Supplier<Item> GRAVITY_BLADE = registerSpecial(SpecialWeaponItem.Kind.GRAVITY_BLADE);
-    public static final Supplier<Item> BLAST_BLADE = registerSpecial(SpecialWeaponItem.Kind.BLAST_BLADE);
-    public static final Supplier<Item> WIND_BLADE = registerSpecial(SpecialWeaponItem.Kind.WIND_BLADE);
-    public static final Supplier<Item> HOLY_BLADE = registerSpecial(SpecialWeaponItem.Kind.HOLY_BLADE);
-    public static final Supplier<Item> SHADOW_BLADE = registerSpecial(SpecialWeaponItem.Kind.SHADOW_BLADE);
-    public static final Supplier<Item> TIME_BLADE = registerSpecial(SpecialWeaponItem.Kind.TIME_BLADE);
-    public static final Supplier<Item> METEOR_BLADE = registerSpecial(SpecialWeaponItem.Kind.METEOR_BLADE);
-    public static final Supplier<Item> REAPER_BLADE = registerSpecial(SpecialWeaponItem.Kind.REAPER_BLADE);
-    public static final Supplier<Item> CHAIN_BLADE = registerSpecial(SpecialWeaponItem.Kind.CHAIN_BLADE);
-
     // 能力の石（うばった大技を使う）
     public static final Supplier<Item> ABILITY_STONE = registerItem("ability_stone", AbilityStoneItem::new,
             props -> props.stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC));
@@ -107,8 +90,7 @@ public final class ModContent {
     public static void register() {
         addToCreativeTab("ingredients", CURSED_IRON_NUGGET, CURSED_IRON_INGOT);
         addToCreativeTab("combat", CURSED_IRON_SWORD, CURSED_IRON_AXE, CURSED_IRON_HELMET, CURSED_IRON_CHESTPLATE,
-                CURSED_IRON_LEGGINGS, CURSED_IRON_BOOTS, ABILITY_STONE,
-                FLAME_BLADE, FROST_BLADE, THUNDER_BLADE, VAMPIRE_BLADE, VENOM_BLADE, GRAVITY_BLADE, BLAST_BLADE, WIND_BLADE, HOLY_BLADE, SHADOW_BLADE, TIME_BLADE, METEOR_BLADE, REAPER_BLADE, CHAIN_BLADE);
+                CURSED_IRON_LEGGINGS, CURSED_IRON_BOOTS, ABILITY_STONE);
         addToCreativeTab("tools_and_utilities", CURSED_IRON_PICKAXE, CURSED_IRON_AXE);
     }
 
@@ -128,12 +110,6 @@ public final class ModContent {
         ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id(name));
         Item item = Registry.register(BuiltInRegistries.ITEM, key, factory.apply(settings.apply(new Item.Properties().setId(key))));
         return () -> item;
-    }
-
-    /** 特殊武器を1つ登録する（呪鉄の剣と同じ強さの剣）。 */
-    private static Supplier<Item> registerSpecial(SpecialWeaponItem.Kind kind) {
-        return registerItem(kind.id, props -> new SpecialWeaponItem(props, kind),
-                props -> props.sword(CURSED_TIER, kind.attackDamage, -2.4f).rarity(net.minecraft.world.item.Rarity.RARE));
     }
 
     /** よろいの部位ごとの守り（ダイヤ＋α）。 */
