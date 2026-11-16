@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>まっちゃリズム</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 曲をえらぶ画面 -->
+  <section class="screen" id="selectScreen">
+    <h1>まっちゃリズム</h1>
+    <p class="lead">曲とむずかしさをえらんでね！</p>
+    <div id="songList"></div>
+    <div id="timingBox">
+      <span>タイミング調整</span>
+      <button id="timingMinusButton">−</button>
+      <b id="timingValue">0</b>
+      <button id="timingPlusButton">＋</button>
+      <small>音より早く流れてくるなら ＋、おそいなら −</small>
+    </div>
+    <p class="howto">キーボードは <b>D F J K</b>、スマホはレーンをタッチ！<br>ノーツが下の線に重なった時におしてね。</p>
+  </section>
+
+  <!-- あそぶ画面 -->
+  <section class="screen hidden" id="playScreen">
+    <canvas id="canvas" width="480" height="720"></canvas>
+    <button id="quitButton">やめる</button>
+  </section>
+
+  <!-- 結果の画面 -->
+  <section class="screen hidden" id="resultScreen">
+    <h2 id="resultTitle"></h2>
+    <div id="resultRank"></div>
+    <div id="resultScore"></div>
+    <div id="resultRecord"></div>
+    <table id="resultTable"></table>
+    <div class="buttons">
+      <button id="retryButton">もう一回</button>
+      <button id="backButton">曲をえらぶ</button>
+    </div>
+  </section>
+
+</div>
+<script src="songs.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
